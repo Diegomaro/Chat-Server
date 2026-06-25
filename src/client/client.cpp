@@ -13,6 +13,7 @@ Client::Client(){
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     memset(&msg_buffer, 0, sizeof(msg_buffer));
+    memset(&msg, 0, sizeof(msg));
     server_addr_len = sizeof(server_addr);
     msg_len = strlen(msg);
 }
@@ -36,6 +37,24 @@ bool Client::setupSocket(){
         return false;
     }
     freeaddrinfo(server_info);
+    return true;
+}
+
+bool Client::setMessage(std::string message){
+    if(message.empty() || !msg){
+        return false;
+    }
+    int message_length = 0;
+    if(message.length() > 1023){
+        message_length = 1023;
+    } else{
+        message_length = message.length();
+    }
+    for(int i = 0; i < message_length; i++){
+        msg[i] = message[i];
+    }
+    msg[message_length] = '\0';
+    msg_len = message_length;
     return true;
 }
 

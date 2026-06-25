@@ -36,7 +36,7 @@ class Server{
 
         char msg_buffer [1024];
 
-        const char* ack_msg = "Message received";
+        const char* ack_msg = "OK";
         int ack_msg_len;
 
         struct sockaddr_storage peer_addr;

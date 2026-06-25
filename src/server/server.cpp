@@ -63,7 +63,9 @@ bool Server::awaitConnection(){
 }
 
 bool Server::closeConnection(){
-    close(peer_sockets[0]);
+    if(close(peer_sockets[0]) == -1){
+        return false;
+    }
     return true;
 }
 

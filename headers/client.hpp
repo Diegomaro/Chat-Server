@@ -14,9 +14,10 @@ class Client{
 
         // data transmission
         bool receiveFromServer();
+        bool setMessage(std::string message);
         bool sendMessage();
 
-        // info on host and peer
+        // info on host
         bool getHostName();
     private:
         struct addrinfo hints;
@@ -26,7 +27,7 @@ class Client{
 
         char host_name [1024];
 
-        const char* msg = "Sending something to server.";
+        char msg [1024];
         int msg_len;
 
         char msg_buffer [1024];
