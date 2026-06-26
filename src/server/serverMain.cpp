@@ -4,26 +4,23 @@
 int main(){
     Server server;
     int ans = 1;
+    int receive_state = 0;
+
     if(server.setupListenerSocket()){
-        server.awaitConnection();
-        while(ans != 0){
-            if(!server.receiveFromPeer()){
+        server.loopConnections();
+        /*while(ans != 0){
+            if((receive_state = server.receiveFromClient()) == Constants::ERROR_RETURN){
                 std::cout << "Connection failed!" << std::endl;
-                return 0;
+                return 1;
+            } else if(receive_state == Constants::CLOSED_RETURN){
+                std::cout << "Client closed connection!" << std::endl;
+                break;
             }
             if(!server.sendAcknowledgement()){
                 std::cout << "Could not send acknowledgement!" << std::endl;
                 return 0;
             }
-            std::cout << "Input 0 if you do not want to receive any more messages. Input 1 if you want to receive more messages." << std::endl;
-            std::cin >> ans;
-            if(ans == 0){
-                std::cout << "Connection will be terminated" << std::endl;
-
-                server.closeConnection();
-                break;
-            }
-        }
+        }*/
     }
     return 0;
 }

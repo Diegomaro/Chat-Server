@@ -2,6 +2,8 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
+#include <sys/epoll.h>
+
 #include "constants.hpp"
 
 class Server{
@@ -13,12 +15,14 @@ class Server{
         bool setupListenerSocket();
 
         // connections to peers
-        bool awaitConnection();
-        bool closeConnection();
+        bool loopConnections();
+        bool acceptConnection();
+        bool closeConnection(int client_socket);
 
         // data transmission
-        bool receiveFromPeer();
-        bool sendAcknowledgement();
+        int receiveFromClient(int client_socket);
+        bool printMessageFromClient();
+        bool sendAcknowledgement(int client_socket);
 
         // info on host and peer
         bool getHostName();
@@ -28,17 +32,19 @@ class Server{
         struct addrinfo hints;
         struct addrinfo *res;
 
-        int listener_socket;
-        int peer_sockets [Constants::HOST_TOTAL];
+        int listener_socket, epoll_socket;
 
         char host_name [1024];
         char peer_name [1024];
 
+        int bytes_received;
         char msg_buffer [1024];
 
-        const char* ack_msg = "OK";
-        int ack_msg_len;
+        int client_sockets [Constants::HOST_TOTAL];
+        int current_client = 0;
+        struct sockaddr_storage client_addr;
+        socklen_t client_addr_len;
 
-        struct sockaddr_storage peer_addr;
-        socklen_t peer_addr_len;
+        struct epoll_event ev;
+        struct epoll_event events[20];
 };
