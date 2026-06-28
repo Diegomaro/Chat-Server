@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <cstring>
 #include <iostream>
 #include <cerrno>
 
@@ -26,10 +27,7 @@ Server::Server(){
     client_addr_length = sizeof(client_addr);
 
     listener_socket = 0;
-    for(int i = 0; i < Constants::HOST_TOTAL; i++){
-        client_sockets[i] = -1;
-    }
-    current_client = 0;
+    pending_client = 0;
 
     epoll_fd = 0;
 
@@ -48,13 +46,30 @@ Server::~Server(){
     }
     if(epoll_fd != -1){
         close(epoll_fd);
-
     }
-    for(int i = 0; i < Constants::HOST_TOTAL; i++){
-        if(client_sockets[i] != -1){
-            close(client_sockets[i]);
+    /*
+    LinkedList<HashTable::HashData> table;
+    for(int i = 0; i < client_sockets.getSize(); i++){
+
+        client_sockets[i].resetNodeIndex();
+        while(oldTable[i].hasNode()){
+            HashData tmpData = oldTable[i].getNode();
+            oldTable[i].advanceNode();
+            insertNode(tmpData.key, tmpData.data);
         }
     }
+
+        if(client_sockets.getNode(i). != -1){
+            close(client_sockets[i]);
+        }
+    }*/
+}
+
+bool Server::setupHashTable(){
+    if(!client_sockets.createTable(16)) {
+        return false;
+    }
+    return true;
 }
 
 bool Server::setupListenerSocket(){
@@ -109,7 +124,7 @@ bool Server::loopConnections(){
                     accept_state = acceptConnection();
                     switch(accept_state){
                         case Constants::SUCCESS:{
-                            if(!printClientInformation(client_sockets[current_client - 1])){
+                            if(!printClientInformation(pending_client)){
                                 return false;
                             }
                         } break;
@@ -130,7 +145,6 @@ bool Server::loopConnections(){
                 receive_loop = true;
                 while(receive_loop){
                     rcvf_state = receiveFromClient(events[i].data.fd);
-
                     switch(rcvf_state){
                         case Constants::SUCCESS:{
                             if(!printMessageFromClient()){
@@ -150,7 +164,7 @@ bool Server::loopConnections(){
                                     return false;
                                 } break;
                             }
-                            return true;
+                            //return true; // to test for memory leaks
                             receive_loop = false;
                         } break;
                         case Constants::INVALID_CLIENT: {
@@ -175,10 +189,11 @@ bool Server::loopConnections(){
 
 // returns EXCEEDED_CLIENT_MAX, NOTHING_TO_READ, PERROR, SUCCESS
 int Server::acceptConnection(){
-    if(current_client + 1 >= Constants::HOST_TOTAL){
+    if(client_sockets.getDataCount() + 1 >= Constants::MAX_HOSTS){
         return Constants::EXCEEDED_CLIENT_MAX;
     }
-    if((client_sockets[current_client] = accept(listener_socket, (struct sockaddr *)&client_sockaddr, &client_sockaddr_len)) == -1){
+    pending_client = 0;
+    if((pending_client = accept(listener_socket, (struct sockaddr *)&client_sockaddr, &client_sockaddr_len)) == -1){
         int error = errno;
         if(error == EAGAIN || error == EWOULDBLOCK){
             return Constants::NOTHING_TO_READ;
@@ -187,17 +202,20 @@ int Server::acceptConnection(){
             return Constants::PERROR;
         }
     }
-    if(fcntl(client_sockets[current_client], F_SETFL, O_NONBLOCK) == -1){
+    if(!addClient()){
+        return Constants::EXCEEDED_CLIENT_MAX; // modify error
+    }
+
+    if(fcntl(pending_client, F_SETFL, O_NONBLOCK) == -1){
         perror("non blocking failed");
         return Constants::PERROR;
     }
-    ev.data.fd = client_sockets[current_client];
+    ev.data.fd = pending_client;
     ev.events = EPOLLIN | EPOLLET;
-    if(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_sockets[current_client], &ev) == -1){
+    if(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, pending_client, &ev) == -1){
         perror("epoll failed");
         return Constants::PERROR;
     }
-    current_client += 1;
     return Constants::SUCCESS;
 }
 
@@ -207,6 +225,31 @@ bool Server::closeConnection(int client_socket){
         return false;
     }
     std::cout << "Closed connection with client "  << client_socket << std::endl;
+    return true;
+}
+
+bool Server::addClient(){
+    Client new_client;
+    std::strcpy(new_client.name, Constants::NOT_NAMED);
+    new_client.socket_info_length = client_sockaddr_len;
+    new_client.socket_info = client_sockaddr;
+    void* addr;
+
+    if(client_sockaddr.ss_family == AF_INET) {
+        sockaddr_in* ipv4 = (sockaddr_in*)&client_sockaddr;
+        addr = &(ipv4->sin_addr);
+        new_client.port = ntohs(ipv4->sin_port);
+    }
+    else {
+        sockaddr_in6* ipv6 = (sockaddr_in6*)&client_sockaddr;
+        addr = &(ipv6->sin6_addr);
+        new_client.port = ntohs(ipv6->sin6_port);
+    }
+    inet_ntop(client_sockaddr.ss_family, addr, new_client.ip, sizeof(new_client.ip));
+
+    if(!client_sockets.insertNode(pending_client, new_client)){
+        return false;
+    }
     return true;
 }
 
@@ -255,21 +298,16 @@ int Server::sendAcknowledgement(int client_socket){
 
 bool Server::printClientInformation(int client_socket){
     if(client_socket == -1){
-        return Constants::INVALID_CLIENT;
-    }
-    if(getpeername(client_socket, (struct sockaddr*)&client_addr, &client_addr_length) != -1){
-        if(inet_ntop(AF_INET, &(client_addr.sin_addr), client_ip_buffer, INET_ADDRSTRLEN) != nullptr){
-            std::cout << "Client Socket: " << client_socket << std::endl;
-            std::cout << "Client IP: " << client_ip_buffer << std::endl;
-            std::cout << "Client PORT: " << ntohs(client_addr.sin_port) << std::endl;
-        } else{
-            perror("inet ntop failed");
-            return false;
-        }
-    } else{
-        perror("get peer name failed");
         return false;
     }
+    const Client *client = client_sockets.getNode(client_socket);
+    if(!client){
+        return false;
+    }
+    std::cout << "Client Name: " << client->name << std::endl;
+    std::cout << "Client IP: " << client->ip << std::endl;
+    std::cout << "Client Port: " << client->port << std::endl;
+    std::cout << "Client Socket: " << client_socket << std::endl;
     return true;
 }
 

@@ -1,7 +1,9 @@
 namespace Constants{
     inline constexpr const char* SERVER_PORT = "60000";
+    inline constexpr const char* NOT_NAMED = "UNNAMED";
+
     inline constexpr const int MAX_EVENTS = 256;
-    inline constexpr const int HOST_TOTAL = 10;
+    inline constexpr const int MAX_HOSTS = 0X100000; //APROX 1 MILLION
     inline constexpr const int MAX_HOSTNAME_LENGTH = 248;
     inline constexpr const int BACKLOG = 10;
 

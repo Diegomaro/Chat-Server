@@ -4,13 +4,15 @@
 #include <netdb.h>
 #include <sys/epoll.h>
 
-#include "constants.hpp"
+#include "hash_table.hpp"
+#include "client.hpp"
 
 class Server{
     public:
         Server();
         ~Server();
 
+        bool setupHashTable();
         //setup listener socket
         bool setupListenerSocket();
 
@@ -20,6 +22,8 @@ class Server{
         // connections to client
         int acceptConnection();
         bool closeConnection(int client_socket);
+
+        bool addClient();
 
         // data transmission
         int receiveFromClient(int client_socket);
@@ -46,8 +50,9 @@ class Server{
         unsigned int client_addr_length;
 
         int listener_socket;
-        int client_sockets [Constants::HOST_TOTAL];
-        int current_client = 0;
+        int pending_client;
+        HashTable<Client> client_sockets;
+        //int client_sockets [Constants::HOST_TOTAL];
 
         int epoll_fd;
 

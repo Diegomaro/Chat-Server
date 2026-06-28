@@ -3,6 +3,7 @@
 
 int main(){
     Server server;
+    server.setupHashTable();
     if(server.setupListenerSocket()){
         server.loopConnections();
     }
