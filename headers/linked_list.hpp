@@ -29,4 +29,4 @@ private:
 	Node *head;
 	Node *tail;
 };
-#include "../src/server/linked_list.tpp"
+#include "linked_list.tpp"

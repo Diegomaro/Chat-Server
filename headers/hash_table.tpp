@@ -1,5 +1,5 @@
 #include "cmath"
-#include "../../headers/hash_table.hpp"
+#include "hash_table.hpp"
 
 template <typename T>
 HashTable<T>::HashTable(){

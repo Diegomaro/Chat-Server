@@ -52,7 +52,6 @@ class Server{
         int listener_socket;
         int pending_client;
         HashTable<Client> client_sockets;
-        //int client_sockets [Constants::HOST_TOTAL];
 
         int epoll_fd;
 

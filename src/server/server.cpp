@@ -231,8 +231,6 @@ bool Server::closeConnection(int client_socket){
 bool Server::addClient(){
     Client new_client;
     std::strcpy(new_client.name, Constants::NOT_NAMED);
-    new_client.socket_info_length = client_sockaddr_len;
-    new_client.socket_info = client_sockaddr;
     void* addr;
 
     if(client_sockaddr.ss_family == AF_INET) {

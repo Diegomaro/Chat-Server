@@ -35,4 +35,4 @@ class HashTable{
         unsigned int dataCount;
 };
 
-#include "../src/server/hash_table.tpp"
+#include "hash_table.tpp"

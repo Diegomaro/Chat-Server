@@ -1,5 +1,5 @@
 #include <iostream>
-#include "../../headers/linked_list.hpp"
+#include "linked_list.hpp"
 
 template <typename T>
 LinkedList<T>::Node::Node() {

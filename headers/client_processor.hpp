@@ -16,16 +16,11 @@ class ClientProcessor{
         bool receiveFromServer();
         bool setMessage(std::string message);
         bool sendMessage();
-
-        // info on host
-        bool getHostName();
     private:
         struct addrinfo hints;
         struct addrinfo *server_info;
 
         int client_socket;
-
-        char host_name [1024];
 
         char msg [1024];
         int msg_len;
