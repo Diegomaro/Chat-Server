@@ -4,31 +4,50 @@
 #include <stdio.h>
 #include <string.h>
 #include <iostream>
+#include <cerrno>
 
 #include <fcntl.h>
 
 #include "../../headers/server.hpp"
 
 Server::Server(){
+    accept_state = 0;
+    accept_loop = true;
+    rcvf_state = 0;
+    sender_socket = 0;
+    receive_loop = true;
+    ack_state = 0;
+
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
-    bytes_received = 0;
-    current_client = 0;
-    memset(&msg_buffer, 0, sizeof(msg_buffer));
-    client_addr_len = sizeof(client_addr);
+
+    client_addr_length = sizeof(client_addr);
+
+    listener_socket = 0;
     for(int i = 0; i < Constants::HOST_TOTAL; i++){
         client_sockets[i] = -1;
     }
+    current_client = 0;
+
+    epoll_fd = 0;
+
+    memset(&server_name, 0, sizeof(server_name));
+    memset(&client_name, 0, sizeof(client_name));
+
+    client_sockaddr_len = sizeof(client_sockaddr);
+
+    bytes_received = 0;
+    memset(&msg_buffer, 0, sizeof(msg_buffer));
 }
 
 Server::~Server(){
     if(listener_socket != -1){
         close(listener_socket);
     }
-    if(epoll_socket != -1){
-        close(epoll_socket);
+    if(epoll_fd != -1){
+        close(epoll_fd);
 
     }
     for(int i = 0; i < Constants::HOST_TOTAL; i++){
@@ -61,7 +80,7 @@ bool Server::setupListenerSocket(){
         return false;
     }
     freeaddrinfo(res);
-    if ((epoll_socket = epoll_create1(0)) == -1) {
+    if ((epoll_fd = epoll_create1(0)) == -1) {
         perror("epoll failed");
         return false;
     }
@@ -71,40 +90,81 @@ bool Server::setupListenerSocket(){
         perror("listen failed");
         return false;
     }
-    epoll_ctl(epoll_socket, EPOLL_CTL_ADD, listener_socket, &ev);
+    epoll_ctl(epoll_fd, EPOLL_CTL_ADD, listener_socket, &ev);
     return true;
 }
 
 bool Server::loopConnections(){
     while(true){
         int ready_polls = 0;
-        if((ready_polls = epoll_wait(epoll_socket, events, 10, -1)) == -1){
+        if((ready_polls = epoll_wait(epoll_fd, events, Constants::MAX_EVENTS, -1)) == -1){
             perror("epoll wait failed");
             return false;
         }
         for (int i = 0; i < ready_polls; i++) {
             if(events[i].data.fd == listener_socket){
-                if(!acceptConnection()){
-                    return false;
-                }
-                continue;
-            }
-            int sender_socket = events[i].data.fd;
-            if (events[i].events & EPOLLIN) {
-                std::cout << "socket " << sender_socket << " is ready to be read!" << std::endl;
-                int rcvf_state = 0;
-                while(true){
-                    rcvf_state = receiveFromClient(events[i].data.fd);
-                    if(rcvf_state == Constants::SUCCESS_RETURN){
-                        printMessageFromClient();
-                    } else if(rcvf_state == Constants::NOTHING_TO_READ_RETURN){
-                        sendAcknowledgement(events[i].data.fd);
-                        break;
-                    } else if(rcvf_state == Constants::CLOSED_RETURN){
-                        if(!closeConnection(events[i].data.fd)){
+                accept_state = 0;
+                accept_loop = true;
+                while(accept_loop){
+                    accept_state = acceptConnection();
+                    switch(accept_state){
+                        case Constants::SUCCESS:{
+                            if(!printClientInformation(client_sockets[current_client - 1])){
+                                return false;
+                            }
+                        } break;
+                        case Constants::NOTHING_TO_READ:{
+                            accept_loop = false;
+                        } break;
+                        case Constants::PERROR:{
                             return false;
-                        }
-                        break;
+                        } break;
+                        case Constants::EXCEEDED_CLIENT_MAX:{
+                            return false;
+                        } break;
+                    }
+                }
+            } else if (events[i].events & EPOLLIN) {
+                sender_socket = events[i].data.fd;
+                rcvf_state = 0;
+                receive_loop = true;
+                while(receive_loop){
+                    rcvf_state = receiveFromClient(events[i].data.fd);
+
+                    switch(rcvf_state){
+                        case Constants::SUCCESS:{
+                            if(!printMessageFromClient()){
+                                return false;
+                            }
+                        } break;
+                        case Constants::NOTHING_TO_READ:{
+                            ack_state = sendAcknowledgement(events[i].data.fd);
+                            switch(ack_state){
+                                case Constants::INCOMPLETE_MESSAGE_RESEND:{
+                                    // handle later
+                                } break;
+                                case Constants::PERROR:{
+                                    return false;
+                                } break;
+                                case Constants::INVALID_CLIENT:{
+                                    return false;
+                                } break;
+                            }
+                            return true;
+                            receive_loop = false;
+                        } break;
+                        case Constants::INVALID_CLIENT: {
+                            return false;
+                        }break;
+                        case Constants::CLOSED_CONVERSATION: {
+                            if(!closeConnection(events[i].data.fd)){
+                                return false;
+                            }
+                            receive_loop = false;
+                        } break;
+                        case Constants::PERROR:{
+                            return false;
+                        } break;
                     }
                 }
             }
@@ -113,61 +173,113 @@ bool Server::loopConnections(){
     return true;
 }
 
-bool Server::acceptConnection(){
-    if((client_sockets[current_client] = accept(listener_socket, (struct sockaddr *)&client_addr, &client_addr_len)) == -1){
-        perror("accept failed");
-        return false;
+// returns EXCEEDED_CLIENT_MAX, NOTHING_TO_READ, PERROR, SUCCESS
+int Server::acceptConnection(){
+    if(current_client + 1 >= Constants::HOST_TOTAL){
+        return Constants::EXCEEDED_CLIENT_MAX;
+    }
+    if((client_sockets[current_client] = accept(listener_socket, (struct sockaddr *)&client_sockaddr, &client_sockaddr_len)) == -1){
+        int error = errno;
+        if(error == EAGAIN || error == EWOULDBLOCK){
+            return Constants::NOTHING_TO_READ;
+        } else{
+            perror("accept failed");
+            return Constants::PERROR;
+        }
     }
     if(fcntl(client_sockets[current_client], F_SETFL, O_NONBLOCK) == -1){
         perror("non blocking failed");
-        return false;
+        return Constants::PERROR;
     }
     ev.data.fd = client_sockets[current_client];
-    ev.events = EPOLLIN;
-    if(epoll_ctl(epoll_socket, EPOLL_CTL_ADD, client_sockets[current_client], &ev) == -1){
+    ev.events = EPOLLIN | EPOLLET;
+    if(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_sockets[current_client], &ev) == -1){
         perror("epoll failed");
-        return false;
-    }
-    if(current_client + 1 >= Constants::HOST_TOTAL){
-        return false;
+        return Constants::PERROR;
     }
     current_client += 1;
-    return true;
+    return Constants::SUCCESS;
 }
 
 bool Server::closeConnection(int client_socket){
     if(close(client_socket) == -1){
+        perror("clossing failed");
         return false;
     }
     std::cout << "Closed connection with client "  << client_socket << std::endl;
     return true;
 }
 
+// returns INVALID_CLIENT, PERROR, NOTHING_TO_READ, CLOSED_CONVERSATION, SUCCESS
 int Server::receiveFromClient(int client_socket){
+    if(client_socket == -1){
+        return Constants::INVALID_CLIENT;
+    }
     bytes_received = 0;
     msg_buffer[0] = '\0';
     if((bytes_received = recv(client_socket, msg_buffer, sizeof(msg_buffer) - 1, 0)) == -1){
-        return Constants:: NOTHING_TO_READ_RETURN;
+        int error = errno;
+        if(error == EAGAIN || error == EWOULDBLOCK){
+            return Constants::NOTHING_TO_READ;
+        } else{
+            perror("An error ocurred while receiving from client.");
+            return Constants::PERROR;
+        }
     }
     if(bytes_received == 0){
-        return Constants::CLOSED_RETURN;
+        return Constants::CLOSED_CONVERSATION;
     }
-    return Constants::SUCCESS_RETURN;
+    return Constants::SUCCESS;
 }
 
-bool Server::printMessageFromClient(){
-    if(bytes_received > 0){
-        msg_buffer[bytes_received] = '\0';
-        std::cout << "Message received: " << msg_buffer << std::endl;
+// returns INVALID_CLIENT, PERROR, INCOMPLETE_MESSAGE_RESEND, SUCCESS
+int Server::sendAcknowledgement(int client_socket){
+    if(client_socket == -1){
+        return Constants::INVALID_CLIENT;
+    }
+    int bytes_sent = 0;
+    if((bytes_sent = send(client_socket, Commands::ACK, Commands::ACK_LENGTH, 0)) == -1){
+        int error = errno;
+        if(error == EAGAIN || error == EWOULDBLOCK){
+            return Constants::NOTHING_TO_READ;
+        } else{
+            perror("Send of acknowledgement failed.");
+            return Constants::PERROR;
+        }
+    }
+    if(bytes_sent != Commands::ACK_LENGTH){
+        return Constants::INCOMPLETE_MESSAGE_RESEND;
+    }
+    return Constants::SUCCESS;
+}
+
+bool Server::printClientInformation(int client_socket){
+    if(client_socket == -1){
+        return Constants::INVALID_CLIENT;
+    }
+    if(getpeername(client_socket, (struct sockaddr*)&client_addr, &client_addr_length) != -1){
+        if(inet_ntop(AF_INET, &(client_addr.sin_addr), client_ip_buffer, INET_ADDRSTRLEN) != nullptr){
+            std::cout << "Client Socket: " << client_socket << std::endl;
+            std::cout << "Client IP: " << client_ip_buffer << std::endl;
+            std::cout << "Client PORT: " << ntohs(client_addr.sin_port) << std::endl;
+        } else{
+            perror("inet ntop failed");
+            return false;
+        }
+    } else{
+        perror("get peer name failed");
+        return false;
     }
     return true;
 }
 
-bool Server::sendAcknowledgement(int client_socket){
-    int bytes_sent = 0;
-    if((bytes_sent = send(client_socket, Commands::ACK, Commands::ACK_LENGTH, 0)) == -1){
-        perror("send failed");
+bool Server::printMessageFromClient(){
+    if(bytes_received <= 0){
         return false;
+    }
+    if(bytes_received > 0){
+        msg_buffer[bytes_received] = '\0';
+        std::cout << "Message received: " << msg_buffer << std::endl;
     }
     return true;
 }

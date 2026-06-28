@@ -14,37 +14,52 @@ class Server{
         //setup listener socket
         bool setupListenerSocket();
 
-        // connections to peers
+        //central loop
         bool loopConnections();
-        bool acceptConnection();
+
+        // connections to client
+        int acceptConnection();
         bool closeConnection(int client_socket);
 
         // data transmission
         int receiveFromClient(int client_socket);
-        bool printMessageFromClient();
-        bool sendAcknowledgement(int client_socket);
+        int sendAcknowledgement(int client_socket);
 
-        // info on host and peer
-        bool getHostName();
-        bool getPeerName();
+        // print data
+        bool printClientInformation(int client_socket);
+        bool printMessageFromClient();
+
 
     private:
+        int accept_state;
+        bool accept_loop;
+        int rcvf_state;
+        int sender_socket;
+        bool receive_loop;
+        int ack_state;
+
         struct addrinfo hints;
         struct addrinfo *res;
 
-        int listener_socket, epoll_socket;
+        char client_ip_buffer [INET_ADDRSTRLEN];
+        struct sockaddr_in client_addr;
+        unsigned int client_addr_length;
 
-        char host_name [1024];
-        char peer_name [1024];
+        int listener_socket;
+        int client_sockets [Constants::HOST_TOTAL];
+        int current_client = 0;
+
+        int epoll_fd;
+
+        char server_name [Constants::MAX_HOSTNAME_LENGTH];
+        char client_name [Constants::MAX_HOSTNAME_LENGTH];
+
+        struct sockaddr_storage client_sockaddr;
+        socklen_t client_sockaddr_len;
 
         int bytes_received;
         char msg_buffer [1024];
 
-        int client_sockets [Constants::HOST_TOTAL];
-        int current_client = 0;
-        struct sockaddr_storage client_addr;
-        socklen_t client_addr_len;
-
         struct epoll_event ev;
-        struct epoll_event events[20];
+        struct epoll_event events[Constants::MAX_EVENTS];
 };
