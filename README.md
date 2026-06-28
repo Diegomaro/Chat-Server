@@ -22,3 +22,4 @@ This will be defined later on.
 2. Send files between clients.
 3. User profile icons.
 4. Some sort of session implementation to avoid logging in each time the client program runs.
+5. Encryption of messages.

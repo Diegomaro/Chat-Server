@@ -4,10 +4,10 @@
 #include <netdb.h>
 #include "constants.hpp"
 
-class Client{
+class ClientProcessor{
     public:
-        Client();
-        ~Client();
+        ClientProcessor();
+        ~ClientProcessor();
 
         //setup socket
         bool setupSocket();

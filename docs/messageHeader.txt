@@ -5,10 +5,10 @@ Each client message should be composed as:
 HEAD_BITS TYPE RECEIVER_KEY PAYLOAD_LENGTH PAYLOAD
 
 HEAD_BITS = 11111111
-Simple sequence of bits
+Simple sequence of bits.
 
 TYPE = USER (0) | GROUP (1) | INITIATE(2) | CONCLUDE (3) | CANCEL (4) | AUTH_KEY (5)
-only INDIVIDUAL for now
+only USER for now.
 
 HOST_KEY = The destinatory USER | The destinatory GROUP | The source USER | THe source GROUP
 The username must exit in the database.
@@ -16,7 +16,7 @@ The group should be registered with the sender key for them to send it.
 Skipped reading on AUTH_KEY.
 
 PAYLOAD_LENGTH = n
-length of payload in bytes
+length of payload in bytes.
 
 PAYLOAD = message
 message to be sent.

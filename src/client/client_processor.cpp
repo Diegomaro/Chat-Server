@@ -6,9 +6,9 @@
 
 #include <iostream>
 
-#include "../../headers/client.hpp"
+#include "../../headers/client_processor.hpp"
 
-Client::Client(){
+ClientProcessor::ClientProcessor(){
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
@@ -18,11 +18,11 @@ Client::Client(){
     msg_len = strlen(msg);
 }
 
-Client::~Client(){
+ClientProcessor::~ClientProcessor(){
     close(client_socket);
 }
 
-bool Client::setupSocket(){
+bool ClientProcessor::setupSocket(){
     int status;
     if((status = getaddrinfo("127.0.0.1", Constants::SERVER_PORT, &hints, &server_info)) != 0){
         fprintf(stderr, "gai error: %s\n", gai_strerror(status));
@@ -40,7 +40,7 @@ bool Client::setupSocket(){
     return true;
 }
 
-bool Client::setMessage(std::string message){
+bool ClientProcessor::setMessage(std::string message){
     if(message.empty() || !msg){
         return false;
     }
@@ -58,7 +58,7 @@ bool Client::setMessage(std::string message){
     return true;
 }
 
-bool Client::sendMessage(){
+bool ClientProcessor::sendMessage(){
     int bytes_sent = 0;
     if((bytes_sent = send(client_socket, msg, msg_len, 0)) == -1){
         perror("send failed");
@@ -67,7 +67,7 @@ bool Client::sendMessage(){
     return true;
 }
 
-bool Client::receiveFromServer(){
+bool ClientProcessor::receiveFromServer(){
     int bytes_received = 0;
     if((bytes_received = recv(client_socket, msg_buffer, sizeof(msg_buffer) - 1, 0)) == -1){
         perror("received failed");
