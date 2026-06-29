@@ -197,11 +197,6 @@ unsigned int HashTable<T>::getSize(){
     }
 }
 
-/*template <typename T>
-LinkedList<typename HashTable<T>::HashData> * HashTable<T>::getTable(){
-    return &table_;
-}*/
-
 template <typename T>
 unsigned int HashTable<T>::getDataCount(){
     return data_count_;

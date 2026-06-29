@@ -199,7 +199,7 @@ int Server::acceptConnection(){
         }
     }
     if(!addClient()){
-        return Constants::EXCEEDED_CLIENT_MAX; // modify error
+        return Constants::EXCEEDED_CLIENT_MAX;
     }
 
     if(fcntl(pending_client_, F_SETFL, O_NONBLOCK) == -1){
@@ -218,6 +218,9 @@ int Server::acceptConnection(){
 bool Server::closeConnection(int client_socket){
     if(close(client_socket) == -1){
         perror("clossing failed");
+        return false;
+    }
+    if(!client_sockets_.deleteNode(client_socket)){
         return false;
     }
     std::cout << "Closed connection with client "  << client_socket << std::endl;

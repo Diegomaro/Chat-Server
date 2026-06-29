@@ -4,7 +4,7 @@ namespace Constants{
 
     inline constexpr const int MAX_EVENTS = 256;
     inline constexpr const int MAX_HOSTS = 0X100000; //APROX 1 MILLION
-    inline constexpr const int MAX_HOSTNAME_LENGTH = 248;
+    inline constexpr const int MAX_HOSTNAME_LENGTH = 16;
     inline constexpr const int BACKLOG = 10;
 
     inline constexpr const int SUCCESS = 0;
