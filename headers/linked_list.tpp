@@ -165,9 +165,9 @@ bool LinkedList<T>::advanceNode(){
 	}
 	curNode = curNode->next;
 	if(!curNode){
-		return true;
+		return false;
 	}
-	return false;
+	return true;
 }
 
 

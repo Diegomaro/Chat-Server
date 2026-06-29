@@ -7,22 +7,29 @@
 template <typename T>
 class HashTable{
     public:
-        HashTable();
-        ~HashTable();
-        bool createTable(unsigned int desired_size);
-        bool insertNode(int key, T data);
-        bool deleteNode(int key);
-        bool searchNode(int key);
-        const T *getNode(int key);
-        unsigned int getSize();
-        //LinkedList<typename HashTable<T>::HashData> *getTable();
-        unsigned int getDataCount();
-        void printAll();
-        bool clear();
         struct HashData{
             int key;
             T data;
         };
+        HashTable();
+        ~HashTable();
+        bool createTable(unsigned int desired_size);
+
+        bool insertNode(int key, T data);
+        bool deleteNode(int key);
+        bool searchNode(int key);
+        const T *getNode(int key);
+
+        bool hasNodes();
+        bool hasNode();
+	    bool advanceNode();
+        void resetNodeIndex();
+        const HashData* getNode();
+
+        unsigned int getSize();
+        unsigned int getDataCount();
+        void printAll();
+        bool clear();
     private:
         unsigned int hash(int key);
         unsigned int hashFunction(int key);
@@ -33,6 +40,8 @@ class HashTable{
         unsigned int size;
         unsigned int power;
         unsigned int dataCount;
+
+        int curNode;
 };
 
 #include "hash_table.tpp"

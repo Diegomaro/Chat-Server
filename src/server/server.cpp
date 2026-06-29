@@ -47,22 +47,19 @@ Server::~Server(){
     if(epoll_fd != -1){
         close(epoll_fd);
     }
-    /*
-    LinkedList<HashTable::HashData> table;
-    for(int i = 0; i < client_sockets.getSize(); i++){
 
-        client_sockets[i].resetNodeIndex();
-        while(oldTable[i].hasNode()){
-            HashData tmpData = oldTable[i].getNode();
-            oldTable[i].advanceNode();
-            insertNode(tmpData.key, tmpData.data);
+    client_sockets.resetNodeIndex();
+    while(client_sockets.hasNodes()){
+        if(client_sockets.hasNode()){
+            int socket = (client_sockets.getNode()->key);
+            if(socket != -1){
+                std::cout << "closing socket: " << socket << std::endl;
+                close(socket);
+            }
         }
+        client_sockets.advanceNode();
     }
-
-        if(client_sockets.getNode(i). != -1){
-            close(client_sockets[i]);
-        }
-    }*/
+    std::cout << "stopped" << std::endl;
 }
 
 bool Server::setupHashTable(){

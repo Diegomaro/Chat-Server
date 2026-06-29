@@ -33,7 +33,6 @@ class Server{
         bool printClientInformation(int client_socket);
         bool printMessageFromClient();
 
-
     private:
         int accept_state;
         bool accept_loop;

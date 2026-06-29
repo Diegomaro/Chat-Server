@@ -8,6 +8,7 @@ HashTable<T>::HashTable(){
     dataCount = 0;
     size = 0;
     power = 0;
+    curNode = 0;
 }
 
 template <typename T>
@@ -91,6 +92,47 @@ const T *HashTable<T>::getNode(int key){
         table[hash(key)].advanceNode();
     }
     return nullptr;
+}
+
+template <typename T>
+bool HashTable<T>::hasNodes(){
+    if(curNode + 1 >= size){
+        return false;
+    }
+    return true;
+}
+
+template <typename T>
+bool HashTable<T>::hasNode(){
+    if(!table[curNode].hasNode()){
+        return false;
+    }
+    return true;
+}
+
+template <typename T>
+bool HashTable<T>::advanceNode(){
+    if(!table[curNode].advanceNode()){
+        if(curNode + 1 >= size){
+            return false;
+        } else{
+            curNode++;
+        }
+    } else{
+        table[curNode].resetNodeIndex();
+    }
+    return true;
+}
+
+template <typename T>
+void HashTable<T>::resetNodeIndex(){
+    table[0].resetNodeIndex();
+    curNode = 0;
+}
+
+template <typename T>
+const typename HashTable<T>::HashData* HashTable<T>::getNode(){
+    return &table[curNode].getNode();
 }
 
 template <typename T>
