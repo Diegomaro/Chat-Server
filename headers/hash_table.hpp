@@ -8,8 +8,8 @@ template <typename T>
 class HashTable{
     public:
         struct HashData{
-            int key;
-            T data;
+            int key_;
+            T data_;
         };
         HashTable();
         ~HashTable();
@@ -35,13 +35,13 @@ class HashTable{
         unsigned int hashFunction(int key);
         bool checkRehash();
         bool rehash();
-        bool is_rehashing;
-        LinkedList<HashData> *table;
-        unsigned int size;
-        unsigned int power;
-        unsigned int dataCount;
+        bool is_rehashing_;
+        LinkedList<HashData> *table_;
+        unsigned int size_;
+        unsigned int power_;
+        unsigned int data_count_;
 
-        int curNode;
+        int current_node_;
 };
 
 #include "hash_table.tpp"

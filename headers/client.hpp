@@ -7,7 +7,7 @@
 struct Client{
     public:
         Client();
-        char name [Constants::MAX_HOSTNAME_LENGTH];
-        char ip [INET6_ADDRSTRLEN];
-        int port;
+        char name_ [Constants::MAX_HOSTNAME_LENGTH];
+        char ip_ [INET6_ADDRSTRLEN];
+        int port_;
 };

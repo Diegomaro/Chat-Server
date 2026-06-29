@@ -5,8 +5,8 @@ class LinkedList {
 public:
 	class Node {
 		public:
-			T data;
-			Node *next;
+			T data_;
+			Node *next_;
 			Node();
 	};
 
@@ -25,8 +25,8 @@ public:
 	bool printAll();
 	bool clear();
 private:
-	Node *curNode;
-	Node *head;
-	Node *tail;
+	Node *current_node_;
+	Node *head_;
+	Node *tail_;
 };
 #include "linked_list.tpp"

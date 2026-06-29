@@ -4,7 +4,7 @@
 #include "../../headers/client.hpp"
 
 Client::Client(){
-    port = 0;
-    memset(&name, 0, sizeof(name));
-    memset(&ip, 0, sizeof(ip));
+    port_ = 0;
+    memset(&name_, 0, sizeof(name_));
+    memset(&ip_, 0, sizeof(ip_));
 }

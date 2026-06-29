@@ -3,12 +3,12 @@
 
 template <typename T>
 HashTable<T>::HashTable(){
-    is_rehashing = false;
-    table = nullptr;
-    dataCount = 0;
-    size = 0;
-    power = 0;
-    curNode = 0;
+    is_rehashing_ = false;
+    table_ = nullptr;
+    data_count_ = 0;
+    size_ = 0;
+    power_ = 0;
+    current_node_ = 0;
 }
 
 template <typename T>
@@ -18,37 +18,37 @@ HashTable<T>::~HashTable(){
 
 template <typename T>
 bool HashTable<T>::createTable(unsigned int desiredSize){
-    if(table || !desiredSize){
+    if(table_ || !desiredSize){
         return false;
     }
-    table = new(std::nothrow) LinkedList<HashData> [desiredSize];
-    if(!table) {
+    table_ = new(std::nothrow) LinkedList<HashData> [desiredSize];
+    if(!table_) {
         return false;
     }
     double tmpPower = std::log2(desiredSize);
     if(tmpPower  - (int)tmpPower != 0.f){
         return false;
     }
-    power = (int) tmpPower;
-    size = desiredSize;
+    power_ = (int) tmpPower;
+    size_ = desiredSize;
     return true;
 }
 
 template <typename T>
 bool HashTable<T>::insertNode(int key, T data){
-    if(!table){
+    if(!table_){
         return false;
     }
     HashData hashData;
-    hashData.key = key;
-    hashData.data = data;
-    if(!table[hash(key)].insertTail(hashData)){
+    hashData.key_ = key;
+    hashData.data_ = data;
+    if(!table_[hash(key)].insertTail(hashData)){
         return false;
     }
-    if(is_rehashing){
+    if(is_rehashing_){
         return true;
     }
-    dataCount++;
+    data_count_++;
     if(!checkRehash()){
         return false;
     }
@@ -57,11 +57,11 @@ bool HashTable<T>::insertNode(int key, T data){
 
 template <typename T>
 bool HashTable<T>::deleteNode(int key){
-    if(!table){
+    if(!table_){
         return false;
     }
-    if(table[hash(key)].deleteNode(key)){
-        dataCount--;
+    if(table_[hash(key)].deleteNode(key)){
+        data_count_--;
         return true;
     }
     return false;
@@ -69,10 +69,10 @@ bool HashTable<T>::deleteNode(int key){
 
 template <typename T>
 bool HashTable<T>::searchNode(int key){
-    if(!table){
+    if(!table_){
         return false;
     }
-    if(table[hash(key)].searchNode(key)){
+    if(table_[hash(key)].searchNode(key)){
         return true;
     }
     return false;
@@ -80,23 +80,23 @@ bool HashTable<T>::searchNode(int key){
 
 template <typename T>
 const T *HashTable<T>::getNode(int key){
-    if(!table){
+    if(!table_){
         return nullptr;
     }
-    table[hash(key)].resetNodeIndex();
-    while(table[hash(key)].hasNode()){
-        HashData tmpData = table[hash(key)].getNode();
-        if(tmpData.key == key){
-            return &table[hash(key)].getNode().data;
+    table_[hash(key)].resetNodeIndex();
+    while(table_[hash(key)].hasNode()){
+        HashData tmpData = table_[hash(key)].getNode();
+        if(tmpData.key_ == key){
+            return &table_[hash(key)].getNode().data_;
         }
-        table[hash(key)].advanceNode();
+        table_[hash(key)].advanceNode();
     }
     return nullptr;
 }
 
 template <typename T>
 bool HashTable<T>::hasNodes(){
-    if(curNode + 1 >= size){
+    if(current_node_ + 1 >= size_){
         return false;
     }
     return true;
@@ -104,7 +104,7 @@ bool HashTable<T>::hasNodes(){
 
 template <typename T>
 bool HashTable<T>::hasNode(){
-    if(!table[curNode].hasNode()){
+    if(!table_[current_node_].hasNode()){
         return false;
     }
     return true;
@@ -112,35 +112,35 @@ bool HashTable<T>::hasNode(){
 
 template <typename T>
 bool HashTable<T>::advanceNode(){
-    if(!table[curNode].advanceNode()){
-        if(curNode + 1 >= size){
+    if(!table_[current_node_].advanceNode()){
+        if(current_node_ + 1 >= size_){
             return false;
         } else{
-            curNode++;
+            current_node_++;
         }
     } else{
-        table[curNode].resetNodeIndex();
+        table_[current_node_].resetNodeIndex();
     }
     return true;
 }
 
 template <typename T>
 void HashTable<T>::resetNodeIndex(){
-    table[0].resetNodeIndex();
-    curNode = 0;
+    table_[0].resetNodeIndex();
+    current_node_ = 0;
 }
 
 template <typename T>
 const typename HashTable<T>::HashData* HashTable<T>::getNode(){
-    return &table[curNode].getNode();
+    return &table_[current_node_].getNode();
 }
 
 template <typename T>
 bool HashTable<T>::checkRehash(){
-    if(!size){
+    if(!size_){
         return false;
     }
-    float loadFactor = (float) dataCount / size;
+    float loadFactor = (float) data_count_ / size_;
     if(loadFactor >= LOAD_FACTOR){
         if(!rehash()){
             return false;
@@ -152,27 +152,27 @@ bool HashTable<T>::checkRehash(){
 
 template <typename T>
 bool HashTable<T>::rehash(){
-    is_rehashing = true;
-    int oldDataCount = dataCount;
-    if(!table) {
+    is_rehashing_ = true;
+    int oldDataCount = data_count_;
+    if(!table_) {
         return false;
     }
-    LinkedList<HashData> *oldTable = table;
-    LinkedList<HashData> *newTable = new(std::nothrow) LinkedList<HashData> [size * 2];
-    unsigned int oldSize = size;
-    size *= 2;
-    power ++;
-    table = newTable;
+    LinkedList<HashData> *oldTable = table_;
+    LinkedList<HashData> *newTable = new(std::nothrow) LinkedList<HashData> [size_ * 2];
+    unsigned int oldSize = size_;
+    size_ *= 2;
+    power_ ++;
+    table_ = newTable;
     for(unsigned int i = 0; i < oldSize; i++){
         oldTable[i].resetNodeIndex();
         while(oldTable[i].hasNode()){
             HashData tmpData = oldTable[i].getNode();
             oldTable[i].advanceNode();
-            insertNode(tmpData.key, tmpData.data);
+            insertNode(tmpData.key_, tmpData.data_);
         }
     }
     delete [] oldTable;
-    is_rehashing = false;
+    is_rehashing_ = false;
     return true;
 }
 
@@ -184,44 +184,44 @@ unsigned int HashTable<T>::hash(int key){
 
 template <typename T>
 unsigned int HashTable<T>::hashFunction(int key){
-    return (key * 0x9E3779B97F4A7C15) >> (64 - power);
+    return (key * 0x9E3779B97F4A7C15) >> (64 - power_);
 }
 
 template <typename T>
 unsigned int HashTable<T>::getSize(){
-    if(!table){
+    if(!table_){
         return 0;
     }
     else{
-        return size;
+        return size_;
     }
 }
 
 /*template <typename T>
 LinkedList<typename HashTable<T>::HashData> * HashTable<T>::getTable(){
-    return &table;
+    return &table_;
 }*/
 
 template <typename T>
 unsigned int HashTable<T>::getDataCount(){
-    return dataCount;
+    return data_count_;
 }
 
 template <typename T>
 void HashTable<T>::printAll(){
-    for(unsigned int i = 0; i < size; i++){
-        table[i].printAll();
+    for(unsigned int i = 0; i < size_; i++){
+        table_[i].printAll();
     }
 }
 
 template <typename T>
 bool HashTable<T>::clear(){
-    if(table){
-        size = 0;
-        power = 0;
-        dataCount = 0;
-        delete [] table;
-        table = nullptr;
+    if(table_){
+        size_ = 0;
+        power_ = 0;
+        data_count_ = 0;
+        delete [] table_;
+        table_ = nullptr;
         return true;
     } else{
         return false;

@@ -17,16 +17,16 @@ class ClientProcessor{
         bool setMessage(std::string message);
         bool sendMessage();
     private:
-        struct addrinfo hints;
-        struct addrinfo *server_info;
+        struct addrinfo hints_;
+        struct addrinfo *server_info_;
 
-        int client_socket;
+        int client_socket_;
 
-        char msg [1024];
-        int msg_len;
+        char msg_ [1024];
+        int msg_len_;
 
-        char msg_buffer [1024];
+        char msg_buffer_ [1024];
 
-        struct sockaddr_storage server_addr;
-        socklen_t server_addr_len;
+        struct sockaddr_storage server_addr_;
+        socklen_t server_addr_len_;
 };

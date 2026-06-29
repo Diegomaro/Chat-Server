@@ -34,35 +34,35 @@ class Server{
         bool printMessageFromClient();
 
     private:
-        int accept_state;
-        bool accept_loop;
-        int rcvf_state;
-        int sender_socket;
-        bool receive_loop;
-        int ack_state;
+        int accept_state_;
+        bool accept_loop_;
+        int rcvf_state_;
+        int sender_socket_;
+        bool receive_loop_;
+        int ack_state_;
 
-        struct addrinfo hints;
-        struct addrinfo *res;
+        struct addrinfo hints_;
+        struct addrinfo *res_;
 
-        char client_ip_buffer [INET_ADDRSTRLEN];
-        struct sockaddr_in client_addr;
-        unsigned int client_addr_length;
+        char client_ip_buffer_ [INET_ADDRSTRLEN];
+        struct sockaddr_in client_addr_;
+        unsigned int client_addr_length_;
 
-        int listener_socket;
-        int pending_client;
-        HashTable<Client> client_sockets;
+        int listener_socket_;
+        int pending_client_;
+        HashTable<Client> client_sockets_;
 
-        int epoll_fd;
+        int epoll_fd_;
 
-        char server_name [Constants::MAX_HOSTNAME_LENGTH];
-        char client_name [Constants::MAX_HOSTNAME_LENGTH];
+        char server_name_ [Constants::MAX_HOSTNAME_LENGTH];
+        char client_name_ [Constants::MAX_HOSTNAME_LENGTH];
 
-        struct sockaddr_storage client_sockaddr;
-        socklen_t client_sockaddr_len;
+        struct sockaddr_storage client_sockaddr_;
+        socklen_t client_sockaddr_len_;
 
-        int bytes_received;
-        char msg_buffer [1024];
+        int bytes_received_;
+        char msg_buffer_ [1024];
 
-        struct epoll_event ev;
-        struct epoll_event events[Constants::MAX_EVENTS];
+        struct epoll_event ev_;
+        struct epoll_event events_[Constants::MAX_EVENTS];
 };
