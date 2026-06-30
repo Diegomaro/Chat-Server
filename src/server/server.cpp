@@ -37,7 +37,7 @@ Server::Server(){
     client_sockaddr_len_ = sizeof(client_sockaddr_);
 
     bytes_received_ = 0;
-    memset(&msg_buffer_, 0, sizeof(msg_buffer_));
+    memset(&buffer_pool_, 0, sizeof(buffer_pool_));
 }
 
 Server::~Server(){
@@ -67,6 +67,18 @@ bool Server::setupHashTable(){
     }
     return true;
 }
+
+bool Server::setupBuffer(){
+    uint32_t current_address = 0x00000000;
+    for(int i = 0; i < Constants::STARTING_BUFFERS; i++){
+        if(!available_buffers_.insertTail(current_address)){
+            return false;
+        }
+        current_address += 0x00000200;
+    }
+    return true;
+}
+
 
 bool Server::setupListenerSocket(){
     int status = 0;
@@ -220,6 +232,21 @@ bool Server::closeConnection(int client_socket){
         perror("clossing failed");
         return false;
     }
+
+    const Client *client = client_sockets_.getNode(client_socket);
+    int8_t buffers_erased = 0;
+    for(int i = 0; i < Constants::CLIENT_POINTERS; i++){
+        if(buffers_erased >= client->buffer_pointers_amount_){
+            break;
+        }
+        if(client->buffer_pointers_[i] != UINT32_MAX){
+            if(!available_buffers_.insertHead(client->buffer_pointers_[i])){
+                return false;
+            }
+            buffers_erased++;
+        }
+    }
+
     if(!client_sockets_.deleteNode(client_socket)){
         return false;
     }
@@ -243,7 +270,16 @@ bool Server::addClient(){
         new_client.port_ = ntohs(ipv6->sin6_port);
     }
     inet_ntop(client_sockaddr_.ss_family, addr, new_client.ip_, sizeof(new_client.ip_));
-
+    if(available_buffers_.isEmpty()){
+        return false;
+    }
+    if(!(new_client.buffer_pointers_[0] = available_buffers_.getHead())){
+        return false;
+    }
+    if(!available_buffers_.deleteHead()){
+        return false;
+    }
+    new_client.buffer_pointers_amount_ = 1;
     if(!client_sockets_.insertNode(pending_client_, new_client)){
         return false;
     }
@@ -256,7 +292,7 @@ int Server::receiveFromClient(int client_socket){
         return Constants::INVALID_CLIENT;
     }
     bytes_received_ = 0;
-    msg_buffer_[0] = '\0';
+    /*msg_buffer_[0] = '\0';
     if((bytes_received_ = recv(client_socket, msg_buffer_, sizeof(msg_buffer_) - 1, 0)) == -1){
         int error = errno;
         if(error == EAGAIN || error == EWOULDBLOCK){
@@ -265,7 +301,7 @@ int Server::receiveFromClient(int client_socket){
             perror("An error ocurred while receiving from client.");
             return Constants::PERROR;
         }
-    }
+    }*/
     if(bytes_received_ == 0){
         return Constants::CLOSED_CONVERSATION;
     }
@@ -313,8 +349,8 @@ bool Server::printMessageFromClient(){
         return false;
     }
     if(bytes_received_ > 0){
-        msg_buffer_[bytes_received_] = '\0';
-        std::cout << "Message received: " << msg_buffer_ << std::endl;
+        //msg_buffer_[bytes_received_] = '\0';
+        //std::cout << "Message received: " << msg_buffer_ << std::endl;
     }
     return true;
 }

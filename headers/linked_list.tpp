@@ -178,6 +178,11 @@ T &LinkedList<T>::getNode(){
 }
 
 template <typename T>
+T &LinkedList<T>::getHead(){
+	return _head->data_;
+}
+
+template <typename T>
 bool LinkedList<T>::printAll(){
 	if(!head_){
 		return false;
@@ -191,6 +196,14 @@ bool LinkedList<T>::printAll(){
     }
 	std::cout << std::endl;
 	return true;
+}
+
+template <typename T>
+bool LinkedList<T>::isEmpty(){
+	if(!head_){
+		return true;
+	}
+	return false;
 }
 
 template <typename T>

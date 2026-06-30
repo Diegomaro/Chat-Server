@@ -22,7 +22,9 @@ public:
 	bool hasNode();
 	bool advanceNode();
 	T &getNode();
+	T &getHead();
 	bool printAll();
+	bool isEmpty();
 	bool clear();
 private:
 	Node *current_node_;

@@ -15,7 +15,7 @@ The maximum size of a message is of 65536 - header size (To be defined).
 
 The issue:
 1 Million Clients
- 65536 \* 1048576 = 68719476736 bytes of ram usage
+ 65536 * 1048576 = 68719476736 bytes of ram usage
 Which is simply not possible
 64 GB
 
@@ -23,7 +23,7 @@ My VM of 4GB cannot handle this. But I will also not have 1 million clients.
 
 The size I can test with this setup is (using only 128 MB):
 
-(0.125/64) \* 100 = 0.001953125 \* 100  = 0.1953125%
+(0.125/64) * 100 = 0.001953125 * 100  = 0.1953125%
 
 So,
-1048576 \* 0.001953125 = 2048 users
+1048576 * 0.001953125 = 2048 users

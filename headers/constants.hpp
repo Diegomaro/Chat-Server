@@ -3,9 +3,12 @@ namespace Constants{
     inline constexpr const char* NOT_NAMED = "UNNAMED";
 
     inline constexpr const int MAX_EVENTS = 256;
-    inline constexpr const int MAX_HOSTS = 0x100000; //APROX 1 MILLION
+    inline constexpr const int MAX_HOSTS = 0x000800; // 2048
     inline constexpr const int MAX_HOSTNAME_LENGTH = 16;
     inline constexpr const int BACKLOG = 10;
+    inline constexpr const int BUFFER_SIZE = 0x08000000;
+    inline constexpr const int STARTING_BUFFERS = 262144; // From 8 to 262,144
+    inline constexpr const int CLIENT_POINTERS = 128;
 
     inline constexpr const int SUCCESS = 0;
     inline constexpr const int NOTHING_TO_READ = 1;

@@ -3,7 +3,12 @@
 
 int main(){
     Server server;
-    server.setupHashTable();
+    if(!server.setupHashTable()){
+        return 1;
+    }
+    if(!server.setupBuffer()){
+        return 1;
+    }
     if(server.setupListenerSocket()){
         server.loopConnections();
     }

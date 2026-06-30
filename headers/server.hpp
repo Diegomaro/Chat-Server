@@ -11,9 +11,10 @@ class Server{
     public:
         Server();
         ~Server();
-        bool setupHashTable();
 
-        //setup listener socket
+        //setup
+        bool setupHashTable();
+        bool setupBuffer();
         bool setupListenerSocket();
 
         //central loop
@@ -60,8 +61,8 @@ class Server{
         socklen_t client_sockaddr_len_;
 
         int bytes_received_;
-        char buffer_pool [0x8000000]; // 128 MB
-        LinkedList<char*> available_buffers_; // only 10 to start
+        char buffer_pool_ [Constants::BUFFER_SIZE];
+        LinkedList<uint32_t> available_buffers_;
 
         struct epoll_event ev_;
         struct epoll_event events_[Constants::MAX_EVENTS];
