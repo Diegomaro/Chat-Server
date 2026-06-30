@@ -149,7 +149,6 @@ bool HashTable<T>::checkRehash(){
     return true;
 }
 
-
 template <typename T>
 bool HashTable<T>::rehash(){
     is_rehashing_ = true;

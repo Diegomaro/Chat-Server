@@ -1,0 +1,29 @@
+Buffering
+
+Allow for 128 buffers per client. If 129 is requested, return NO_MORE_CAPACITY.
+If 128 buffers are occupied, the server tells the client when 1 is freed. Send message RELEASED.
+
+Client will wait until it receives RELEASED to send more messages.
+
+Client buffers that don't reach valid message state will be erased.  They will be erased after 30 seconds. The client will be alerted with MESSAGE_ERROR and the buffer will be dumped.
+
+Each time a message is ready to be sent, the server will send the client MESSAGE PROCESSED. The client will mark the earliest message sent with a processed state.
+
+The entire buffer will be of x bytes. Each user will be given 65536 bytes to occupy. This will be broken down to 128 segments. Each segments will be of 512 bytes. Each user will always have one buffer.
+
+The maximum size of a message is of 65536 - header size (To be defined).
+
+The issue:
+1 Million Clients
+ 65536 \* 1048576 = 68719476736 bytes of ram usage
+Which is simply not possible
+64 GB
+
+My VM of 4GB cannot handle this. But I will also not have 1 million clients.
+
+The size I can test with this setup is (using only 128 MB):
+
+(0.125/64) \* 100 = 0.001953125 \* 100  = 0.1953125%
+
+So,
+1048576 \* 0.001953125 = 2048 users

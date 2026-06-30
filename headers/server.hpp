@@ -11,8 +11,8 @@ class Server{
     public:
         Server();
         ~Server();
-
         bool setupHashTable();
+
         //setup listener socket
         bool setupListenerSocket();
 
@@ -22,7 +22,6 @@ class Server{
         // connections to client
         int acceptConnection();
         bool closeConnection(int client_socket);
-
         bool addClient();
 
         // data transmission
@@ -61,7 +60,8 @@ class Server{
         socklen_t client_sockaddr_len_;
 
         int bytes_received_;
-        char msg_buffer_ [1024];
+        char buffer_pool [0x8000000]; // 128 MB
+        LinkedList<char*> available_buffers_; // only 10 to start
 
         struct epoll_event ev_;
         struct epoll_event events_[Constants::MAX_EVENTS];
