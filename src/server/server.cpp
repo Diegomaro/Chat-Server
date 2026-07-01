@@ -350,33 +350,8 @@ int Server::receiveFromClient(int client_socket){
         return Constants::CLOSED_CONVERSATION;
     }
 
-    /*
-    for(int i = 0; i < bytes_received_; i++){
-        buffer_pool_[client_->writing_pointer_] = msg_buffer_[i];
-        client_->byte_counter_++;
-        if(!client_->advanceWritingPointer()){
-            if(client_->buffer_pointers_amount_ + 1 >= Constants::CLIENT_POINTERS){
-                return Constants::EXCEEDED_CLIENT_BUFFER_SIZE;
-            } else{
-                if(available_buffers_.isEmpty()){
-                    return Constants::INSUFFICIENT_BUFFER_SPACE;
-                }
-                uint32_t new_buffer_segment = available_buffers_.getHead();
-                client_->buffer_pointers_[(client_->writing_buffer_ + 1) % 128] = new_buffer_segment;
-                if(!available_buffers_.deleteHead()){
-                    return Constants::ERROR;
-                }
-                client_->buffer_pointers_amount_++;
-                client_->writing_buffer_ = (client_->writing_buffer_ + 1) % 128;
-                client_->writing_pointer_ = new_buffer_segment;
-            }
-        }
-    }
-    */
-
-   // /*
-   int bytes_remaining = bytes_received_;
-   int msg_buffer_offset = 0;
+    int bytes_remaining = bytes_received_;
+    int msg_buffer_offset = 0;
     while(bytes_remaining > 0){
         uint32_t available_segment_bytes = client_->getRemainingBytesWriting();
         //std::cout << static_cast<uint>(client_->writing_pointer_) << std::endl;
@@ -409,15 +384,12 @@ int Server::receiveFromClient(int client_socket){
             }
         }
     }
-    //*/
     client_ = nullptr;
     return Constants::SUCCESS;
 }
 
 int Server::checkMessage(int client_socket){
     client_ = client_sockets_.getNode(client_socket); // remove all of these
-    //std::cout << "current ptr: " << static_cast<uint>(client_->reading_pointer_) << std::endl;
-    //std::cout << "current buffer: " << static_cast<uint>(client_->reading_buffer_) << std::endl;
     if(!client_){
         return Constants::ERROR;
     }
@@ -531,7 +503,6 @@ bool Server::cleanClientBuffer(int client_socket){
 
     client_->resetMessage();
     return true;
-
 }
 
 bool Server::advanceClientPointer(int client_socket){
@@ -545,7 +516,6 @@ bool Server::advanceClientPointer(int client_socket){
     }
     return true;
 }
-
 
 // returns INVALID_CLIENT, PERROR, INCOMPLETE_MESSAGE_RESEND, SUCCESS
 int Server::sendAcknowledgement(int client_socket){
@@ -587,19 +557,14 @@ bool Server::printClientInformation(int client_socket){
 
 bool Server::printMessageFromClient(int client_socket){
     client_ = client_sockets_.getNode(client_socket);
-    int print_pointer = Constants::READER_BUFFER_POINTER;
+
+    std::cout << "Message received: " << std::endl;
     for(int i = 0; i < client_->payload_length_; i++){
-        buffer_pool_[print_pointer] = buffer_pool_[client_->reading_pointer_];
+        std::cout << static_cast<char>(buffer_pool_[client_->reading_pointer_]);
         if(!advanceClientPointer(client_socket)){
             return false;
         }
-        print_pointer++;
     }
-    msg_buffer_[bytes_received_] = '\0';
-    std::cout << "Message received: " << std::endl;
-    for(int i = 0; i < client_->payload_length_; i++){
-        std::cout << static_cast<char>(buffer_pool_[Constants::READER_BUFFER_POINTER + i]);
-    }
-    std::cout << std::endl;
+    std::cout << std::endl << std::endl;
     return true;
 }

@@ -9,7 +9,6 @@ struct Client{
         Client();
         void resetMessage();
 
-        bool advanceWritingPointer();
         uint32_t getRemainingBytesWriting();
 
         bool advanceReadingPointer();

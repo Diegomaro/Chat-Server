@@ -32,15 +32,6 @@ void Client::resetMessage(){
     complete_message_ = false;
 }
 
-bool Client::advanceWritingPointer(){
-    if(writing_pointer_ + 1 >= (buffer_pointers_[writing_buffer_] + Constants::BUFFER_SEGMENT_SIZE)){
-        return false;
-    } else{
-        writing_pointer_++;
-        return true;
-    }
-}
-
 uint32_t Client::getRemainingBytesWriting(){
     return buffer_pointers_[writing_buffer_] + Constants::BUFFER_SEGMENT_SIZE - writing_pointer_;
 }
