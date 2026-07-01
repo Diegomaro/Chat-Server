@@ -24,10 +24,10 @@ Client::Client(){
     complete_message_ = false;
 }
 
-void Client::resetValues(){
+void Client::resetMessage(){
     payload_length_ = UINT16_MAX;
     type_ = 0;
-    receiver_key_ = 0;
+    receiver_key_ = UINT32_MAX;
     receiver_fd_ = -1;
     complete_message_ = false;
 }

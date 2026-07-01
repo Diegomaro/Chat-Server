@@ -7,7 +7,7 @@
 struct Client{
     public:
         Client();
-        void resetValues();
+        void resetMessage();
         bool advanceWritingPointer();
         bool advanceReadingPointer();
         char name_ [Constants::MAX_HOSTNAME_LENGTH];

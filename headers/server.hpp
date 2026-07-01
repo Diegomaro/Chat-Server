@@ -61,7 +61,6 @@ class Server{
         socklen_t client_sockaddr_len_;
 
         Client *client_;
-        uint16_t byte_counter_;
         // client socket
 
         int bytes_received_;

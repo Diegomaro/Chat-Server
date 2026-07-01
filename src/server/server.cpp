@@ -35,7 +35,6 @@ Server::Server(){
     client_sockaddr_len_ = sizeof(client_sockaddr_);
 
     client_ = nullptr;
-    byte_counter_ = 0;
 
     bytes_received_ = 0;
     buffer_pool_ = nullptr;
@@ -175,12 +174,12 @@ bool Server::loopConnections(){
                     switch(rcvf_state_){
                         case Constants::SUCCESS:{
                             if(checkMessage(sender_socket_) == Constants::SUCCESS){
-                                if(!printMessageFromClient(sender_socket_)){
+                                if(!printMessageFromClient(sender_socket_)){ // has to happen
                                     return false;
                                 }
-                                //cleanClientBuffer();
-                                // restart:
-                                // clean client buffer, client variables and state of message
+                                if(!cleanClientBuffer(sender_socket_)){
+                                    return false;
+                                }
                             }
                            //if missing timeout
                         } break;
@@ -197,7 +196,7 @@ bool Server::loopConnections(){
                                     return false;
                                 } break;
                             }
-                            return true; // to test for memory leaks
+                            // return true; // to test for memory leaks
                             receive_loop_ = false;
                         } break;
                         case Constants::INVALID_CLIENT: {
@@ -207,6 +206,7 @@ bool Server::loopConnections(){
                             if(!closeConnection(sender_socket_)){
                                 return false;
                             }
+                            return true; // to test for memory leaks
                             receive_loop_ = false;
                         } break;
                         case Constants::ERROR:{
@@ -374,7 +374,7 @@ int Server::receiveFromClient(int client_socket){
 }
 
 int Server::checkMessage(int client_socket){
-    client_ = client_sockets_.getNode(client_socket);
+    client_ = client_sockets_.getNode(client_socket); // remove all of these
     if(!client_){
         return Constants::ERROR;
     }
@@ -468,6 +468,27 @@ int Server::checkMessage(int client_socket){
 }
 
 bool Server::cleanClientBuffer(int client_socket){
+    int dif = client_->writing_buffer_ - client_->starting_buffer_;
+    if(dif < 0){
+        dif *= -1;
+    }
+    for(int i = 0; i < dif; i++){
+        if(!available_buffers_.insertHead(client_->buffer_pointers_[(client_->starting_buffer_ + i) % 128])){
+            return false;
+        }
+    }
+    if(dif > 1){
+        client_->buffer_pointers_amount_--;
+        client_->buffer_pointers_[client_->starting_buffer_] = UINT32_MAX;
+        client_->starting_buffer_ = client_->writing_buffer_;
+        client_->reading_buffer_ = client_->starting_buffer_;
+    }
+
+    client_->starting_pointer_ = client_->reading_pointer_;
+    client_->byte_counter_ -= client_->payload_length_;
+
+    client_->resetMessage();
+    return true;
 
 }
 
