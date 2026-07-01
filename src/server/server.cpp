@@ -196,13 +196,12 @@ bool Server::loopConnections(){
                                     return false;
                                 } break;
                             }
-                            // return true; // to test for memory leaks
                             receive_loop_ = false;
                         } break;
-                        case Constants::INVALID_CLIENT: {
+                        case Constants::INVALID_CLIENT:{
                             return false;
                         }break;
-                        case Constants::CLOSED_CONVERSATION: {
+                        case Constants::CLOSED_CONVERSATION:{
                             if(!closeConnection(sender_socket_)){
                                 return false;
                             }
@@ -313,6 +312,7 @@ bool Server::addClient(){
 
     new_client.buffer_pointers_amount_ = 1;
     new_client.starting_pointer_ = new_client.buffer_pointers_[0];
+    new_client.reading_pointer_ = new_client.buffer_pointers_[0];
     new_client.writing_pointer_ = new_client.buffer_pointers_[0];
     new_client.sender_key_ = new_client.buffer_pointers_[0];
     if(!client_sockets_.insertNode(pending_client_, new_client)){
@@ -330,11 +330,10 @@ int Server::receiveFromClient(int client_socket){
     if(client_socket == -1){
         return Constants::INVALID_CLIENT;
     }
-    bytes_received_ = 0;
 
     client_ = client_sockets_.getNode(client_socket);
     if(!client_){
-        return false;
+        return Constants::ERROR;
     }
     msg_buffer_[0] = '\0';
     if((bytes_received_ = recv(client_socket, msg_buffer_, Constants::BUFFER_SEGMENT_SIZE, 0)) == -1){
@@ -360,11 +359,12 @@ int Server::receiveFromClient(int client_socket){
                     return Constants::INSUFFICIENT_BUFFER_SPACE;
                 }
                 uint32_t new_buffer_segment = available_buffers_.getHead();
-                client_->buffer_pointers_[client_->writing_buffer_ + 1] = new_buffer_segment;
+                client_->buffer_pointers_[(client_->writing_buffer_ + 1) % 128] = new_buffer_segment;
                 if(!available_buffers_.deleteHead()){
                     return Constants::ERROR;
                 }
-                client_->writing_buffer_++;
+                client_->buffer_pointers_amount_++;
+                client_->writing_buffer_ = (client_->writing_buffer_ + 1) % 128;
                 client_->writing_pointer_ = new_buffer_segment;
             }
         }
@@ -375,10 +375,11 @@ int Server::receiveFromClient(int client_socket){
 
 int Server::checkMessage(int client_socket){
     client_ = client_sockets_.getNode(client_socket); // remove all of these
+    //std::cout << "current ptr: " << static_cast<uint>(client_->reading_pointer_) << std::endl;
+    //std::cout << "current buffer: " << static_cast<uint>(client_->reading_buffer_) << std::endl;
     if(!client_){
         return Constants::ERROR;
     }
-
     // HEAD_BITS
     if((buffer_pool_[client_->reading_pointer_] ^ 0xFF) != 0){
         return Constants::INVALID_MESSAGE;
@@ -477,7 +478,7 @@ bool Server::cleanClientBuffer(int client_socket){
             return false;
         }
     }
-    if(dif > 1){
+    if(dif >= 1){
         client_->buffer_pointers_amount_--;
         client_->buffer_pointers_[client_->starting_buffer_] = UINT32_MAX;
         client_->starting_buffer_ = client_->writing_buffer_;
@@ -493,15 +494,13 @@ bool Server::cleanClientBuffer(int client_socket){
 }
 
 bool Server::advanceClientPointer(int client_socket){
-    if(client_->reading_pointer_ + 1 >= (client_->buffer_pointers_[client_->reading_buffer_] + Constants::MAX_MESSAGE_SIZE)){
+    if(!client_->advanceReadingPointer()){
         client_->reading_buffer_++;
         if(client_->reading_buffer_ >= Constants::CLIENT_POINTERS){
             return false;
         } else{
             client_->reading_pointer_ = client_->buffer_pointers_[client_->reading_buffer_];
         }
-    } else{
-        client_->reading_pointer_++;
     }
     return true;
 }
@@ -537,7 +536,7 @@ bool Server::printClientInformation(int client_socket){
         return false;
     }
     std::cout << "Client Name: " << client_->name_ << std::endl;
-    std::cout << "Client Name: " << client_->sender_key_ << std::endl;
+    std::cout << "Client Key: " << client_->sender_key_ << std::endl;
     std::cout << "Client IP: " << client_->ip_ << std::endl;
     std::cout << "Client Port: " << client_->port_ << std::endl;
     std::cout << "Client Socket: " << client_socket << std::endl;

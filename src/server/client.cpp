@@ -33,7 +33,7 @@ void Client::resetMessage(){
 }
 
 bool Client::advanceWritingPointer(){
-    if(writing_pointer_ + 1 >= (buffer_pointers_[writing_buffer_] + Constants::MAX_MESSAGE_SIZE)){
+    if(writing_pointer_ + 1 >= (buffer_pointers_[writing_buffer_] + Constants::BUFFER_SEGMENT_SIZE)){
         return false;
     } else{
         writing_pointer_++;
@@ -42,7 +42,7 @@ bool Client::advanceWritingPointer(){
 }
 
 bool Client::advanceReadingPointer(){
-    if(reading_pointer_ + 1 >= (buffer_pointers_[reading_buffer_] + Constants::MAX_MESSAGE_SIZE)){
+    if(reading_pointer_ + 1 >= (buffer_pointers_[reading_buffer_] + Constants::BUFFER_SEGMENT_SIZE)){
         return false;
     } else{
         reading_pointer_++;

@@ -46,7 +46,7 @@ bool ClientProcessor::setMessage(std::string message){
     }
     uint16_t message_length = 0;
     if(message.length() > 1023){
-        message_length = 1023;
+        message_length = 1023; // update later
     } else{
         message_length = message.length();
     }

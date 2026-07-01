@@ -16,13 +16,13 @@ int main(){
 
             clientProcessor.sendMessage();
             clientProcessor.receiveFromServer();
-            std::cout << "Input 0 if you do not want to send any more messages. Input 1 if you want to send more messages." << std::endl;
+            /*std::cout << "Input 0 if you do not want to send any more messages. Input 1 if you want to send more messages." << std::endl;
             std::cin >> ans;
             std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
             if(ans == 0){
                 std::cout << "Connection will be terminated" << std::endl;
                 break;
-            }
+            }*/
         }
     }
     return 0;
