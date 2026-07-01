@@ -83,7 +83,7 @@ bool Server::setupBuffer(){
     if(!buffer_pool_){
         return false;
     }
-    msg_buffer_ = new(std::nothrow) uint8_t [Constants::BUFFER_SEGMENT_SIZE];
+    msg_buffer_ = new(std::nothrow) uint8_t [Constants::BUFFER_READING_SIZE];
     if(!msg_buffer_){
         return false;
     }
@@ -171,6 +171,7 @@ bool Server::loopConnections(){
                 receive_loop_ = true;
                 while(receive_loop_){
                     rcvf_state_ = receiveFromClient(sender_socket_);
+                    std::cout << "STATE: " << rcvf_state_ << std::endl;
                     switch(rcvf_state_){
                         case Constants::SUCCESS:{
                             if(checkMessage(sender_socket_) == Constants::SUCCESS){
@@ -336,7 +337,7 @@ int Server::receiveFromClient(int client_socket){
         return Constants::ERROR;
     }
     msg_buffer_[0] = '\0';
-    if((bytes_received_ = recv(client_socket, msg_buffer_, Constants::BUFFER_SEGMENT_SIZE, 0)) == -1){
+    if((bytes_received_ = recv(client_socket, msg_buffer_, Constants::BUFFER_READING_SIZE, 0)) == -1){
         int error = errno;
         if(error == EAGAIN || error == EWOULDBLOCK){
             return Constants::NOTHING_TO_READ;
@@ -348,6 +349,8 @@ int Server::receiveFromClient(int client_socket){
     if(bytes_received_ == 0){
         return Constants::CLOSED_CONVERSATION;
     }
+
+    /*
     for(int i = 0; i < bytes_received_; i++){
         buffer_pool_[client_->writing_pointer_] = msg_buffer_[i];
         client_->byte_counter_++;
@@ -369,6 +372,44 @@ int Server::receiveFromClient(int client_socket){
             }
         }
     }
+    */
+
+   // /*
+   int bytes_remaining = bytes_received_;
+   int msg_buffer_offset = 0;
+    while(bytes_remaining > 0){
+        uint32_t available_segment_bytes = client_->getRemainingBytesWriting();
+        //std::cout << static_cast<uint>(client_->writing_pointer_) << std::endl;
+        if(available_segment_bytes > bytes_remaining){
+            memcpy(&buffer_pool_[client_->writing_pointer_], &msg_buffer_[msg_buffer_offset], bytes_remaining);
+            client_->writing_pointer_ += bytes_remaining;
+            client_->byte_counter_ += bytes_remaining;
+            bytes_remaining = 0;
+        }else {
+            memcpy(&buffer_pool_[client_->writing_pointer_], &msg_buffer_[msg_buffer_offset], available_segment_bytes);
+            client_->byte_counter_ += available_segment_bytes;
+            msg_buffer_offset += available_segment_bytes;
+            bytes_remaining -= available_segment_bytes;
+            if(client_->buffer_pointers_amount_ + 1 >= Constants::CLIENT_POINTERS){
+                if(checkMessage(client_socket) == Constants::SUCCESS){
+                    // delete old message
+                }
+                return Constants::EXCEEDED_CLIENT_BUFFER_SIZE;
+            } else if(available_buffers_.isEmpty()){
+                return Constants::INSUFFICIENT_BUFFER_SPACE;
+            } else{
+                uint32_t new_buffer_segment = available_buffers_.getHead();
+                client_->buffer_pointers_[(client_->writing_buffer_ + 1) % 128] = new_buffer_segment;
+                if(!available_buffers_.deleteHead()){
+                    return Constants::ERROR;
+                }
+                client_->buffer_pointers_amount_++;
+                client_->writing_buffer_ = (client_->writing_buffer_ + 1) % 128;
+                client_->writing_pointer_ = new_buffer_segment;
+            }
+        }
+    }
+    //*/
     client_ = nullptr;
     return Constants::SUCCESS;
 }
@@ -444,7 +485,7 @@ int Server::checkMessage(int client_socket){
                 // later it should be changed to store all client keys.
                 // If client is not available it should be stored in some file. (much later)
             }
-            if(client_->byte_counter_ < client_->payload_length_){
+            if(client_->byte_counter_ < client_->payload_length_ + 8){
                 return Constants::INCOMPLETE_MESSAGE;
             }
             return Constants::SUCCESS;
@@ -486,7 +527,7 @@ bool Server::cleanClientBuffer(int client_socket){
     }
 
     client_->starting_pointer_ = client_->reading_pointer_;
-    client_->byte_counter_ -= client_->payload_length_;
+    client_->byte_counter_ -= client_->payload_length_ + 8;
 
     client_->resetMessage();
     return true;

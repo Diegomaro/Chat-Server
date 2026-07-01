@@ -109,7 +109,7 @@ T *HashTable<T>::getNode(int key){
 
 template <typename T>
 bool HashTable<T>::hasNodes(){
-    if(current_node_ + 1 >= size_){
+    if(current_node_ >= size_){
         return false;
     }
     return true;
@@ -126,20 +126,22 @@ bool HashTable<T>::hasNode(){
 template <typename T>
 bool HashTable<T>::advanceNode(){
     if(!table_[current_node_].advanceNode()){
-        if(current_node_ + 1 >= size_){
+        if(current_node_ >= size_){
             return false;
         } else{
             current_node_++;
         }
     } else{
-        table_[current_node_].resetNodeIndex();
+        //table_[current_node_].resetNodeIndex();
     }
     return true;
 }
 
 template <typename T>
 void HashTable<T>::resetNodeIndex(){
-    table_[0].resetNodeIndex();
+    for(int i = 0; i < size_; i++){
+        table_[i].resetNodeIndex();
+    }
     current_node_ = 0;
 }
 

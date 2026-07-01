@@ -8,8 +8,13 @@ struct Client{
     public:
         Client();
         void resetMessage();
+
         bool advanceWritingPointer();
+        uint32_t getRemainingBytesWriting();
+
         bool advanceReadingPointer();
+        uint32_t getRemainingBytesReading();
+
         char name_ [Constants::MAX_HOSTNAME_LENGTH];
         char ip_ [INET6_ADDRSTRLEN];
         int port_;

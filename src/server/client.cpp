@@ -41,6 +41,10 @@ bool Client::advanceWritingPointer(){
     }
 }
 
+uint32_t Client::getRemainingBytesWriting(){
+    return buffer_pointers_[writing_buffer_] + Constants::BUFFER_SEGMENT_SIZE - writing_pointer_;
+}
+
 bool Client::advanceReadingPointer(){
     if(reading_pointer_ + 1 >= (buffer_pointers_[reading_buffer_] + Constants::BUFFER_SEGMENT_SIZE)){
         return false;
@@ -48,4 +52,8 @@ bool Client::advanceReadingPointer(){
         reading_pointer_++;
         return true;
     }
+}
+
+uint32_t Client::getRemainingBytesReading(){
+    return buffer_pointers_[reading_buffer_] + Constants::BUFFER_SEGMENT_SIZE - reading_pointer_;
 }

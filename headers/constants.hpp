@@ -11,7 +11,8 @@ namespace Constants{
     inline constexpr const int STARTING_BUFFERS = 262144 - 128; // From 8 to 262016
     inline constexpr const int CLIENT_POINTERS = 128;
     inline constexpr const int BUFFER_SEGMENT_SIZE = 0x00000200;
-    inline constexpr const int MAX_MESSAGE_SIZE = 0x00010000 - 0x00000200;
+    inline constexpr const int MAX_MESSAGE_SIZE = 0x00010000 - 0x00000200 - 0x00000008;
+    inline constexpr const int BUFFER_READING_SIZE = BUFFER_SEGMENT_SIZE * 16;
     inline constexpr const int HEADER_SIZE = 8;
 
     inline constexpr const int READER_BUFFER_POINTER = BUFFER_SIZE - 0x00010000;
