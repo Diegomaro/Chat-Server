@@ -85,15 +85,15 @@ bool LinkedList<T>::deleteTail(){
 	}
 
 	Node* temp = head_;
-	while(temp->next->next != nullptr){
-        temp = temp->next;
+	while(temp->next_->next_ != nullptr){
+        temp = temp->next_;
     }
 	if(tail_ == current_node_){
 		current_node_ = temp;
 	}
 	delete tail_;
 	tail_ = temp;
-	tail_->next = nullptr;
+	tail_->next_ = nullptr;
 	return true;
 }
 
@@ -114,20 +114,20 @@ bool LinkedList<T>::deleteNode(T data){
 		return deleteHead();
 		return true;
 	}
-	while(tmp->next != nullptr){
-		if(tmp->next->data == data){
-			Node* anchorNode = tmp->next->next;
-			if(current_node_ == tmp->next){
+	while(tmp->next_ != nullptr){
+		if(tmp->next_->data_ == data){
+			Node* anchorNode = tmp->next_->next_;
+			if(current_node_ == tmp->next_){
 				current_node_ = anchorNode;
 			}
-			delete tmp->next;
-			tmp->next = anchorNode;
+			delete tmp->next_;
+			tmp->next_ = anchorNode;
 			if(anchorNode == nullptr){
 				tail_ = tmp;
 			}
 			return true;
 		}
-		tmp = tmp->next;
+		tmp = tmp->next_;
 	}
 	return false;
 }
@@ -139,10 +139,10 @@ bool LinkedList<T>::searchNode(T data){
 	}
 	Node* index = head_;
 	while(index != nullptr){
-		if(index->data == data){
+		if(index->data_ == data){
 			return true;
 		}
-		index = index->next;
+		index = index->next_;
 	}
 	return false;
 }
@@ -179,7 +179,7 @@ T &LinkedList<T>::getNode(){
 
 template <typename T>
 T &LinkedList<T>::getHead(){
-	return _head->data_;
+	return head_->data_;
 }
 
 template <typename T>
@@ -200,10 +200,10 @@ bool LinkedList<T>::printAll(){
 
 template <typename T>
 bool LinkedList<T>::isEmpty(){
-	if(!head_){
-		return true;
+	if(head_){
+		return false;
 	}
-	return false;
+	return true;
 }
 
 template <typename T>

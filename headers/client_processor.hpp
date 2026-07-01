@@ -22,10 +22,10 @@ class ClientProcessor{
 
         int client_socket_;
 
-        char msg_ [1024];
+        uint8_t msg_ [1024];
         int msg_len_;
 
-        char msg_buffer_ [1024];
+        uint8_t msg_buffer_ [1024];
 
         struct sockaddr_storage server_addr_;
         socklen_t server_addr_len_;

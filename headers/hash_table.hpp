@@ -10,6 +10,7 @@ class HashTable{
         struct HashData{
             int key_;
             T data_;
+            bool operator == (HashData &HASHDATA);
         };
         HashTable();
         ~HashTable();
@@ -18,13 +19,13 @@ class HashTable{
         bool insertNode(int key, T data);
         bool deleteNode(int key);
         bool searchNode(int key);
-        const T *getNode(int key);
+        T *getNode(int key);
 
         bool hasNodes();
         bool hasNode();
 	    bool advanceNode();
         void resetNodeIndex();
-        const HashData* getNode();
+        HashData* getNode();
 
         unsigned int getSize();
         unsigned int getDataCount();

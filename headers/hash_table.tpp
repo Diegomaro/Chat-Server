@@ -17,6 +17,11 @@ HashTable<T>::~HashTable(){
 }
 
 template <typename T>
+bool HashTable<T>::HashData::operator == (HashTable<T>::HashData &HASHDATA){
+    return key_ == HASHDATA.key_;
+}
+
+template <typename T>
 bool HashTable<T>::createTable(unsigned int desiredSize){
     if(table_ || !desiredSize){
         return false;
@@ -60,7 +65,14 @@ bool HashTable<T>::deleteNode(int key){
     if(!table_){
         return false;
     }
-    if(table_[hash(key)].deleteNode(key)){
+    T *tmpData = getNode(key);
+    if(!tmpData){
+        return false;
+    }
+    HashData hashData;
+    hashData.key_ = key;
+    hashData.data_ = *tmpData;
+    if(table_[hash(key)].deleteNode(hashData)){
         data_count_--;
         return true;
     }
@@ -72,14 +84,15 @@ bool HashTable<T>::searchNode(int key){
     if(!table_){
         return false;
     }
-    if(table_[hash(key)].searchNode(key)){
-        return true;
+    T *tmpData = getNode(key);
+    if(!tmpData){
+        return false;
     }
-    return false;
+    return true;
 }
 
 template <typename T>
-const T *HashTable<T>::getNode(int key){
+T *HashTable<T>::getNode(int key){
     if(!table_){
         return nullptr;
     }
@@ -131,7 +144,7 @@ void HashTable<T>::resetNodeIndex(){
 }
 
 template <typename T>
-const typename HashTable<T>::HashData* HashTable<T>::getNode(){
+typename HashTable<T>::HashData* HashTable<T>::getNode(){
     return &table_[current_node_].getNode();
 }
 

@@ -3,7 +3,7 @@
 
 int main(){
     Server server;
-    if(!server.setupHashTable()){
+    if(!server.setupHashTables()){
         return 1;
     }
     if(!server.setupBuffer()){

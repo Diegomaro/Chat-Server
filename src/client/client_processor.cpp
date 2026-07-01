@@ -15,7 +15,7 @@ ClientProcessor::ClientProcessor(){
     memset(&msg_buffer_, 0, sizeof(msg_buffer_));
     memset(&msg_, 0, sizeof(msg_));
     server_addr_len_ = sizeof(server_addr_);
-    msg_len_ = strlen(msg_);
+    msg_len_ = 1024;
 }
 
 ClientProcessor::~ClientProcessor(){
@@ -44,17 +44,26 @@ bool ClientProcessor::setMessage(std::string message){
     if(message.empty() || !msg_){
         return false;
     }
-    int message_length = 0;
+    uint16_t message_length = 0;
     if(message.length() > 1023){
         message_length = 1023;
     } else{
         message_length = message.length();
     }
+    msg_[0] = 255; // 11111111
+    msg_[1] = 1; // CLIENT type
+    msg_[2] = 0; // receiver_key
+    msg_[3] = 0; // receiver_key
+    msg_[4] = 0; // receiver_key
+    msg_[5] = 0; // receiver_key
+    msg_[6] = message_length >> 8; // payload length
+    msg_[7] = message_length; // payload length
+
+
     for(int i = 0; i < message_length; i++){
-        msg_[i] = message[i];
+        msg_[8 + i] = message[i];
     }
-    msg_[message_length] = '\0';
-    msg_len_ = message_length;
+    msg_len_ = 8 + message_length;
     return true;
 }
 
