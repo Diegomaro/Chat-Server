@@ -9,19 +9,11 @@
 
 #include <fcntl.h>
 
-#include <iomanip>
 #include <cstdint>
 
 #include "../../headers/server.hpp"
 
 Server::Server(){
-    accept_state_ = 0;
-    accept_loop_ = true;
-    rcvf_state_ = 0;
-    sender_socket_ = 0;
-    receive_loop_ = true;
-    ack_state_ = 0;
-
     memset(&hints_, 0, sizeof(hints_));
     hints_.ai_family = AF_UNSPEC;
     hints_.ai_socktype = SOCK_STREAM;
@@ -144,18 +136,17 @@ bool Server::loopConnections(){
         }
         for (int i = 0; i < ready_polls; i++) {
             if(events_[i].data.fd == listener_socket_){
-                accept_state_ = 0;
-                accept_loop_ = true;
-                while(accept_loop_){
-                    accept_state_ = acceptConnection();
-                    switch(accept_state_){
+                bool accept_loop = true;
+                while(accept_loop){
+                    uint8_t accept_state = acceptConnection();
+                    switch(accept_state){
                         case Constants::SUCCESS:{
                             if(!printClientInformation(pending_client_)){
                                 return false;
                             }
                         } break;
                         case Constants::NOTHING_TO_READ:{
-                            accept_loop_ = false;
+                            accept_loop = false;
                         } break;
                         case Constants::ERROR:{
                             return false;
@@ -166,27 +157,26 @@ bool Server::loopConnections(){
                     }
                 }
             } else if (events_[i].events & EPOLLIN) {
-                sender_socket_ = events_[i].data.fd;
-                rcvf_state_ = 0;
-                receive_loop_ = true;
-                while(receive_loop_){
-                    rcvf_state_ = receiveFromClient(sender_socket_);
-                    std::cout << "STATE: " << rcvf_state_ << std::endl;
-                    switch(rcvf_state_){
+                int sender_socket = events_[i].data.fd;
+                bool receive_loop = true;
+                while(receive_loop){
+                    int rcvf_state = receiveFromClient(sender_socket);
+                    switch(rcvf_state){
                         case Constants::SUCCESS:{
-                            if(checkMessage(sender_socket_) == Constants::SUCCESS){
-                                if(!printMessageFromClient(sender_socket_)){ // has to happen
+                            if(checkMessage(sender_socket) == Constants::SUCCESS){
+                                // cannot send messages until authenticated
+                                if(!printMessageFromClient(sender_socket)){ // has to happen
                                     return false;
                                 }
-                                if(!cleanClientBuffer(sender_socket_)){
+                                if(!cleanClientBuffer(sender_socket)){
                                     return false;
                                 }
                             }
                            //if missing timeout
                         } break;
                         case Constants::NOTHING_TO_READ:{
-                            ack_state_ = sendAcknowledgement(sender_socket_);
-                            switch(ack_state_){
+                            uint8_t ack_state = sendAcknowledgement(sender_socket);
+                            switch(ack_state){
                                 case Constants::INCOMPLETE_MESSAGE:{
                                     // handle later
                                 } break;
@@ -197,17 +187,17 @@ bool Server::loopConnections(){
                                     return false;
                                 } break;
                             }
-                            receive_loop_ = false;
+                            receive_loop = false;
                         } break;
                         case Constants::INVALID_CLIENT:{
                             return false;
                         }break;
                         case Constants::CLOSED_CONVERSATION:{
-                            if(!closeConnection(sender_socket_)){
+                            if(!closeConnection(sender_socket)){
                                 return false;
                             }
                             return true; // to test for memory leaks
-                            receive_loop_ = false;
+                            receive_loop = false;
                         } break;
                         case Constants::ERROR:{
                             return false;
@@ -315,12 +305,15 @@ bool Server::addClient(){
     new_client.starting_pointer_ = new_client.buffer_pointers_[0];
     new_client.reading_pointer_ = new_client.buffer_pointers_[0];
     new_client.writing_pointer_ = new_client.buffer_pointers_[0];
-    new_client.sender_key_ = new_client.buffer_pointers_[0];
     if(!client_sockets_.insertNode(pending_client_, new_client)){
         return false;
     }
-    //if(!client_key_to_client_sockets_.insertNode(new_client.sender_key_, pending_client_)){
-    if(!client_key_to_client_sockets_.insertNode(0, pending_client_)){
+
+    // Temporal solution until keys given are stored in non volatile memory
+    new_client.sender_key_ = current_client_id_;
+    current_client_id_++;
+    std::cout << "sender key: " << new_client.sender_key_ << std::endl;
+   if(!client_key_to_client_sockets_.insertNode(new_client.sender_key_, pending_client_)){
         return false;
     }
     return true;
@@ -354,7 +347,6 @@ int Server::receiveFromClient(int client_socket){
     int msg_buffer_offset = 0;
     while(bytes_remaining > 0){
         uint32_t available_segment_bytes = client_->getRemainingBytesWriting();
-        //std::cout << static_cast<uint>(client_->writing_pointer_) << std::endl;
         if(available_segment_bytes > bytes_remaining){
             memcpy(&buffer_pool_[client_->writing_pointer_], &msg_buffer_[msg_buffer_offset], bytes_remaining);
             client_->writing_pointer_ += bytes_remaining;
@@ -457,7 +449,7 @@ int Server::checkMessage(int client_socket){
                 // later it should be changed to store all client keys.
                 // If client is not available it should be stored in some file. (much later)
             }
-            if(client_->byte_counter_ < client_->payload_length_ + 8){
+            if(client_->byte_counter_ < client_->payload_length_ + Constants::HEADER_SIZE){
                 return Constants::INCOMPLETE_MESSAGE;
             }
             return Constants::SUCCESS;
@@ -499,7 +491,7 @@ bool Server::cleanClientBuffer(int client_socket){
     }
 
     client_->starting_pointer_ = client_->reading_pointer_;
-    client_->byte_counter_ -= client_->payload_length_ + 8;
+    client_->byte_counter_ -= client_->payload_length_ + Constants::HEADER_SIZE;
 
     client_->resetMessage();
     return true;
@@ -515,6 +507,45 @@ bool Server::advanceClientPointer(int client_socket){
         }
     }
     return true;
+}
+
+int Server::sendToClient(int client_socket){
+    client_ = client_sockets_.getNode(client_socket);
+
+    int print_pointer = Constants::READER_BUFFER_POINTER;
+    int bytes_to_send = client_->payload_length_ + Constants::HEADER_SIZE;
+    int bytes_sent = 0;
+
+    client_->reading_pointer_ = client_->starting_pointer_;
+    for(int i = 0; i <  bytes_to_send; i++){
+        buffer_pool_[print_pointer] = buffer_pool_[client_->reading_pointer_];
+        if(!advanceClientPointer(client_socket)){
+            return false;
+        }
+        print_pointer++;
+    }
+
+    while(bytes_sent < bytes_to_send){
+        int sent_bytes = 0;
+        if((sent_bytes = send(
+            client_->receiver_fd_,
+            &buffer_pool_[Constants::READER_BUFFER_POINTER + bytes_sent],
+            (bytes_to_send - bytes_sent),
+            0)) == -1)
+        {
+            int error = errno;
+            if(error == EAGAIN || error == EWOULDBLOCK){
+                return Constants::NOTHING_TO_READ; // change to nothing to write
+            } else{
+                perror("Send of message failed.");
+                return Constants::ERROR;
+            }
+        } else{
+            bytes_sent += sent_bytes;
+        }
+    }
+    std::cout << "Message sent." << std::endl;
+    return Constants::SUCCESS;
 }
 
 // returns INVALID_CLIENT, PERROR, INCOMPLETE_MESSAGE_RESEND, SUCCESS
@@ -546,11 +577,11 @@ bool Server::printClientInformation(int client_socket){
     if(!client_){
         return false;
     }
-    std::cout << "Client Name: " << client_->name_ << std::endl;
-    std::cout << "Client Key: " << client_->sender_key_ << std::endl;
-    std::cout << "Client IP: " << client_->ip_ << std::endl;
-    std::cout << "Client Port: " << client_->port_ << std::endl;
-    std::cout << "Client Socket: " << client_socket << std::endl;
+    std::cout << "Client Name: " << client_->name_ << std::endl
+    << "Client Key: " << client_->sender_key_ << std::endl
+    << "Client IP: " << client_->ip_ << std::endl
+    << "Client Port: " << client_->port_ << std::endl
+    << "Client Socket: " << client_socket << std::endl;
     client_ = nullptr;
     return true;
 }

@@ -3,7 +3,7 @@
 This repository is dedicated to learning how network programming is done on C++ and how to establish connections between multiple clients through a server.
 
 ### **How to use this project:**
-This project was made on Debian and will only work with Unix like systems.
+This project was made on Debian and will only work with Linux systems.
 ```bash
 git clone (https://github.com/Diegomaro/Chat-Server.git)
 cd Chat-Server

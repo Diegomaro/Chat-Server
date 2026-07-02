@@ -27,12 +27,11 @@ class Server{
 
         // data transmission
         int receiveFromClient(int client_socket);
-
         int checkMessage(int client_socket);
         bool cleanClientBuffer(int client_socket);
-
         bool advanceClientPointer(int client_socket);
 
+        int sendToClient(int client_socket);
         int sendAcknowledgement(int client_socket);
 
         // print data
@@ -40,13 +39,6 @@ class Server{
         bool printMessageFromClient(int client_socket);
 
     private:
-        int accept_state_;
-        bool accept_loop_;
-        int rcvf_state_;
-        int sender_socket_;
-        bool receive_loop_;
-        int ack_state_;
-
         struct addrinfo hints_;
         struct addrinfo *res_;
 
@@ -69,4 +61,7 @@ class Server{
 
         struct epoll_event ev_;
         struct epoll_event events_[Constants::MAX_EVENTS];
+
+        uint32_t current_client_id_ = 0;
+        // later on it will have to be non-volatile memory
 };

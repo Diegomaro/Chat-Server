@@ -1,9 +1,9 @@
-Message Header (6 bytes)
+Message Header (8 bytes)
 
 Each client message should be composed as:
 
-HEAD_BITS  TYPE     RECEIVER_KEY PAYLOAD_LENGTH PAYLOAD
-1 byte     1 byte   4 bytes      2 bytes        0 - 65024 bytes
+HEAD_BITS  TYPE     RECEIVER_KEY    PAYLOAD_LENGTH  PAYLOAD
+1 byte     1 byte   4 bytes         2 bytes         0 - 65024 bytes
 
 HEAD_BITS = 11111111
 Simple sequence of bits.

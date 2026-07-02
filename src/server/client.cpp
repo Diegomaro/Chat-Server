@@ -4,24 +4,27 @@
 #include "../../headers/client.hpp"
 
 Client::Client(){
-    port_ = 0;
     memset(&name_, 0, sizeof(name_));
     memset(&ip_, 0, sizeof(ip_));
+    port_ = 0;
     for(int i = 0; i < Constants::CLIENT_POINTERS; i++){
         buffer_pointers_[i] = UINT32_MAX;
     }
     starting_buffer_ = 0;
     writing_buffer_ = 0;
+    reading_buffer_ = 0;
     buffer_pointers_amount_ = 0;
-    byte_counter_ = 0;
-    payload_length_ = UINT16_MAX;
+
     starting_pointer_ = 0;
     writing_pointer_ = 0;
     reading_pointer_ = 0;
+
+    byte_counter_ = 0;
+    payload_length_ = UINT16_MAX;
     type_ = 0;
+    sender_key_ = UINT32_MAX;
     receiver_key_ = UINT32_MAX;
     receiver_fd_ = -1;
-    complete_message_ = false;
 }
 
 void Client::resetMessage(){
@@ -29,7 +32,6 @@ void Client::resetMessage(){
     type_ = 0;
     receiver_key_ = UINT32_MAX;
     receiver_fd_ = -1;
-    complete_message_ = false;
 }
 
 uint32_t Client::getRemainingBytesWriting(){

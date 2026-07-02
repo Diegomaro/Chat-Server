@@ -189,7 +189,7 @@ bool LinkedList<T>::printAll(){
 	}
     Node* index = nullptr;
 	index = head_;
-	std::cout << "lista:" << std::endl;
+	std::cout << "List:" << std::endl;
     while(index != nullptr){
         std::cout << index->data_ << ", ";
         index = index->next_;

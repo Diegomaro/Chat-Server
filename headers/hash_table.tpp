@@ -131,8 +131,6 @@ bool HashTable<T>::advanceNode(){
         } else{
             current_node_++;
         }
-    } else{
-        //table_[current_node_].resetNodeIndex();
     }
     return true;
 }
