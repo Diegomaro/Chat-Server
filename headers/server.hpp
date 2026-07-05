@@ -60,7 +60,7 @@ class Server{
         uint8_t *msg_buffer_;
 
         struct epoll_event ev_;
-        struct epoll_event events_[Constants::MAX_EVENTS];
+        struct epoll_event events_[cts::MAX_EVENTS];
 
         uint32_t current_client_id_ = 0;
         // later on it will have to be non-volatile memory

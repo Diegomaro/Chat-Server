@@ -29,8 +29,9 @@ Run each command on different terminals.
 11. [ ] GUI of chat conversations.
 
 ### **Resources:**
- - Beej’s Guide to Network Programming https://beej.us/guide/bgnet/
- - C++ reference https://cppreference.com/
+ - Beej’s Guide to Network Programming: https://beej.us/guide/bgnet/
+ - C++ reference: https://cppreference.com/
+ - Man pages: https://man7.org/linux/man-pages/
 
 ### **Goals if I continue the project:**
 1. Group creation.
