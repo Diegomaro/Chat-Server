@@ -8,7 +8,7 @@ Client::Client(){
     memset(&ip_, 0, sizeof(ip_));
     port_ = 0;
 
-    for(int i = 0; i < cts::CLIENT_POINTERS; i++){
+    for(int i = 0; i < config::BUFFER_SEGMENTS_PER_CLIENT; i++){
         buffer_pointers_[i] = UINT32_MAX;
     }
     buffer_pointers_amount_ = 0;
@@ -36,11 +36,11 @@ void Client::resetMessage(){
 }
 
 uint32_t Client::getRemainingBytesWriting(){
-    return buffer_pointers_[writing_buffer_] + cts::BUFFER_SEGMENT_SIZE - writing_pointer_;
+    return buffer_pointers_[writing_buffer_] + config::BUFFER_SEGMENT_SIZE - writing_pointer_;
 }
 
 bool Client::advanceReadingPointer(){
-    if(reading_pointer_ + 1 >= (buffer_pointers_[reading_buffer_] + cts::BUFFER_SEGMENT_SIZE)){
+    if(reading_pointer_ + 1 >= (buffer_pointers_[reading_buffer_] + config::BUFFER_SEGMENT_SIZE)){
         return false;
     } else{
         reading_pointer_++;
@@ -49,5 +49,5 @@ bool Client::advanceReadingPointer(){
 }
 
 uint32_t Client::getRemainingBytesReading(){
-    return buffer_pointers_[reading_buffer_] + cts::BUFFER_SEGMENT_SIZE - reading_pointer_;
+    return buffer_pointers_[reading_buffer_] + config::BUFFER_SEGMENT_SIZE - reading_pointer_;
 }

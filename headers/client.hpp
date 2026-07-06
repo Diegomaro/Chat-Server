@@ -14,11 +14,11 @@ struct Client{
         bool advanceReadingPointer();
         uint32_t getRemainingBytesReading();
 
-        char name_ [cts::HOSTNAME_LENGTH];
+        char name_ [config::HOSTNAME_LENGTH];
         char ip_ [INET6_ADDRSTRLEN];
         int port_;
 
-        uint32_t buffer_pointers_[cts::CLIENT_POINTERS];
+        uint32_t buffer_pointers_[config::BUFFER_SEGMENTS_PER_CLIENT];
         uint8_t buffer_pointers_amount_;
         uint8_t starting_buffer_;
         uint8_t writing_buffer_;

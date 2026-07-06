@@ -20,8 +20,8 @@ ClientProcessor::ClientProcessor(){
     client_socket_ = -1;
     epoll_fd_ = -1;
 
-    incoming_buffer_ = new(std::nothrow) uint8_t[cts::READING_BUFFER_SIZE];
-    outgoing_buffer_ = new(std::nothrow) uint8_t[cts::READING_BUFFER_SIZE];
+    incoming_buffer_ = new(std::nothrow) uint8_t[config::READING_BUFFER_SIZE];
+    outgoing_buffer_ = new(std::nothrow) uint8_t[config::READING_BUFFER_SIZE];
 
     msg_len_ = 1024;
 
@@ -49,7 +49,7 @@ ClientProcessor::~ClientProcessor(){
 
 bool ClientProcessor::setupSocket(){
     int status;
-    if((status = getaddrinfo("127.0.0.1", cts::SERVER_PORT, &hints_, &server_info_)) != 0){
+    if((status = getaddrinfo("127.0.0.1", config::SERVER_PORT, &hints_, &server_info_)) != 0){
         fprintf(stderr, "gai error: %s\n", gai_strerror(status));
         return false;
     }
@@ -98,8 +98,8 @@ void ClientProcessor::centralLoop(){
                         and requests a verify message before erasing the buffer and sending an error message
                         */
                         switch(rcvf_state){
-                            case rts::SUCCESS:{
-                                if(checkMessage() == rts::SUCCESS){
+                            case status::SUCCESS:{
+                                if(checkMessage() == status::SUCCESS){
                                     if(!printMessage()){
                                         return;
                                     }
@@ -110,16 +110,16 @@ void ClientProcessor::centralLoop(){
                                 }
                             //if missing timeout
                             } break;
-                            case rts::NOTHING_TO_READ:{
+                            case status::NOTHING_TO_READ:{
                                 receive_loop = false;
                             } break;
-                            case rts::ERROR:{
+                            case status::ERROR:{
                                 return;
                             } break;
-                            case rts::CLOSED_CONVERSATION:{
+                            case status::CLOSED_CONVERSATION:{
                                 return;
                             } break;
-                            case rts::INSUFFICIENT_BUFFER_SPACE:{
+                            case status::INSUFFICIENT_BUFFER_SPACE:{
                                 //send fail message to server
                                 byte_counter_ = 0;
                                 starting_pointer_ = 0;
@@ -140,13 +140,13 @@ void ClientProcessor::centralLoop(){
                 std::unique_lock<std::mutex> lock_message(read_mutex_);
                 int ans = 0;
                 switch(ans = sendMessage()){
-                    case rts::SUCCESS:{
+                    case status::SUCCESS:{
                         std::cout << "message sent correctly!" << std::endl;
                     }break;
-                    case rts::NOTHING_TO_READ:{
+                    case status::NOTHING_TO_READ:{
                         std::cout << "Could not sent message!" << std::endl;
                     }break;
-                    case rts::ERROR:{
+                    case status::ERROR:{
                         std::cout << "Could not sent message!" << std::endl;
                     }break;
                 }
@@ -173,29 +173,29 @@ int ClientProcessor::sendMessage(){
         {
             int error = errno;
             if(error == EAGAIN || error == EWOULDBLOCK){
-                return rts::NOTHING_TO_READ; // change to nothing to write
+                return status::NOTHING_TO_READ; // change to nothing to write
             } else{
                 perror("Send of message failed.");
-                return rts::ERROR;
+                return status::ERROR;
             }
         } else{
             bytes_sent += sent_bytes;
         }
     }
-    return rts::SUCCESS;
+    return status::SUCCESS;
 }
 
 int ClientProcessor::receiveFromServer(){
     int total_bytes_received = 0;
     int bytes_received = 0;
-    if(byte_counter_ + cts::BUFFER_READING_SIZE > cts::READING_BUFFER_SIZE){
-        return rts::INSUFFICIENT_BUFFER_SPACE;
+    if(byte_counter_ + config::BUFFER_READING_SIZE > config::READING_BUFFER_SIZE){
+        return status::INSUFFICIENT_BUFFER_SPACE;
     }
 
     int reached_buffer_limit = false;
-    int bytes_to_copy = cts::BUFFER_READING_SIZE;
-    if(writing_pointer_ + cts::BUFFER_READING_SIZE > cts::READING_BUFFER_SIZE){
-        bytes_to_copy = cts::READING_BUFFER_SIZE - writing_pointer_;
+    int bytes_to_copy = config::BUFFER_READING_SIZE;
+    if(writing_pointer_ + config::BUFFER_READING_SIZE > config::READING_BUFFER_SIZE){
+        bytes_to_copy = config::READING_BUFFER_SIZE - writing_pointer_;
         reached_buffer_limit = true;
     }
 
@@ -211,7 +211,7 @@ int ClientProcessor::receiveFromServer(){
                 break;
             } else{
                 perror("An error ocurred while receiving from client.");
-                return rts::ERROR;
+                return status::ERROR;
             }
         } else if(bytes_received == 0){
             break;
@@ -219,22 +219,22 @@ int ClientProcessor::receiveFromServer(){
         total_bytes_received += bytes_received;
     }
     if(total_bytes_received == 0){
-        return rts::CLOSED_CONVERSATION;
+        return status::CLOSED_CONVERSATION;
     }
 
     byte_counter_ += total_bytes_received;
-    writing_pointer_ = (writing_pointer_ + total_bytes_received) % cts::READING_BUFFER_SIZE;
-    return rts::SUCCESS;
+    writing_pointer_ = (writing_pointer_ + total_bytes_received) % config::READING_BUFFER_SIZE;
+    return status::SUCCESS;
 }
 
 int ClientProcessor::checkMessage(){
     // HEAD_BITS
     if(byte_counter_ < 8){
-        return rts::INVALID_MESSAGE;
+        return status::INVALID_MESSAGE;
     }
     reading_pointer_ = starting_pointer_;
     if((incoming_buffer_[reading_pointer_] ^ 0xFF) != 0){
-        return rts::INVALID_MESSAGE;
+        return status::INVALID_MESSAGE;
     }
     advanceReadingPointer();
     // TYPE
@@ -247,7 +247,7 @@ int ClientProcessor::checkMessage(){
     if(sender_key_ == UINT32_MAX){
         sender_key_ = 0;
         for(int i = 0; i < 4; i++){
-            sender_key_ = sender_key_ | (incoming_buffer_[reading_pointer_]) << ((cts::CLIENT_KEY_LENGTH - 1 - i) * 8);
+            sender_key_ = sender_key_ | (incoming_buffer_[reading_pointer_]) << ((config::CLIENT_KEY_LENGTH - 1 - i) * 8);
             advanceReadingPointer();
         }
     } else{
@@ -268,36 +268,36 @@ int ClientProcessor::checkMessage(){
     advanceReadingPointer();
 
     switch(type_){
-        case tys::USER:{
+        case types::USER:{
             if(payload_length_ == 0){
-                return rts::INVALID_MESSAGE;
+                return status::INVALID_MESSAGE;
             }
-            if(byte_counter_ < payload_length_ + cts::HEADER_SIZE){
-                return rts::INCOMPLETE_MESSAGE;
+            if(byte_counter_ < payload_length_ + config::HEADER_SIZE){
+                return status::INCOMPLETE_MESSAGE;
             }
-            return rts::SUCCESS;
+            return status::SUCCESS;
         } break;
-        case tys::GROUP:{
+        case types::GROUP:{
             //implement much later
         } break;
-        case tys::AUTH_KEY:{
+        case types::AUTH_KEY:{
             // implement much later
         } break;
-        case tys::SEND_REQUEST:{
+        case types::SEND_REQUEST:{
             // implement much later
         } break;
-        case tys::ACCEPT_REQUEST:{
+        case types::ACCEPT_REQUEST:{
             // implement much later
         } break;
         default:{
-            return rts::INVALID_MESSAGE;
+            return status::INVALID_MESSAGE;
         }
     }
-    return rts::SUCCESS;
+    return status::SUCCESS;
 }
 
 void ClientProcessor::advanceReadingPointer(){
-    if(reading_pointer_ + 1 >= cts::READING_BUFFER_SIZE){
+    if(reading_pointer_ + 1 >= config::READING_BUFFER_SIZE){
         reading_pointer_ = 0;
     } else{
         reading_pointer_++;
@@ -316,7 +316,7 @@ bool ClientProcessor::printMessage(){
 
 bool ClientProcessor::cleanIncomingBuffer(){
     starting_pointer_ = reading_pointer_;
-    byte_counter_ -= payload_length_ + cts::HEADER_SIZE;
+    byte_counter_ -= payload_length_ + config::HEADER_SIZE;
     payload_length_ = UINT16_MAX;
     sender_key_ = UINT32_MAX;
     return true;
@@ -338,13 +338,13 @@ void ClientProcessor::messageInputLoop(){
             case 1:{
             result = setMessage();
             switch(result){
-                case rts::SUCCESS:{
+                case status::SUCCESS:{
                     std::cout << "Message set correctly!" << std::endl;
                 }break;
-                case rts::INVALID_MESSAGE:{
+                case status::INVALID_MESSAGE:{
                     std::cout << "Invalid message, please try again!" << std::endl;
                 }break;
-                case rts::ERROR:{
+                case status::ERROR:{
                     return;
                 }
             }
@@ -352,19 +352,19 @@ void ClientProcessor::messageInputLoop(){
             case 2:{
                 result = setDestinatory();
                 switch(result){
-                    case rts::SUCCESS:{
+                    case status::SUCCESS:{
                         std::cout << "Receiver key set correctly!" << std::endl;
                     }break;
-                    case rts::INVALID_MESSAGE:{
+                    case status::INVALID_MESSAGE:{
                         std::cout << "Invalid client, please try again!" << std::endl;
                     }break;
-                    case rts::ERROR:{
+                    case status::ERROR:{
                         return;
                     }
                 }
             }break;
             case 3:{
-                if(sender_key_ > 10 || message_.length() == 0 || message_.length() > cts::MAX_MESSAGE_SIZE){
+                if(sender_key_ > 10 || message_.length() == 0 || message_.length() > config::MAX_MESSAGE_SIZE){
                     std::cout << "Please set a valid receiver key and message first!" << std::endl;
                 } else{
                     send_message_ = true;
@@ -386,13 +386,13 @@ void ClientProcessor::messageInputLoop(){
 
 int ClientProcessor::setMessage(){
     if(!outgoing_buffer_){
-        return rts::ERROR;
+        return status::ERROR;
     }
     std::cout << "Message: ";
     std::getline(std::cin >> std::ws, message_);
 
-    if(message_.length() == 0 || message_.length() > cts::MAX_MESSAGE_SIZE){
-        return rts::INVALID_MESSAGE;
+    if(message_.length() == 0 || message_.length() > config::MAX_MESSAGE_SIZE){
+        return status::INVALID_MESSAGE;
     }
 
     {
@@ -400,7 +400,7 @@ int ClientProcessor::setMessage(){
         uint16_t message_length = message_.length();
 
         outgoing_buffer_[0] = 255;
-        outgoing_buffer_[1] = tys::USER;
+        outgoing_buffer_[1] = types::USER;
         outgoing_buffer_[2] = sender_key_ >> 24; // remove these
         outgoing_buffer_[3] = sender_key_ >> 16;
         outgoing_buffer_[4] = sender_key_ >> 8;
@@ -414,22 +414,22 @@ int ClientProcessor::setMessage(){
         }
         msg_len_ = 8 + message_length;
     }
-    return rts::SUCCESS;
+    return status::SUCCESS;
 }
 
 int ClientProcessor::setDestinatory(){
     if(!outgoing_buffer_){
-        return rts::ERROR;
+        return status::ERROR;
     }
     std::cout << "Destinatory (number between 1 and 10 [temporary]): ";
     std::cin >> sender_key_;
 
     if(sender_key_ > 10){
-        return rts::INVALID_CLIENT;
+        return status::INVALID_CLIENT;
     }
     outgoing_buffer_[2] = sender_key_ >> 24;
     outgoing_buffer_[3] = sender_key_ >> 16;
     outgoing_buffer_[4] = sender_key_ >> 8;
     outgoing_buffer_[5] = sender_key_;
-    return rts::SUCCESS;
+    return status::SUCCESS;
 }
