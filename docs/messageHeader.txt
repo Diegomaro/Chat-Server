@@ -8,7 +8,7 @@ HEAD_BITS  TYPE     RECEIVER_KEY    PAYLOAD_LENGTH  PAYLOAD
 HEAD_BITS = 11111111
 Simple sequence of bits.
 
-TYPE = USER (1) | GROUP (2) | AUTH_KEY (3) | SEND_REQUEST (4) | ACCEPT_REQUEST (5)
+TYPE = USER (1) | GROUP (2) | AUTH_KEY (3) | SEND_REQUEST (4) | ACCEPT_REQUEST (5) | UPDATE (6)
 only USER for now.
 
 RECEIVER_KEY = The destinatory USER | The destinatory GROUP | The source USER | THe source GROUP

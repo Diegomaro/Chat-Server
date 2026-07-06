@@ -31,12 +31,12 @@ class Server{
         bool cleanClientBuffer(int client_socket);
         bool advanceClientPointer(int client_socket);
 
-        int sendToClient(int client_socket);
         int sendAcknowledgement(int client_socket);
+        int sendToClient(int client_socket);
 
         // print data
-        bool printClientInformation(int client_socket);
         bool printMessageFromClient(int client_socket);
+        bool printClientInformation(int client_socket);
 
     private:
         struct addrinfo hints_;

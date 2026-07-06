@@ -186,8 +186,9 @@ int ClientProcessor::sendMessage(){
 }
 
 int ClientProcessor::receiveFromServer(){
+    int total_bytes_received = 0;
     int bytes_received = 0;
-    if(byte_counter_ + cts::BUFFER_READING_SIZE > cts::BUFFER_SEGMENT_SIZE){
+    if(byte_counter_ + cts::BUFFER_READING_SIZE > cts::READING_BUFFER_SIZE){
         return rts::INSUFFICIENT_BUFFER_SPACE;
     }
 
@@ -197,24 +198,32 @@ int ClientProcessor::receiveFromServer(){
         bytes_to_copy = cts::READING_BUFFER_SIZE - writing_pointer_;
         reached_buffer_limit = true;
     }
+
     //byte counter
-    while(bytes_received < bytes_to_copy){
-        if((bytes_received += recv(client_socket_, &incoming_buffer_[writing_pointer_ + bytes_received], bytes_to_copy - bytes_received, 0)) == -1){
+    while(total_bytes_received < bytes_to_copy){
+        if((bytes_received = recv(
+            client_socket_,
+            &incoming_buffer_[writing_pointer_ + total_bytes_received],
+            bytes_to_copy - total_bytes_received,
+            0)) == -1){
             int error = errno;
             if(error == EAGAIN || error == EWOULDBLOCK){
-                return rts::NOTHING_TO_READ;
+                break;
             } else{
                 perror("An error ocurred while receiving from client.");
                 return rts::ERROR;
             }
+        } else if(bytes_received == 0){
+            break;
         }
-        if(bytes_received == 0){
-            return rts::CLOSED_CONVERSATION;
-        }
+        total_bytes_received += bytes_received;
+    }
+    if(total_bytes_received == 0){
+        return rts::CLOSED_CONVERSATION;
     }
 
-    byte_counter_ += bytes_received;
-    writing_pointer_ = (writing_pointer_ + bytes_received) % cts::READING_BUFFER_SIZE;
+    byte_counter_ += total_bytes_received;
+    writing_pointer_ = (writing_pointer_ + total_bytes_received) % cts::READING_BUFFER_SIZE;
     return rts::SUCCESS;
 }
 
@@ -228,7 +237,6 @@ int ClientProcessor::checkMessage(){
         return rts::INVALID_MESSAGE;
     }
     advanceReadingPointer();
-
     // TYPE
     if(type_ == 0){
         type_ = incoming_buffer_[reading_pointer_];
@@ -239,7 +247,7 @@ int ClientProcessor::checkMessage(){
     if(sender_key_ == UINT32_MAX){
         sender_key_ = 0;
         for(int i = 0; i < 4; i++){
-            sender_key_ = sender_key_ | (incoming_buffer_[reading_pointer_]) << (i * 8);
+            sender_key_ = sender_key_ | (incoming_buffer_[reading_pointer_]) << ((cts::CLIENT_KEY_LENGTH - 1 - i) * 8);
             advanceReadingPointer();
         }
     } else{
@@ -297,7 +305,7 @@ void ClientProcessor::advanceReadingPointer(){
 }
 
 bool ClientProcessor::printMessage(){
-    std::cout << static_cast<int>(sender_key_) << ": " << std::endl;
+    std::cout << static_cast<uint>(sender_key_) << ": ";
     for(int i = 0; i < payload_length_; i++){
         std::cout << static_cast<char>(incoming_buffer_[reading_pointer_]);
         advanceReadingPointer();
@@ -309,6 +317,7 @@ bool ClientProcessor::printMessage(){
 bool ClientProcessor::cleanIncomingBuffer(){
     starting_pointer_ = reading_pointer_;
     byte_counter_ -= payload_length_ + cts::HEADER_SIZE;
+    payload_length_ = UINT16_MAX;
     sender_key_ = UINT32_MAX;
     return true;
 }
@@ -317,12 +326,12 @@ bool ClientProcessor::cleanIncomingBuffer(){
 void ClientProcessor::messageInputLoop(){
     while(program_running_){
         int ans = 0;
-        std::cout << "Menu." << std::endl;
-        std::cout << "1. Set message." << std::endl;
-        std::cout << "2. Set destinatory." << std::endl;
-        std::cout << "3. Send message." << std::endl;
-        std::cout << "4. Exit." << std::endl;
-        std::cout << ": ";
+        std::cout << "Menu." << std::endl
+        << "1. Set message." << std::endl
+        << "2. Set destinatory." << std::endl
+        << "3. Send message." << std::endl
+        << "4. Exit." << std::endl
+        << ": ";
         std::cin >> ans;
         int result = 0;
         switch(ans){
@@ -379,7 +388,7 @@ int ClientProcessor::setMessage(){
     if(!outgoing_buffer_){
         return rts::ERROR;
     }
-    std::cout << "Message to send" << std::endl;
+    std::cout << "Message: ";
     std::getline(std::cin >> std::ws, message_);
 
     if(message_.length() == 0 || message_.length() > cts::MAX_MESSAGE_SIZE){
@@ -412,7 +421,7 @@ int ClientProcessor::setDestinatory(){
     if(!outgoing_buffer_){
         return rts::ERROR;
     }
-    std::cout << "Destinatory (number between 1 and 10 [temporary])" << std::endl;
+    std::cout << "Destinatory (number between 1 and 10 [temporary]): ";
     std::cin >> sender_key_;
 
     if(sender_key_ > 10){

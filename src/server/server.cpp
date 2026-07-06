@@ -174,8 +174,18 @@ bool Server::loopConnections(){
                         case rts::SUCCESS:{
                             if(checkMessage(sender_socket) == rts::SUCCESS){
                                 // cannot send messages until authenticated
-                                if(!printMessageFromClient(sender_socket)){ // has to happen
+                                if(!printMessageFromClient(sender_socket)){
                                     return false;
+                                }
+                                int send_state = sendToClient(sender_socket);
+                                switch(send_state){
+                                    case rts::RESOURCE_UNAVAILABLE:{
+                                        //handle alter, should be stored instead of sending.
+                                        return false;
+                                    } break;
+                                    case rts::ERROR:{
+                                        return false;
+                                    } break;
                                 }
                                 if(!cleanClientBuffer(sender_socket)){
                                     return false;
@@ -184,6 +194,7 @@ bool Server::loopConnections(){
                            //if missing timeout
                         } break;
                         case rts::NOTHING_TO_READ:{
+                            /*
                             uint8_t ack_state = sendAcknowledgement(sender_socket);
                             switch(ack_state){
                                 case rts::INCOMPLETE_MESSAGE:{
@@ -196,6 +207,7 @@ bool Server::loopConnections(){
                                     return false;
                                 } break;
                             }
+                            */
                             receive_loop = false;
                         } break;
                         case rts::INVALID_CLIENT:{
@@ -371,7 +383,7 @@ int Server::receiveFromClient(int client_socket){
             bytes_remaining -= available_segment_bytes;
             if(client_->buffer_pointers_amount_ + 1 >= cts::CLIENT_POINTERS){
                 if(checkMessage(client_socket) == rts::SUCCESS){
-                    std::cout << "nanananasdjnasiduan" << std::endl;
+                    std::cout << "work on it later" << std::endl;
                     // delete old message
                 }
                 return rts::EXCEEDED_CLIENT_BUFFER_SIZE;
@@ -419,6 +431,7 @@ int Server::checkMessage(int client_socket){
 
     // HOST_KEY
     if(client_->receiver_key_ == UINT32_MAX){
+        uint32_t tmp_pointer = client_->reading_pointer_;
         client_->receiver_key_ = 0;
 
         for(int i = 0; i < cts::CLIENT_KEY_LENGTH; i++){
@@ -439,7 +452,6 @@ int Server::checkMessage(int client_socket){
             }
         }
     }
-
 
     // PAYLOAD_LENGTH
     if(client_->payload_length_ == UINT16_MAX){
@@ -502,13 +514,11 @@ bool Server::cleanClientBuffer(int client_socket){
         if(!available_buffers_.insertHead(client_->buffer_pointers_[(client_->starting_buffer_ + i) % 128])){
             return false;
         }
-    }
-    if(dif >= 1){
+        client_->buffer_pointers_[(client_->starting_buffer_ + i) % 128] = UINT32_MAX;
         client_->buffer_pointers_amount_--;
-        client_->buffer_pointers_[client_->starting_buffer_] = UINT32_MAX;
-        client_->starting_buffer_ = client_->writing_buffer_;
-        client_->reading_buffer_ = client_->starting_buffer_;
     }
+    client_->starting_buffer_ = client_->writing_buffer_;
+    client_->reading_buffer_ = client_->writing_buffer_;
 
     client_->starting_pointer_ = client_->reading_pointer_;
     client_->byte_counter_ -= client_->payload_length_ + cts::HEADER_SIZE;
@@ -529,6 +539,31 @@ bool Server::advanceClientPointer(int client_socket){
     return true;
 }
 
+// returns
+int Server::sendAcknowledgement(int client_socket){
+    /*if(client_socket == -1){
+        return rts::INVALID_CLIENT;
+    }
+    int bytes_sent = 0;
+    if((bytes_sent = send(client_socket, Commands::ACK, Commands::ACK_LENGTH, 0)) == -1){
+        int error = errno;
+        if(error == EAGAIN || error == EWOULDBLOCK){
+            return cts::NOTHING_TO_READ;
+        } else{
+            perror("Send of acknowledgement failed.");
+            return cts::ERROR;
+        }
+    }
+    if(bytes_sent != Commands::ACK_LENGTH){
+        return cts::INCOMPLETE_MESSAGE;
+    }*/
+    return rts::SUCCESS;
+}
+
+/*
+Sends message from one client to another.
+Return values: SUCCESS, ERROR, RESOURCE_UNAVAILABLE
+*/
 int Server::sendToClient(int client_socket){
     client_ = client_sockets_.getNode(client_socket);
 
@@ -540,10 +575,13 @@ int Server::sendToClient(int client_socket){
     for(int i = 0; i <  bytes_to_send; i++){
         buffer_pool_[print_pointer] = buffer_pool_[client_->reading_pointer_];
         if(!advanceClientPointer(client_socket)){
-            return false;
+            return rts::ERROR;
         }
         print_pointer++;
     }
+
+    std::cout << "destination socket: " << client_->receiver_fd_ << std::endl;
+
     while(bytes_sent < bytes_to_send){
         int sent_bytes = 0;
         if((sent_bytes = send(
@@ -567,25 +605,27 @@ int Server::sendToClient(int client_socket){
     return rts::SUCCESS;
 }
 
-// returns INVALID_CLIENT, PERROR, INCOMPLETE_MESSAGE_RESEND, SUCCESS
-int Server::sendAcknowledgement(int client_socket){
-    /*if(client_socket == -1){
-        return rts::INVALID_CLIENT;
-    }
-    int bytes_sent = 0;
-    if((bytes_sent = send(client_socket, Commands::ACK, Commands::ACK_LENGTH, 0)) == -1){
-        int error = errno;
-        if(error == EAGAIN || error == EWOULDBLOCK){
-            return cts::NOTHING_TO_READ;
-        } else{
-            perror("Send of acknowledgement failed.");
-            return cts::ERROR;
+
+/*
+Prints message from client. Doesn't move reading pointer.
+*/
+bool Server::printMessageFromClient(int client_socket){
+    client_ = client_sockets_.getNode(client_socket);
+    uint32_t temp_reading_pointer = client_->reading_pointer_;
+    uint8_t temp_reading_buffer = client_->reading_buffer_;
+    std::cout << "Message: ";
+    for(int i = 0; i < client_->payload_length_; i++){
+        std::cout << static_cast<char>(buffer_pool_[client_->reading_pointer_]);
+        if(!advanceClientPointer(client_socket)){
+            client_->reading_pointer_ = temp_reading_pointer;
+            client_->reading_buffer_ = temp_reading_buffer;
+            return false;
         }
     }
-    if(bytes_sent != Commands::ACK_LENGTH){
-        return cts::INCOMPLETE_MESSAGE;
-    }*/
-    return rts::SUCCESS;
+    std::cout << std::endl << std::endl;
+    client_->reading_pointer_ = temp_reading_pointer;
+    client_->reading_buffer_ = temp_reading_buffer;
+    return true;
 }
 
 bool Server::printClientInformation(int client_socket){
@@ -596,25 +636,11 @@ bool Server::printClientInformation(int client_socket){
     if(!client_){
         return false;
     }
-    std::cout << "Client Name: " << client_->name_ << std::endl
-    << "Client Key: " << static_cast<uint>(client_->sender_key_) << std::endl
-    << "Client IP: " << client_->ip_ << std::endl
-    << "Client Port: " << client_->port_ << std::endl
-    << "Client Socket: " << client_socket << std::endl;
+    std::cout << "Name: " << client_->name_ << std::endl
+    << "Key: " << static_cast<uint>(client_->sender_key_) << std::endl
+    << "IP: " << client_->ip_ << std::endl
+    << "Port: " << client_->port_ << std::endl
+    << "Socket: " << client_socket << std::endl;
     client_ = nullptr;
-    return true;
-}
-
-bool Server::printMessageFromClient(int client_socket){
-    client_ = client_sockets_.getNode(client_socket);
-
-    std::cout << "Message received: " << std::endl;
-    for(int i = 0; i < client_->payload_length_; i++){
-        std::cout << static_cast<char>(buffer_pool_[client_->reading_pointer_]);
-        if(!advanceClientPointer(client_socket)){
-            return false;
-        }
-    }
-    std::cout << std::endl << std::endl;
     return true;
 }
