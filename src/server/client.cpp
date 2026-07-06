@@ -31,7 +31,6 @@ Client::Client(){
 void Client::resetMessage(){
     payload_length_ = UINT16_MAX;
     type_ = 0;
-    sender_key_ = UINT32_MAX;
     receiver_key_ = UINT32_MAX;
     receiver_fd_ = -1;
 }

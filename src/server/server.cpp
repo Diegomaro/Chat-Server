@@ -37,7 +37,6 @@ Server::Server(){
 }
 
 Server::~Server(){
-    std::cout << "shutting down..." << std::endl;
     if(listener_socket_!= -1){
         close(listener_socket_);
     }
@@ -50,7 +49,7 @@ Server::~Server(){
         if(client_sockets_.hasNode()){
             int socket = (client_sockets_.getNode()->key_);
             if(socket != -1){
-                std::cout << "closing socket: " << socket << std::endl;
+                std::cout << "closing socket " << socket << std::endl;
                 close(socket);
             }
         }
@@ -270,6 +269,7 @@ int Server::acceptConnection(){
 }
 
 bool Server::closeConnection(int client_socket){
+    std::cout << "attempting to close: " << client_socket << std::endl;
     if(close(client_socket) == -1){
         perror("clossing failed");
         return false;
@@ -290,13 +290,13 @@ bool Server::closeConnection(int client_socket){
             buffers_erased++;
         }
     }
-    if(!client_sockets_.deleteNode(client_socket)){
-        return false;
-    }
     if(!client_key_to_client_sockets_.deleteNode(client_->sender_key_)){
         return false;
     }
-    std::cout << "Closed connection with client "  << client_socket << std::endl;
+    if(!client_sockets_.deleteNode(client_socket)){
+        return false;
+    }
+    std::cout << "manual close of socket 7 "  << client_socket << std::endl;
     client_ = nullptr;
     return true;
 }
@@ -335,8 +335,8 @@ bool Server::addClient(){
     if(!client_sockets_.insertNode(pending_client_, new_client)){
         return false;
     }
-
     if(!client_key_to_client_sockets_.insertNode(new_client.sender_key_, pending_client_)){
+        std::cout << "failed here" << std::endl;
         return false;
     }
     return true;
