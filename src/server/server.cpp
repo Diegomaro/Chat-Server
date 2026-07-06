@@ -432,6 +432,8 @@ int Server::checkMessage(int client_socket){
     // HOST_KEY
     if(client_->receiver_key_ == UINT32_MAX){
         uint32_t tmp_pointer = client_->reading_pointer_;
+        uint8_t tmp_buffer = client_->reading_buffer_;
+
         client_->receiver_key_ = 0;
 
         for(int i = 0; i < cts::CLIENT_KEY_LENGTH; i++){
@@ -445,6 +447,18 @@ int Server::checkMessage(int client_socket){
             return rts::INVALID_CLIENT;
         }
         client_->receiver_fd_ = *client_key_to_client_sockets_.getNode(client_->receiver_key_);
+
+        client_->reading_pointer_ = tmp_pointer;
+        client_->reading_buffer_ = tmp_buffer;
+
+        for(int i = 0; i < cts::CLIENT_KEY_LENGTH; i++){
+            buffer_pool_[client_->reading_pointer_] = client_->sender_key_ << ((cts::CLIENT_KEY_LENGTH - 1 - i) * 8);
+            if(!advanceClientPointer(client_socket)){
+                return rts::INVALID_MESSAGE;
+            }
+        }
+
+
     } else{
         for(int i = 0; i < 4; i++){
             if(!advanceClientPointer(client_socket)){
