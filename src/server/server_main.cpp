@@ -9,6 +9,9 @@ int main(){
     if(!server.setupBuffer()){
         return 1;
     }
+    if(!server.setupHeaderTypes()){
+        return 1;
+    }
     if(server.setupListenerSocket()){
         server.loopConnections();
     }

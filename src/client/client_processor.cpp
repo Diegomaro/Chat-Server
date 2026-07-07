@@ -33,6 +33,8 @@ ClientProcessor::ClientProcessor(){
     payload_length_ = UINT16_MAX;
     type_ = 0;
     sender_key_ = UINT32_MAX;
+
+    pending_messages = 0;
 }
 
 ClientProcessor::~ClientProcessor(){
@@ -45,6 +47,21 @@ ClientProcessor::~ClientProcessor(){
         outgoing_buffer_ = nullptr;
     }
     close(client_socket_);
+}
+
+bool ClientProcessor::setupHeaderTypes(){
+    if(!ack_message_){
+        return false;
+    }
+    ack_message_[0] = UINT8_MAX;
+    ack_message_[1] = types::ACK;
+    ack_message_[2] = UINT8_MAX;
+    ack_message_[3] = UINT8_MAX;
+    ack_message_[4] = UINT8_MAX;
+    ack_message_[5] = UINT8_MAX;
+    ack_message_[6] = 0;
+    ack_message_[7] = 0;
+    return true;
 }
 
 bool ClientProcessor::setupSocket(){
@@ -100,8 +117,17 @@ void ClientProcessor::centralLoop(){
                         switch(rcvf_state){
                             case status::SUCCESS:{
                                 if(checkMessage() == status::SUCCESS){
-                                    if(!printMessage()){
-                                        return;
+                                    int check_state = actOnMessage();
+                                    switch(check_state){
+                                        case status::INVALID_MESSAGE:{
+                                            // handle later
+                                        } break;
+                                        case status::RESOURCE_UNAVAILABLE:{
+                                            // handle later
+                                        } break;
+                                        case status::ERROR:{
+                                            return;
+                                        } break;
                                     }
                                     if(!cleanIncomingBuffer()){
                                         return;
@@ -141,6 +167,7 @@ void ClientProcessor::centralLoop(){
                 int ans = 0;
                 switch(ans = sendMessage()){
                     case status::SUCCESS:{
+                        pending_messages++;
                         std::cout << "message sent correctly!" << std::endl;
                     }break;
                     case status::NOTHING_TO_READ:{
@@ -181,6 +208,24 @@ int ClientProcessor::sendMessage(){
         } else{
             bytes_sent += sent_bytes;
         }
+    }
+    return status::SUCCESS;
+}
+
+int ClientProcessor::sendAcknowledgement(){
+    int total_bytes_sent = 0;
+    int bytes_sent = 0;
+    while(total_bytes_sent < config::HEADER_SIZE){
+        if((bytes_sent = send(client_socket_, &ack_message_[total_bytes_sent], config::HEADER_SIZE - total_bytes_sent, 0)) == -1){
+            int error = errno;
+            if(error == EAGAIN || error == EWOULDBLOCK){
+                return status::RESOURCE_UNAVAILABLE;
+            } else{
+                perror("Send of acknowledgement failed.");
+                return status::ERROR;
+            }
+        }
+        total_bytes_sent += bytes_sent;
     }
     return status::SUCCESS;
 }
@@ -237,6 +282,7 @@ int ClientProcessor::checkMessage(){
         return status::INVALID_MESSAGE;
     }
     advanceReadingPointer();
+
     // TYPE
     if(type_ == 0){
         type_ = incoming_buffer_[reading_pointer_];
@@ -266,15 +312,39 @@ int ClientProcessor::checkMessage(){
         advanceReadingPointer();
     }
     advanceReadingPointer();
+    if(byte_counter_ < payload_length_ + config::HEADER_SIZE){
+        return status::INCOMPLETE_MESSAGE;
+    }
+    return status::SUCCESS;
+}
 
+/*
+Returns INVALID_MESSAGE, RESOURCE_UNAVAILABLE, ERROR, SUCCESS
+*/
+int ClientProcessor::actOnMessage(){
     switch(type_){
         case types::USER:{
-            if(payload_length_ == 0){
+            if(payload_length_ == 0 || payload_length_ > config::MAX_MESSAGE_SIZE){
                 return status::INVALID_MESSAGE;
             }
-            if(byte_counter_ < payload_length_ + config::HEADER_SIZE){
-                return status::INCOMPLETE_MESSAGE;
+            if(!printMessage()){
+                return status::ERROR;
             }
+            /*
+            First define what the ack target is
+            */
+            /*
+            uint8_t ack_state = sendAcknowledgement();
+            switch(ack_state){
+                case status::RESOURCE_UNAVAILABLE:{
+                    // should not return, rather be stored
+                    return status::RESOURCE_UNAVAILABLE;
+                } break;
+                case status::ERROR:{
+                    return status::ERROR;
+                } break;
+            }
+            */
             return status::SUCCESS;
         } break;
         case types::GROUP:{
@@ -287,6 +357,11 @@ int ClientProcessor::checkMessage(){
             // implement much later
         } break;
         case types::ACCEPT_REQUEST:{
+            // implement much later
+        } break;
+        case types::ACK:{
+            pending_messages--;
+            std::cout << "pending ack: " << pending_messages << std::endl;
             // implement much later
         } break;
         default:{
@@ -305,23 +380,23 @@ void ClientProcessor::advanceReadingPointer(){
 }
 
 bool ClientProcessor::printMessage(){
-    std::cout << static_cast<uint>(sender_key_) << ": ";
+    std::cout << std::endl << static_cast<uint>(sender_key_) << ": ";
     for(int i = 0; i < payload_length_; i++){
         std::cout << static_cast<char>(incoming_buffer_[reading_pointer_]);
         advanceReadingPointer();
     }
-    std::cout << std::endl << std::endl;
+    std::cout << std::endl;
     return true;
 }
 
 bool ClientProcessor::cleanIncomingBuffer(){
     starting_pointer_ = reading_pointer_;
     byte_counter_ -= payload_length_ + config::HEADER_SIZE;
+    type_ = 0;
     payload_length_ = UINT16_MAX;
     sender_key_ = UINT32_MAX;
     return true;
 }
-
 
 void ClientProcessor::messageInputLoop(){
     while(program_running_){

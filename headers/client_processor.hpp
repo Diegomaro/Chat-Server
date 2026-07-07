@@ -14,7 +14,8 @@ class ClientProcessor{
         ClientProcessor();
         ~ClientProcessor();
 
-        //setup socket
+        //setup
+        bool setupHeaderTypes();
         bool setupSocket();
 
         void centralLoop();
@@ -23,8 +24,11 @@ class ClientProcessor{
     private:
         // central loop
         int sendMessage();
+        int sendAcknowledgement();
+
         int receiveFromServer();
         int checkMessage();
+        int actOnMessage();
         void advanceReadingPointer();
         bool printMessage();
         bool cleanIncomingBuffer();
@@ -60,4 +64,7 @@ class ClientProcessor{
         std::mutex read_mutex_;
         std::atomic<bool> program_running_{true};
         std::atomic<bool> send_message_{false};
+
+        uint32_t pending_messages;
+        uint8_t ack_message_[config::HEADER_SIZE];
 };

@@ -15,6 +15,7 @@ class Server{
         //setup
         bool setupHashTables();
         bool setupBuffer();
+        bool setupHeaderTypes();
         bool setupListenerSocket();
 
         //central loop
@@ -28,6 +29,7 @@ class Server{
         // data transmission
         int receiveFromClient(int client_socket);
         int checkMessage(int client_socket);
+        int actOnMessage(int client_socket);
         bool cleanClientBuffer(int client_socket);
         bool advanceClientPointer(int client_socket);
 
@@ -65,5 +67,5 @@ class Server{
         uint32_t current_client_id_ = 0;
         // later on it will have to be non-volatile memory
 
-        uint8_t ack_message_[8];
+        uint8_t ack_message_[config::HEADER_SIZE];
 };

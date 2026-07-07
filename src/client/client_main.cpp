@@ -7,6 +7,9 @@
 
 int main(){
     ClientProcessor clientProcessor;
+    if(!clientProcessor.setupHeaderTypes()){
+        return 1;
+    }
     if(clientProcessor.setupSocket()){
         std::thread central_thread(&ClientProcessor::centralLoop, &clientProcessor);
         std::thread input_thread(&ClientProcessor::messageInputLoop, &clientProcessor);
