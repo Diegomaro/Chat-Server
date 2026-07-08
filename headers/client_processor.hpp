@@ -70,4 +70,6 @@ class ClientProcessor{
         uint8_t ack_message_[config::HEADER_SIZE];
 
         uint32_t requests_;
+        std::string username_;
+        std::string password_;
 };

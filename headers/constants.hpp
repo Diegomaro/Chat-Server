@@ -11,6 +11,8 @@ namespace config{
     inline constexpr const uint32_t BUFFER_SEGMENT_SIZE = 512;
 
     inline constexpr const uint8_t HOSTNAME_LENGTH = 16;
+    inline constexpr const uint8_t MIN_PASSWORD_LENGTH = 8;
+    inline constexpr const uint8_t MAX_PASSWORD_LENGTH = 60;
     inline constexpr const uint8_t CLIENT_KEY_LENGTH = 4;
     inline constexpr const uint8_t HEADER_SIZE = 8;
 

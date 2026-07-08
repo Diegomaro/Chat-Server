@@ -389,7 +389,7 @@ void ClientProcessor::advanceReadingPointer(){
 }
 
 bool ClientProcessor::printMessage(){
-    std::cout << std::endl << static_cast<uint>(sender_key_) << ": ";
+    std::cout << std::endl << static_cast<uint>(sender_key_) << " -> Me: ";
     for(int i = 0; i < payload_length_; i++){
         std::cout << static_cast<char>(incoming_buffer_[reading_pointer_]);
         advanceReadingPointer();
@@ -408,9 +408,87 @@ bool ClientProcessor::cleanIncomingBuffer(){
 }
 
 void ClientProcessor::messageInputLoop(){
+    bool welcome_program_running_ = true;
+    int welcome_ans = 0;
+    while(welcome_program_running_){
+        std::cout << "Welcome Menu." << std::endl
+        << "1. Login. (implement later)" << std::endl
+        << "2. Register." << std::endl // right now only set username.
+        << "3. Exit." << std::endl;
+        std::cin >> welcome_ans;
+        switch(welcome_ans){
+            case 1:{
+            } break;
+            case 2:{
+                std::string tmp_username;
+                std::cout << "Choose a username. It must only contain letters, numbers and underscores (_)."
+                << std::endl << "The maximum size is "
+                << static_cast<uint>(config::HOSTNAME_LENGTH) << " characters."
+                << std::endl << "Username: ";
+                std::getline(std::cin >> std::ws, tmp_username);
+                if(tmp_username.size() == 0 || tmp_username.size() > config::HOSTNAME_LENGTH){
+                    std::cout << "Username is too long!"  << std::endl;
+                    break;
+                }
+                bool valid_username = true;
+                for(int i = 0; i < tmp_username.size(); i++){
+                    if(tmp_username[i] < 48
+                        || (tmp_username[i] > 57 && tmp_username[i] < 65)
+                        || (tmp_username[i] > 90 && tmp_username[i] < 95)
+                        || (tmp_username[i] > 95 && tmp_username[i] < 97)
+                        || tmp_username[i] > 122){
+                            std::cout << "Invalid username!"  << std::endl;
+                            valid_username = false;
+                            break;
+                    }
+                }
+                if(valid_username){
+                    username_ = tmp_username;
+                    std::cout << "username set!" << std::endl;
+                } else{
+                    break;
+                }
+
+                std::string tmp_password;
+                std::cout << "Choose a password. It must only contain letters, numbers and underscores (_)."
+                << std::endl << "The minimum size is "
+                << static_cast<uint>(config::MIN_PASSWORD_LENGTH) << " characters."
+                << std::endl << "The maximum size is "
+                << static_cast<uint>(config::MAX_PASSWORD_LENGTH) << " characters."
+                << std::endl << "Password: ";
+                std::getline(std::cin >> std::ws, tmp_password);
+                if(tmp_password.size() < config::MIN_PASSWORD_LENGTH || tmp_password.size() > config::MAX_PASSWORD_LENGTH){
+                    std::cout << "Password is too long or too short!"  << std::endl;
+                    break;
+                }
+                bool valid__password = true;
+                for(int i = 0; i < tmp_password.size(); i++){
+                    if(tmp_password[i] < 48
+                        || (tmp_password[i] > 57 && tmp_password[i] < 65)
+                        || (tmp_password[i] > 90 && tmp_password[i] < 95)
+                        || (tmp_password[i] > 95 && tmp_password[i] < 97)
+                        || tmp_password[i] > 122){
+                            std::cout << "Invalid password!"  << std::endl;
+                            valid__password = false;
+                            break;
+                    }
+                }
+                if(valid__password){
+                    password_ = tmp_password;
+                    std::cout << "Password set!" << std::endl;
+                }
+                welcome_program_running_ = false;
+            } break;
+            case 3:{
+                welcome_program_running_ = false;
+                program_running_ = false;
+            } break;
+        }
+    }
+
+    int main_ans = 0;
     while(program_running_){
-        int ans = 0;
-        std::cout << "Menu." << std::endl
+        std::cout << "Main Menu." << std::endl
         << "1. Set message." << std::endl
         << "2. Set destinatory. (" << static_cast<uint>(receiver_key_) << ")" << std::endl // later on, username instead of receiver key
         << "3. Send message." << std::endl
@@ -419,9 +497,9 @@ void ClientProcessor::messageInputLoop(){
         << "6. Reload." << std::endl
         << "7. Exit." << std::endl
         << ":: ";
-        std::cin >> ans;
+        std::cin >> main_ans;
         int result = 0;
-        switch(ans){
+        switch(main_ans){
             case 1:{
             result = setMessage();
             switch(result){
