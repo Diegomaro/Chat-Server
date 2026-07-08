@@ -60,6 +60,7 @@ class ClientProcessor{
         uint16_t payload_length_;
         uint8_t type_;
         uint32_t sender_key_;
+        uint32_t receiver_key_;
 
         std::mutex read_mutex_;
         std::atomic<bool> program_running_{true};

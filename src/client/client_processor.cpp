@@ -33,6 +33,7 @@ ClientProcessor::ClientProcessor(){
     payload_length_ = UINT16_MAX;
     type_ = 0;
     sender_key_ = UINT32_MAX;
+    receiver_key_ = UINT32_MAX;
 
     pending_messages = 0;
 }
@@ -116,7 +117,7 @@ void ClientProcessor::centralLoop(){
                         */
                         switch(rcvf_state){
                             case status::SUCCESS:{
-                                if(checkMessage() == status::SUCCESS){
+                                while(checkMessage() == status::SUCCESS){
                                     int check_state = actOnMessage();
                                     switch(check_state){
                                         case status::INVALID_MESSAGE:{
@@ -132,8 +133,8 @@ void ClientProcessor::centralLoop(){
                                     if(!cleanIncomingBuffer()){
                                         return;
                                     }
-                                    receive_loop = false;
                                 }
+                                receive_loop = false;
                             //if missing timeout
                             } break;
                             case status::NOTHING_TO_READ:{
@@ -215,6 +216,12 @@ int ClientProcessor::sendMessage(){
 int ClientProcessor::sendAcknowledgement(){
     int total_bytes_sent = 0;
     int bytes_sent = 0;
+
+    ack_message_[2] = sender_key_ >> 24;
+    ack_message_[3] = sender_key_ >> 16;
+    ack_message_[4] = sender_key_ >> 8;
+    ack_message_[5] = sender_key_;
+
     while(total_bytes_sent < config::HEADER_SIZE){
         if((bytes_sent = send(client_socket_, &ack_message_[total_bytes_sent], config::HEADER_SIZE - total_bytes_sent, 0)) == -1){
             int error = errno;
@@ -274,7 +281,7 @@ int ClientProcessor::receiveFromServer(){
 
 int ClientProcessor::checkMessage(){
     // HEAD_BITS
-    if(byte_counter_ < 8){
+    if(8 > byte_counter_){
         return status::INVALID_MESSAGE;
     }
     reading_pointer_ = starting_pointer_;
@@ -288,7 +295,6 @@ int ClientProcessor::checkMessage(){
         type_ = incoming_buffer_[reading_pointer_];
     }
     advanceReadingPointer();
-
     // HOST_KEY
     if(sender_key_ == UINT32_MAX){
         sender_key_ = 0;
@@ -330,10 +336,7 @@ int ClientProcessor::actOnMessage(){
             if(!printMessage()){
                 return status::ERROR;
             }
-            /*
-            First define what the ack target is
-            */
-            /*
+
             uint8_t ack_state = sendAcknowledgement();
             switch(ack_state){
                 case status::RESOURCE_UNAVAILABLE:{
@@ -344,7 +347,7 @@ int ClientProcessor::actOnMessage(){
                     return status::ERROR;
                 } break;
             }
-            */
+
             return status::SUCCESS;
         } break;
         case types::GROUP:{
@@ -360,9 +363,13 @@ int ClientProcessor::actOnMessage(){
             // implement much later
         } break;
         case types::ACK:{
-            pending_messages--;
-            std::cout << "pending ack: " << pending_messages << std::endl;
-            // implement much later
+            if(sender_key_ == UINT32_MAX){
+                pending_messages--;
+                // handle later :)
+                //std::cout << "pending ack: " << pending_messages << std::endl;
+            } else{
+                std::cout << "Message to " << sender_key_ << " has been delivered!" << std::endl;
+            }
         } break;
         default:{
             return status::INVALID_MESSAGE;
@@ -391,7 +398,7 @@ bool ClientProcessor::printMessage(){
 
 bool ClientProcessor::cleanIncomingBuffer(){
     starting_pointer_ = reading_pointer_;
-    byte_counter_ -= payload_length_ + config::HEADER_SIZE;
+    byte_counter_ -= (payload_length_ + config::HEADER_SIZE);
     type_ = 0;
     payload_length_ = UINT16_MAX;
     sender_key_ = UINT32_MAX;
@@ -439,7 +446,7 @@ void ClientProcessor::messageInputLoop(){
                 }
             }break;
             case 3:{
-                if(sender_key_ > 10 || message_.length() == 0 || message_.length() > config::MAX_MESSAGE_SIZE){
+                if(receiver_key_ > 10 || message_.length() == 0 || message_.length() > config::MAX_MESSAGE_SIZE){
                     std::cout << "Please set a valid receiver key and message first!" << std::endl;
                 } else{
                     send_message_ = true;
@@ -476,10 +483,10 @@ int ClientProcessor::setMessage(){
 
         outgoing_buffer_[0] = 255;
         outgoing_buffer_[1] = types::USER;
-        outgoing_buffer_[2] = sender_key_ >> 24; // remove these
-        outgoing_buffer_[3] = sender_key_ >> 16;
-        outgoing_buffer_[4] = sender_key_ >> 8;
-        outgoing_buffer_[5] = sender_key_;
+        outgoing_buffer_[2] = receiver_key_ >> 24; // remove these
+        outgoing_buffer_[3] = receiver_key_ >> 16;
+        outgoing_buffer_[4] = receiver_key_ >> 8;
+        outgoing_buffer_[5] = receiver_key_;
         outgoing_buffer_[6] = message_length >> 8;
         outgoing_buffer_[7] = message_length;
 
@@ -496,15 +503,15 @@ int ClientProcessor::setDestinatory(){
     if(!outgoing_buffer_){
         return status::ERROR;
     }
-    std::cout << "Destinatory (number between 1 and 10 [temporary]): ";
-    std::cin >> sender_key_;
+    std::cout << "Destinatory (number between 0 and 10 [temporary]): ";
+    std::cin >> receiver_key_;
 
-    if(sender_key_ > 10){
+    if(receiver_key_ > 10){
         return status::INVALID_CLIENT;
     }
-    outgoing_buffer_[2] = sender_key_ >> 24;
-    outgoing_buffer_[3] = sender_key_ >> 16;
-    outgoing_buffer_[4] = sender_key_ >> 8;
-    outgoing_buffer_[5] = sender_key_;
+    outgoing_buffer_[2] = receiver_key_ >> 24;
+    outgoing_buffer_[3] = receiver_key_ >> 16;
+    outgoing_buffer_[4] = receiver_key_ >> 8;
+    outgoing_buffer_[5] = receiver_key_;
     return status::SUCCESS;
 }

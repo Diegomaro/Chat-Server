@@ -21,7 +21,7 @@ Run each command on different terminals.
 3. [x] Send messages from multiple clients to server.
 4. [x] Buffering of client messages. Store messages that are not ready to be sent on server.
 5. [x] Redirect traffic from one client to another.
-6. [ ] Send confirmation of received messages by clients to original client.
+6. [x] Send confirmation of received messages by clients to original client.
 7. [ ] Give each client a unique username and password defined when first accesing the program. Store credentials locally and on server bank (username + hash of password).
 8. [ ] Allow clients to login instead of registering.
 9. [ ] Make conversations work based on petitions from client to client.

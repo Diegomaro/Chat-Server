@@ -32,8 +32,8 @@ class Server{
         int actOnMessage(int client_socket);
         bool cleanClientBuffer(int client_socket);
         bool advanceClientPointer(int client_socket);
-
-        int sendAcknowledgement(int client_socket);
+        int sendProcessedAcknowledgement(int client_socket);
+        int sendDeliveredAcknowledgement(int client_socket);
         int sendToClient(int client_socket);
 
         // print data
@@ -67,5 +67,7 @@ class Server{
         uint32_t current_client_id_ = 0;
         // later on it will have to be non-volatile memory
 
-        uint8_t ack_message_[config::HEADER_SIZE];
+        uint8_t processed_ack_message_[config::HEADER_SIZE];
+        uint8_t delivered_ack_message_[config::HEADER_SIZE];
+
 };

@@ -35,7 +35,9 @@ Server::Server(){
     buffer_pool_ = nullptr;
     msg_buffer_ = nullptr;
 
-    memset(&ack_message_, 0, sizeof(ack_message_));
+    memset(&processed_ack_message_, 0, sizeof(processed_ack_message_));
+    memset(&delivered_ack_message_, 0, sizeof(delivered_ack_message_));
+
 }
 
 Server::~Server(){
@@ -101,17 +103,26 @@ bool Server::setupBuffer(){
 }
 
 bool Server::setupHeaderTypes(){
-    if(!ack_message_){
+    if(!processed_ack_message_ || !delivered_ack_message_){
         return false;
     }
-    ack_message_[0] = UINT8_MAX;
-    ack_message_[1] = types::ACK;
-    ack_message_[2] = UINT8_MAX;
-    ack_message_[3] = UINT8_MAX;
-    ack_message_[4] = UINT8_MAX;
-    ack_message_[5] = UINT8_MAX;
-    ack_message_[6] = 0;
-    ack_message_[7] = 0;
+    processed_ack_message_[0] = UINT8_MAX;
+    processed_ack_message_[1] = types::ACK;
+    processed_ack_message_[2] = UINT8_MAX;
+    processed_ack_message_[3] = UINT8_MAX;
+    processed_ack_message_[4] = UINT8_MAX;
+    processed_ack_message_[5] = UINT8_MAX;
+    processed_ack_message_[6] = 0;
+    processed_ack_message_[7] = 0;
+
+    delivered_ack_message_[0] = UINT8_MAX;
+    delivered_ack_message_[1] = types::ACK;
+    delivered_ack_message_[2] = UINT8_MAX;
+    delivered_ack_message_[3] = UINT8_MAX;
+    delivered_ack_message_[4] = UINT8_MAX;
+    delivered_ack_message_[5] = UINT8_MAX;
+    delivered_ack_message_[6] = 0;
+    delivered_ack_message_[7] = 0;
     return true;
 }
 
@@ -337,7 +348,6 @@ bool Server::addClient(){
         return false;
     }
     if(!client_key_to_client_sockets_.insertNode(new_client.sender_key_, pending_client_)){
-        std::cout << "failed here" << std::endl;
         return false;
     }
     return true;
@@ -363,7 +373,6 @@ int Server::receiveFromClient(int client_socket){
             return status::ERROR;
         }
     }
-    //std::cout << "bytes received: " << bytes_received_ << std::endl;
     if(bytes_received_ == 0){
         return status::CLOSED_CONVERSATION;
     }
@@ -506,8 +515,7 @@ int Server::actOnMessage(int client_socket){
                 // later it should be changed to store all client keys, regardless of whether online or not.
                 // If client is not available it should be stored in some file. (much later)
             }
-
-            uint8_t ack_state = sendAcknowledgement(client_socket);
+            uint8_t ack_state = sendProcessedAcknowledgement(client_socket);
             uint8_t send_state = sendToClient(client_socket);
             if(!cleanClientBuffer(client_socket)){
                 return status::ERROR;
@@ -551,6 +559,23 @@ int Server::actOnMessage(int client_socket){
             // implement much later
         } break;
         case types::ACK:{
+            if(!client_sockets_.searchNode(client_->receiver_fd_)){
+                return status::INVALID_CLIENT;
+            }
+            uint8_t ack_state = sendDeliveredAcknowledgement(client_socket);
+            if(!cleanClientBuffer(client_socket)){
+                return status::ERROR;
+            }
+            switch(ack_state){
+                case status::RESOURCE_UNAVAILABLE:{
+                    // should not return, rather be stored
+                    return status::RESOURCE_UNAVAILABLE;
+                } break;
+                case status::ERROR:{
+                    return status::ERROR;
+                } break;
+            }
+            return status::SUCCESS;
 
         } break;
         default:{
@@ -598,11 +623,11 @@ bool Server::advanceClientPointer(int client_socket){
 Sends acknowledgement to client when the entire message has been processed and verified.
 Return values: SUCCESS, ERROR, RESOURCE_UNAVAILABLE.
 */
-int Server::sendAcknowledgement(int client_socket){
+int Server::sendProcessedAcknowledgement(int client_socket){
     int total_bytes_sent = 0;
     int bytes_sent = 0;
     while(total_bytes_sent < config::HEADER_SIZE){
-        if((bytes_sent = send(client_socket, &ack_message_[total_bytes_sent], config::HEADER_SIZE - total_bytes_sent, 0)) == -1){
+        if((bytes_sent = send(client_socket, &processed_ack_message_[total_bytes_sent], config::HEADER_SIZE - total_bytes_sent, 0)) == -1){
             int error = errno;
             if(error == EAGAIN || error == EWOULDBLOCK){
                 return status::RESOURCE_UNAVAILABLE;
@@ -613,7 +638,38 @@ int Server::sendAcknowledgement(int client_socket){
         }
         total_bytes_sent += bytes_sent;
     }
-    std::cout <<  "sent ack to: " << client_socket << std::endl;
+    //std::cout <<  "sent processed ack to: " << client_socket << std::endl;
+    return status::SUCCESS;
+}
+
+/*
+Sends acknowledgement to client when the destinatory client has received the entire message.
+Return values: SUCCESS, ERROR, RESOURCE_UNAVAILABLE.
+*/
+int Server::sendDeliveredAcknowledgement(int client_socket){
+    client_ = client_sockets_.getNode(client_socket);
+
+    int total_bytes_sent = 0;
+    int bytes_sent = 0;
+    delivered_ack_message_[2] = client_->sender_key_ >> 24;
+    delivered_ack_message_[3] = client_->sender_key_ >> 16;
+    delivered_ack_message_[4] = client_->sender_key_ >> 8;
+    delivered_ack_message_[5] = client_->sender_key_;
+
+
+    while(total_bytes_sent < config::HEADER_SIZE){
+        if((bytes_sent = send(client_->receiver_fd_, &delivered_ack_message_[total_bytes_sent], config::HEADER_SIZE - total_bytes_sent, 0)) == -1){
+            int error = errno;
+            if(error == EAGAIN || error == EWOULDBLOCK){
+                return status::RESOURCE_UNAVAILABLE;
+            } else{
+                perror("Send of acknowledgement failed.");
+                return status::ERROR;
+            }
+        }
+        total_bytes_sent += bytes_sent;
+    }
+    //std::cout <<  "sent delivered ack to: " << client_->receiver_fd_ << std::endl;
     return status::SUCCESS;
 }
 
@@ -689,11 +745,13 @@ bool Server::printClientInformation(int client_socket){
     if(!client_){
         return false;
     }
-    std::cout << "Name: " << client_->name_ << std::endl
+    std::cout
+    //<< "Name: " << client_->name_ << std::endl
     << "Key: " << static_cast<uint>(client_->sender_key_) << std::endl
-    << "IP: " << client_->ip_ << std::endl
-    << "Port: " << client_->port_ << std::endl
-    << "Socket: " << client_socket << std::endl;
+    //<< "IP: " << client_->ip_ << std::endl
+    //<< "Port: " << client_->port_ << std::endl
+    << "Socket: " << client_socket << std::endl
+    << std::endl;
     client_ = nullptr;
     return true;
 }
