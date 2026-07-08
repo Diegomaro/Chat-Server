@@ -36,6 +36,8 @@ ClientProcessor::ClientProcessor(){
     receiver_key_ = UINT32_MAX;
 
     pending_messages = 0;
+
+    requests_ = 0; // load requests from file later
 }
 
 ClientProcessor::~ClientProcessor(){
@@ -410,10 +412,13 @@ void ClientProcessor::messageInputLoop(){
         int ans = 0;
         std::cout << "Menu." << std::endl
         << "1. Set message." << std::endl
-        << "2. Set destinatory." << std::endl
+        << "2. Set destinatory. (" << static_cast<uint>(receiver_key_) << ")" << std::endl // later on, username instead of receiver key
         << "3. Send message." << std::endl
-        << "4. Exit." << std::endl
-        << ": ";
+        << "4. Send request." << std::endl
+        << "5. Manage requests. (" << static_cast<uint>(requests_) << ")" << std::endl
+        << "6. Reload." << std::endl
+        << "7. Exit." << std::endl
+        << ":: ";
         std::cin >> ans;
         int result = 0;
         switch(ans){
@@ -453,11 +458,17 @@ void ClientProcessor::messageInputLoop(){
                 }
             }break;
             case 4:{
+            }break;
+            case 5:{
+            }break;
+            case 6:{
+            }break;
+            case 7:{
                 program_running_ = false;
                 return;
             }break;
             default:{
-                std::cout << "Incorrect input" << std::endl;
+                std::cout << "Error: Incorrect input!" << std::endl;
             }
 
         }

@@ -68,4 +68,6 @@ class ClientProcessor{
 
         uint32_t pending_messages;
         uint8_t ack_message_[config::HEADER_SIZE];
+
+        uint32_t requests_;
 };
