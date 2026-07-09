@@ -7,7 +7,7 @@
 #include<mutex>
 #include <atomic>
 
-#include "hashtable.h"
+#include "hash_table.hpp"
 #include "constants.hpp"
 
 class ClientProcessor{
@@ -15,19 +15,20 @@ class ClientProcessor{
         ClientProcessor();
         ~ClientProcessor();
 
+        struct UsernameMapping{
+            char username_ [config::HOSTNAME_LENGTH];
+            uint32_t key_;
+        };
+        unsigned long stringHash(char *str);
+
         //setup
         bool setupHeaderTypes();
+        bool setupHashmap();
         bool setupSocket();
 
         void centralLoop();
 
         void inputLoop();
-
-        bool welcomeInputLoop();
-        bool validateCredential(std::string &credential, uint8_t min_length, uint8_t max_length);
-
-        bool messageInputLoop();
-
     private:
         // central loop
         int sendMessage();
@@ -40,9 +41,18 @@ class ClientProcessor{
         bool printMessage();
         bool cleanIncomingBuffer();
 
-        // message input loop
+        //input loop
+        bool welcomeInputLoop();
+        bool validateCredential(std::string &credential, uint8_t min_length, uint8_t max_length);
+
+        bool messageInputLoop();
         int setMessage();
         int setDestinatory();
+        int sendRequest();
+        int manageRequests();
+
+        bool addUser(uint32_t key, std::string username);
+        uint32_t getUser(std::string temp_username);
 
         struct addrinfo hints_;
         struct addrinfo *server_info_;
@@ -79,4 +89,7 @@ class ClientProcessor{
         uint32_t requests_;
         std::string username_;
         std::string password_;
+
+        HashTable<UsernameMapping> username_to_socket_;
+        std::string receiving_username_;
 };

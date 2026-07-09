@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <cstring>
 
 #include <iostream>
 #include <fcntl.h>
@@ -52,6 +53,15 @@ ClientProcessor::~ClientProcessor(){
     close(client_socket_);
 }
 
+unsigned long ClientProcessor::stringHash(char *str){
+    unsigned long hash = 5381;
+    int c;
+    while (c = *str++) {
+        hash = ((hash << 5) + hash) + c;
+    }
+    return hash;
+}
+
 bool ClientProcessor::setupHeaderTypes(){
     if(!ack_message_){
         return false;
@@ -64,6 +74,13 @@ bool ClientProcessor::setupHeaderTypes(){
     ack_message_[5] = UINT8_MAX;
     ack_message_[6] = 0;
     ack_message_[7] = 0;
+    return true;
+}
+
+bool ClientProcessor::setupHashmap(){
+    if(!username_to_socket_.createTable(16)) {
+        return false;
+    }
     return true;
 }
 
@@ -411,6 +428,11 @@ void ClientProcessor::inputLoop(){
     if(!welcomeInputLoop()){
         return;
     }
+
+    if(!addUser(UINT32_MAX, username_)){
+        return;
+    }
+
     if(!messageInputLoop()){
         return;
     }
@@ -497,7 +519,7 @@ bool ClientProcessor::messageInputLoop(){
     while(program_running_){
         std::cout << "Main Menu." << std::endl
         << "1. Set message." << std::endl
-        << "2. Set destinatory. (" << static_cast<uint>(receiver_key_) << ")" << std::endl // later on, username instead of receiver key
+        << "2. Set destinatory. (" << receiving_username_ << ")" << std::endl
         << "3. Send message." << std::endl
         << "4. Send request." << std::endl
         << "5. Manage requests. (" << static_cast<uint>(requests_) << ")" << std::endl
@@ -543,6 +565,18 @@ bool ClientProcessor::messageInputLoop(){
                 }
             }break;
             case 4:{
+                result = setDestinatory();
+                switch(result){
+                    case status::SUCCESS:{
+                        std::cout << "Receiver key set correctly!" << std::endl;
+                    }break;
+                    case status::INVALID_MESSAGE:{
+                        std::cout << "Invalid client, please try again!" << std::endl;
+                    }break;
+                    case status::ERROR:{
+                        return;
+                    }
+                }
             }break;
             case 5:{
             }break;
@@ -597,15 +631,72 @@ int ClientProcessor::setDestinatory(){
     if(!outgoing_buffer_){
         return status::ERROR;
     }
-    std::cout << "Destinatory (number between 0 and 10 [temporary]): ";
-    std::cin >> receiver_key_;
+    int ctr = 1;
+    if(username_to_socket_.getDataCount() == 0){
+        std::cout << "no known users!" << std::endl;
+        std::cout << "Request a user to establish a connection first!" << std::endl;
+        return status::NOTHING_TO_DO;
+    }
+    std::cout << "Please input the destinatory username. " << std::endl
+    << "Available Destinatories: " << std::endl;
 
-    if(receiver_key_ > 10){
+    username_to_socket_.resetNodeIndex();
+    while(username_to_socket_.hasNodes()){
+        if(username_to_socket_.hasNode()){
+            std::cout  << ctr++ << ": " << username_to_socket_.getNode()->data_.username_ << std::endl;
+        }
+        username_to_socket_.advanceNode();
+    }
+    std::string temp_username;
+    std::cin >> temp_username;
+    uint32_t temp_key;
+    if((temp_key = getUser(temp_username)) == UINT32_MAX){
+        std::cout << "Invalid username!" << std::endl;
         return status::INVALID_CLIENT;
     }
+    receiver_key_ = temp_key;
+    receiving_username_ = temp_username;
+
     outgoing_buffer_[2] = receiver_key_ >> 24;
     outgoing_buffer_[3] = receiver_key_ >> 16;
     outgoing_buffer_[4] = receiver_key_ >> 8;
     outgoing_buffer_[5] = receiver_key_;
     return status::SUCCESS;
+}
+
+uint32_t ClientProcessor::getUser(std::string temp_username){
+    char username [config::HOSTNAME_LENGTH];
+    std::strcpy(username, temp_username.c_str());
+    if(username_.length() != config::HOSTNAME_LENGTH){
+        username[username_.length()] = '\n';
+    }
+    unsigned long hash_key = stringHash(username);
+    if(!username_to_socket_.searchNode(hash_key)){
+        return UINT32_MAX;
+    }
+    username_to_socket_.resetNodeIndex();
+    while(username_to_socket_.hasNodes()){
+        if(username_to_socket_.hasNode()){
+            //probably error here
+            if(username_to_socket_.getNode()->data_.username_ == temp_username){
+                return username_to_socket_.getNode()->data_.key_;
+            }
+        }
+        username_to_socket_.advanceNode();
+    }
+    return UINT32_MAX;
+}
+
+bool ClientProcessor::addUser(uint32_t key, std::string username){
+    UsernameMapping user;
+    user.key_ = key;
+    std::strcpy(user.username_, username.c_str());
+    if(username_.length() != config::HOSTNAME_LENGTH){
+        user.username_[username_.length()] = '\n';
+    }
+    unsigned long hash_key = stringHash(user.username_);
+    if(!username_to_socket_.insertNode(hash_key, user)){
+        return false;
+    }
+    return true;
 }
