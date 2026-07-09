@@ -12,7 +12,7 @@ int main(){
     }
     if(clientProcessor.setupSocket()){
         std::thread central_thread(&ClientProcessor::centralLoop, &clientProcessor);
-        std::thread input_thread(&ClientProcessor::messageInputLoop, &clientProcessor);
+        std::thread input_thread(&ClientProcessor::inputLoop, &clientProcessor);
         central_thread.join();
         input_thread.join();
     }

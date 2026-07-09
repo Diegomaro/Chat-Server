@@ -7,6 +7,7 @@
 #include<mutex>
 #include <atomic>
 
+#include "hashtable.h"
 #include "constants.hpp"
 
 class ClientProcessor{
@@ -20,7 +21,13 @@ class ClientProcessor{
 
         void centralLoop();
 
-        void messageInputLoop();
+        void inputLoop();
+
+        bool welcomeInputLoop();
+        bool validateCredential(std::string &credential, uint8_t min_length, uint8_t max_length);
+
+        bool messageInputLoop();
+
     private:
         // central loop
         int sendMessage();

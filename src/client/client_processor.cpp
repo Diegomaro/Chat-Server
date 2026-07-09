@@ -407,7 +407,16 @@ bool ClientProcessor::cleanIncomingBuffer(){
     return true;
 }
 
-void ClientProcessor::messageInputLoop(){
+void ClientProcessor::inputLoop(){
+    if(!welcomeInputLoop()){
+        return;
+    }
+    if(!messageInputLoop()){
+        return;
+    }
+}
+
+bool ClientProcessor::welcomeInputLoop(){
     bool welcome_program_running_ = true;
     int welcome_ans = 0;
     while(welcome_program_running_){
@@ -426,23 +435,7 @@ void ClientProcessor::messageInputLoop(){
                 << static_cast<uint>(config::HOSTNAME_LENGTH) << " characters."
                 << std::endl << "Username: ";
                 std::getline(std::cin >> std::ws, tmp_username);
-                if(tmp_username.size() == 0 || tmp_username.size() > config::HOSTNAME_LENGTH){
-                    std::cout << "Username is too long!"  << std::endl;
-                    break;
-                }
-                bool valid_username = true;
-                for(int i = 0; i < tmp_username.size(); i++){
-                    if(tmp_username[i] < 48
-                        || (tmp_username[i] > 57 && tmp_username[i] < 65)
-                        || (tmp_username[i] > 90 && tmp_username[i] < 95)
-                        || (tmp_username[i] > 95 && tmp_username[i] < 97)
-                        || tmp_username[i] > 122){
-                            std::cout << "Invalid username!"  << std::endl;
-                            valid_username = false;
-                            break;
-                    }
-                }
-                if(valid_username){
+                if(validateCredential(tmp_username, 1, config::HOSTNAME_LENGTH)){
                     username_ = tmp_username;
                     std::cout << "username set!" << std::endl;
                 } else{
@@ -457,35 +450,49 @@ void ClientProcessor::messageInputLoop(){
                 << static_cast<uint>(config::MAX_PASSWORD_LENGTH) << " characters."
                 << std::endl << "Password: ";
                 std::getline(std::cin >> std::ws, tmp_password);
-                if(tmp_password.size() < config::MIN_PASSWORD_LENGTH || tmp_password.size() > config::MAX_PASSWORD_LENGTH){
-                    std::cout << "Password is too long or too short!"  << std::endl;
-                    break;
-                }
-                bool valid__password = true;
-                for(int i = 0; i < tmp_password.size(); i++){
-                    if(tmp_password[i] < 48
-                        || (tmp_password[i] > 57 && tmp_password[i] < 65)
-                        || (tmp_password[i] > 90 && tmp_password[i] < 95)
-                        || (tmp_password[i] > 95 && tmp_password[i] < 97)
-                        || tmp_password[i] > 122){
-                            std::cout << "Invalid password!"  << std::endl;
-                            valid__password = false;
-                            break;
-                    }
-                }
-                if(valid__password){
+
+                if(validateCredential(tmp_password, config::MIN_PASSWORD_LENGTH, config::MAX_PASSWORD_LENGTH)){
                     password_ = tmp_password;
                     std::cout << "Password set!" << std::endl;
+                } else{
+                    break;
                 }
                 welcome_program_running_ = false;
             } break;
             case 3:{
                 welcome_program_running_ = false;
                 program_running_ = false;
+                return false;
             } break;
         }
     }
+    return true;
+}
 
+bool ClientProcessor::validateCredential(std::string &credential, uint8_t min_length, uint8_t max_length){
+    if(credential.size() < min_length || credential.size() > max_length){
+        std::cout << "Credential is too long or too short!"  << std::endl;
+        return false;
+    }
+    bool valid_credential = true;
+    for(int i = 0; i < credential.size(); i++){
+        if(credential[i] < 48
+            || (credential[i] > 57 && credential[i] < 65)
+            || (credential[i] > 90 && credential[i] < 95)
+            || (credential[i] > 95 && credential[i] < 97)
+            || credential[i] > 122){
+                std::cout << "Invalid character: " << credential[i] << std::endl;
+                valid_credential = false;
+                break;
+        }
+    }
+    if(valid_credential){
+        return true;
+    }
+    return false;
+}
+
+bool ClientProcessor::messageInputLoop(){
     int main_ans = 0;
     while(program_running_){
         std::cout << "Main Menu." << std::endl
@@ -510,7 +517,7 @@ void ClientProcessor::messageInputLoop(){
                     std::cout << "Invalid message, please try again!" << std::endl;
                 }break;
                 case status::ERROR:{
-                    return;
+                    return false;
                 }
             }
             }break;
@@ -543,16 +550,14 @@ void ClientProcessor::messageInputLoop(){
             }break;
             case 7:{
                 program_running_ = false;
-                return;
+                return false;
             }break;
             default:{
                 std::cout << "Error: Incorrect input!" << std::endl;
             }
-
         }
-        std::string temp_message;
-
     }
+    return true;
 }
 
 int ClientProcessor::setMessage(){
