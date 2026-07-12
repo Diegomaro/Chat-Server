@@ -185,12 +185,12 @@ void ClientProcessor::centralLoop(){
             {
                 std::unique_lock<std::mutex> lock_message(read_mutex_);
                 int ans = 0;
-                switch(ans = sendMessage()){
+                switch(ans = sendMessage(msg_len_, outgoing_buffer_)){
                     case status::SUCCESS:{
                         pending_messages++;
                         std::cout << "message sent correctly!" << std::endl;
                     }break;
-                    case status::NOTHING_TO_READ:{
+                    case status::RESOURCE_UNAVAILABLE:{
                         std::cout << "Could not sent message!" << std::endl;
                     }break;
                     case status::ERROR:{
@@ -206,52 +206,26 @@ void ClientProcessor::centralLoop(){
     }
 }
 
-int ClientProcessor::sendMessage(){
+int ClientProcessor::sendMessage(int bytes_to_send, uint8_t *buffer){
     int bytes_to_send = msg_len_;
-    int bytes_sent = 0;
+    int total_bytes_sent = 0;
+    int sent_bytes = 0;
 
-    while(bytes_sent < bytes_to_send){
-        int sent_bytes = 0;
+    while(total_bytes_sent < bytes_to_send){
         if((sent_bytes = send(
             client_socket_,
-            &outgoing_buffer_[bytes_sent],
-            (bytes_to_send - bytes_sent),
-            0)) == -1)
-        {
-            int error = errno;
-            if(error == EAGAIN || error == EWOULDBLOCK){
-                return status::NOTHING_TO_READ; // change to nothing to write
-            } else{
-                perror("Send of message failed.");
-                return status::ERROR;
-            }
-        } else{
-            bytes_sent += sent_bytes;
-        }
-    }
-    return status::SUCCESS;
-}
-
-int ClientProcessor::sendAcknowledgement(){
-    int total_bytes_sent = 0;
-    int bytes_sent = 0;
-
-    ack_message_[2] = sender_key_ >> 24;
-    ack_message_[3] = sender_key_ >> 16;
-    ack_message_[4] = sender_key_ >> 8;
-    ack_message_[5] = sender_key_;
-
-    while(total_bytes_sent < config::HEADER_SIZE){
-        if((bytes_sent = send(client_socket_, &ack_message_[total_bytes_sent], config::HEADER_SIZE - total_bytes_sent, 0)) == -1){
+            &buffer[total_bytes_sent],
+            bytes_to_send - total_bytes_sent,
+            0)) == -1){
             int error = errno;
             if(error == EAGAIN || error == EWOULDBLOCK){
                 return status::RESOURCE_UNAVAILABLE;
             } else{
-                perror("Send of acknowledgement failed.");
+                perror("Send of message failed.");
                 return status::ERROR;
             }
         }
-        total_bytes_sent += bytes_sent;
+        total_bytes_sent += sent_bytes;
     }
     return status::SUCCESS;
 }
@@ -356,7 +330,11 @@ int ClientProcessor::actOnMessage(){
                 return status::ERROR;
             }
 
-            uint8_t ack_state = sendAcknowledgement();
+            ack_message_[2] = sender_key_ >> 24;
+            ack_message_[3] = sender_key_ >> 16;
+            ack_message_[4] = sender_key_ >> 8;
+            ack_message_[5] = sender_key_;
+            uint8_t ack_state = sendMessage(config::HEADER_SIZE, ack_message_);
             switch(ack_state){
                 case status::RESOURCE_UNAVAILABLE:{
                     // should not return, rather be stored
@@ -426,10 +404,6 @@ bool ClientProcessor::cleanIncomingBuffer(){
 
 void ClientProcessor::inputLoop(){
     if(!welcomeInputLoop()){
-        return;
-    }
-
-    if(!addUser(UINT32_MAX, username_)){
         return;
     }
 
@@ -514,6 +488,11 @@ bool ClientProcessor::validateCredential(std::string &credential, uint8_t min_le
     return false;
 }
 
+bool ClientProcessor::checkUniqueness(std::string credential){
+ // later
+}
+
+
 bool ClientProcessor::messageInputLoop(){
     int main_ans = 0;
     while(program_running_){
@@ -558,7 +537,7 @@ bool ClientProcessor::messageInputLoop(){
                 }
             }break;
             case 3:{
-                if(receiver_key_ > 10 || message_.length() == 0 || message_.length() > config::MAX_MESSAGE_SIZE){
+                if(receiver_key_ == UINT32_MAX || message_.length() == 0 || message_.length() > config::MAX_MESSAGE_SIZE){
                     std::cout << "Please set a valid receiver key and message first!" << std::endl;
                 } else{
                     send_message_ = true;

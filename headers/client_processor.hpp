@@ -31,8 +31,7 @@ class ClientProcessor{
         void inputLoop();
     private:
         // central loop
-        int sendMessage();
-        int sendAcknowledgement();
+        int sendMessage(int bytes_to_send, uint8_t *buffer);
 
         int receiveFromServer();
         int checkMessage();
@@ -44,6 +43,7 @@ class ClientProcessor{
         //input loop
         bool welcomeInputLoop();
         bool validateCredential(std::string &credential, uint8_t min_length, uint8_t max_length);
+        bool checkUniqueness(std::string credential);
 
         bool messageInputLoop();
         int setMessage();
@@ -85,6 +85,7 @@ class ClientProcessor{
 
         uint32_t pending_messages;
         uint8_t ack_message_[config::HEADER_SIZE];
+        uint8_t request_communication_[config::HEADER_SIZE + config::HOSTNAME_LENGTH];
 
         uint32_t requests_;
         std::string username_;
