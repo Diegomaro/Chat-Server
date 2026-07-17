@@ -40,6 +40,7 @@ class Server{
         int sendProcessedAcknowledgement(int client_socket);
         int sendDeliveredAcknowledgement(int client_socket);
         int sendAuthentication(int client_socket, u_int8_t auth);
+        int sendRequestCommunication(int client_socket);
         int sendToClient(int client_socket);
 
         // print data
@@ -72,7 +73,7 @@ class Server{
         struct epoll_event ev_;
         struct epoll_event events_[config::MAX_EVENTS];
 
-        uint32_t current_client_id_ = 0;
+        uint32_t current_client_key_;
         // later on it will have to be non-volatile memory
 
         uint8_t processed_ack_message_[config::HEADER_SIZE];

@@ -1,6 +1,5 @@
 namespace config{
     inline constexpr const char* SERVER_PORT = "60000";
-    inline constexpr const char* NOT_NAMED = ""; // a user should not be unnamed
 
     inline constexpr const int MAX_EVENTS = 256;
     inline constexpr const int BACKLOG = 10;
