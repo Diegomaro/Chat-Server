@@ -37,7 +37,9 @@ Server::Server(){
 
     memset(&processed_ack_message_, 0, sizeof(processed_ack_message_));
     memset(&delivered_ack_message_, 0, sizeof(delivered_ack_message_));
-
+    memset(&request_communication_message_, 0, sizeof(request_communication_message_));
+    memset(&accept_communication_message_, 0, sizeof(accept_communication_message_));
+    memset(&authentication_message_, 0, sizeof(authentication_message_));
 }
 
 Server::~Server(){
@@ -74,6 +76,9 @@ bool Server::setupHashTables(){
         return false;
     }
     if(!client_key_to_client_sockets_.createTable(16)) {
+        return false;
+    }
+    if(!client_name_to_client_key_.createTable(16)) {
         return false;
     }
     return true;
@@ -123,6 +128,16 @@ bool Server::setupHeaderTypes(){
     delivered_ack_message_[5] = UINT8_MAX;
     delivered_ack_message_[6] = 0;
     delivered_ack_message_[7] = 0;
+
+    authentication_message_[0] = UINT8_MAX;
+    authentication_message_[1] = types::REGISTER;
+    authentication_message_[2] = UINT8_MAX;
+    authentication_message_[3] = UINT8_MAX;
+    authentication_message_[4] = UINT8_MAX;
+    authentication_message_[5] = UINT8_MAX;
+    authentication_message_[6] = 0;
+    authentication_message_[7] = config::AUTH_PAYLOAD_LENGTH;
+    authentication_message_[8] = 0;
     return true;
 }
 
@@ -203,6 +218,9 @@ bool Server::loopConnections(){
                             switch(check_state){
                                 case status::SUCCESS:{
                                     actOnMessage(sender_socket);
+                                     if(!cleanClientBuffer(sender_socket)){
+                                       return status::ERROR;
+                                    }
                                     // cannot send messages until authenticated
                                 }break;
                                 case status::ERROR:{
@@ -303,6 +321,9 @@ bool Server::closeConnection(int client_socket){
         }
     }
     if(!client_key_to_client_sockets_.deleteNode(client_->sender_key_)){
+        return false;
+    }
+    if(!client_name_to_client_key_.deleteNode(stringHash(client_->name_))){
         return false;
     }
     if(!client_sockets_.deleteNode(client_socket)){
@@ -517,9 +538,6 @@ int Server::actOnMessage(int client_socket){
             }
             uint8_t ack_state = sendProcessedAcknowledgement(client_socket);
             uint8_t send_state = sendToClient(client_socket);
-            if(!cleanClientBuffer(client_socket)){
-                return status::ERROR;
-            }
 
             switch(ack_state){
                 case status::RESOURCE_UNAVAILABLE:{
@@ -546,26 +564,122 @@ int Server::actOnMessage(int client_socket){
             }
             return status::SUCCESS;
         } break;
-        case types::GROUP:{
-            //implement much later
+        case types::REGISTER:{
+            if(client_->logged_in_){
+                // do smth
+            }
+
+            if(client_->payload_length_ < config::HOSTNAME_LENGTH + config::MIN_PASSWORD_LENGTH
+            || client_->payload_length_ > config::HOSTNAME_LENGTH + config::MAX_PASSWORD_LENGTH){
+                return status::INVALID_MESSAGE;
+            }
+
+            //CHECK CREDENTIALS
+            uint8_t username [config::HOSTNAME_LENGTH];
+            uint32_t usr_ctr = 0;
+            for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
+                username[i] = buffer_pool_[client_->reading_pointer_];
+                if((username[i] > 0 && username[i] < 48)
+                || (username[i] > 57 && username[i] < 65)
+                || (username[i] > 90 && username[i] < 95)
+                || (username[i] > 95 && username[i] < 97)
+                || username[i] > 122){
+                    int stateAuth = sendAuthentication(client_socket, auth::INVALID_CREDENTIAL);
+                    return status::SUCCESS;
+                }
+                usr_ctr++;
+                if(!advanceClientPointer(client_socket)){
+                    return status::INVALID_MESSAGE;
+                }
+            }
+
+
+            if(usr_ctr < 1){
+                int stateAuth = sendAuthentication(client_socket, auth::INVALID_CREDENTIAL);
+                return status::SUCCESS;
+            }
+            uint8_t password [client_->payload_length_ - config::HOSTNAME_LENGTH];
+            uint32_t psw_ctr = 0;
+
+            for(int i = 0; i < client_->payload_length_ - config::HOSTNAME_LENGTH; i++){
+                password[i] = buffer_pool_[client_->reading_pointer_];
+                if(password[i] < 48
+                || (password[i] > 57 && password[i] < 65)
+                || (password[i] > 90 && password[i] < 95)
+                || (password[i] > 95 && password[i] < 97)
+                || password[i] > 122){
+                    int stateAuth = sendAuthentication(client_socket, auth::INVALID_CREDENTIAL);
+                    return status::SUCCESS;
+                }
+                psw_ctr++;
+                if(!advanceClientPointer(client_socket)){
+                    return status::INVALID_MESSAGE;
+                }
+            }
+
+
+            if(psw_ctr < config::MIN_PASSWORD_LENGTH || psw_ctr > config::MAX_PASSWORD_LENGTH){
+                int stateAuth = sendAuthentication(client_socket, auth::INVALID_CREDENTIAL);
+                return status::SUCCESS;
+            }
+
+            // unique username
+            if(client_name_to_client_key_.getDataCount() != 0){
+                client_name_to_client_key_.resetNodeIndex();
+                while(client_name_to_client_key_.hasNodes()){
+                    if(client_name_to_client_key_.hasNode()){
+                        bool equal_usernames = true;
+                        char *ref_username;
+                        for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
+                            if(client_name_to_client_key_.getNode()->data_.username_[i] != username[i]){
+                                equal_usernames = false;
+                                break;
+                            }
+                        }
+                        if(equal_usernames){
+                            int stateAuth = sendAuthentication(client_socket, auth::NOT_UNIQUE);
+                            return status::SUCCESS;
+                        }
+                    }
+                    client_name_to_client_key_.advanceNode();
+                }
+            }
+
+
+            UsernameMapping userMapping;
+            for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
+                client_->name_[i] = username[i];
+                userMapping.username_[i] = username[i];
+            }
+            userMapping.key_ = client_->sender_key_;
+
+            if(!client_name_to_client_key_.insertNode(stringHash(client_->name_), userMapping)){
+                return status::ERROR;
+            }
+
+            client_->logged_in_ = true;
+            int stateAuth = sendAuthentication(client_socket, auth::VALID);
+
+            return status::SUCCESS;
+            // switch loop
         } break;
-        case types::AUTH_KEY:{
-            // implement much later
+        case types::LOGIN:{
+            // implement eventually
         } break;
         case types::SEND_REQUEST:{
-            // implement much later
+            /*if(!client_key_to_client_sockets_.insertNode(new_client.sender_key_, pending_client_)){
+                return false;
+            }*/
+            // search username. Verify that the connection is not established, if yes, just return true without doing anything.
+            // send request to target username.
         } break;
         case types::ACCEPT_REQUEST:{
-            // implement much later
         } break;
         case types::ACK:{
             if(!client_sockets_.searchNode(client_->receiver_fd_)){
                 return status::INVALID_CLIENT;
             }
             uint8_t ack_state = sendDeliveredAcknowledgement(client_socket);
-            if(!cleanClientBuffer(client_socket)){
-                return status::ERROR;
-            }
             switch(ack_state){
                 case status::RESOURCE_UNAVAILABLE:{
                     // should not return, rather be stored
@@ -602,7 +716,6 @@ bool Server::cleanClientBuffer(int client_socket){
 
     client_->starting_pointer_ = client_->reading_pointer_;
     client_->byte_counter_ -= client_->payload_length_ + config::HEADER_SIZE;
-
     client_->resetMessage();
     return true;
 }
@@ -638,7 +751,6 @@ int Server::sendProcessedAcknowledgement(int client_socket){
         }
         total_bytes_sent += bytes_sent;
     }
-    //std::cout <<  "sent processed ack to: " << client_socket << std::endl;
     return status::SUCCESS;
 }
 
@@ -669,7 +781,28 @@ int Server::sendDeliveredAcknowledgement(int client_socket){
         }
         total_bytes_sent += bytes_sent;
     }
-    //std::cout <<  "sent delivered ack to: " << client_->receiver_fd_ << std::endl;
+    return status::SUCCESS;
+}
+
+int Server::sendAuthentication(int client_socket, u_int8_t auth){
+    client_ = client_sockets_.getNode(client_socket);
+
+    int total_bytes_sent = 0;
+    int bytes_sent = 0;
+    authentication_message_[8] = auth;
+
+    while(total_bytes_sent < config::HEADER_SIZE + config::AUTH_PAYLOAD_LENGTH){
+        if((bytes_sent = send(client_socket, &authentication_message_[total_bytes_sent], config::HEADER_SIZE + config::AUTH_PAYLOAD_LENGTH - total_bytes_sent, 0)) == -1){
+            int error = errno;
+            if(error == EAGAIN || error == EWOULDBLOCK){
+                return status::RESOURCE_UNAVAILABLE;
+            } else{
+                perror("Send of authentication failed.");
+                return status::ERROR;
+            }
+        }
+        total_bytes_sent += bytes_sent;
+    }
     return status::SUCCESS;
 }
 
@@ -714,7 +847,6 @@ int Server::sendToClient(int client_socket){
     return status::SUCCESS;
 }
 
-
 /*
 Prints message from client. Doesn't move reading pointer.
 */
@@ -754,4 +886,13 @@ bool Server::printClientInformation(int client_socket){
     << std::endl;
     client_ = nullptr;
     return true;
+}
+
+unsigned long Server::stringHash(char *str){
+    unsigned long hash = 5381;
+    int c;
+    while (c = *str++) {
+        hash = ((hash << 5) + hash) + c;
+    }
+    return hash;
 }

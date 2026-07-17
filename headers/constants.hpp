@@ -1,6 +1,6 @@
 namespace config{
     inline constexpr const char* SERVER_PORT = "60000";
-    inline constexpr const char* NOT_NAMED = "UNNAMED"; // a user should not be unnamed
+    inline constexpr const char* NOT_NAMED = ""; // a user should not be unnamed
 
     inline constexpr const int MAX_EVENTS = 256;
     inline constexpr const int BACKLOG = 10;
@@ -10,11 +10,13 @@ namespace config{
     inline constexpr const uint32_t BUFFER_SEGMENTS_PER_CLIENT = 128;
     inline constexpr const uint32_t BUFFER_SEGMENT_SIZE = 512;
 
+    inline constexpr const uint8_t HEADER_SIZE = 8;
     inline constexpr const uint8_t HOSTNAME_LENGTH = 16;
     inline constexpr const uint8_t MIN_PASSWORD_LENGTH = 8;
     inline constexpr const uint8_t MAX_PASSWORD_LENGTH = 60;
     inline constexpr const uint8_t CLIENT_KEY_LENGTH = 4;
-    inline constexpr const uint8_t HEADER_SIZE = 8;
+    inline constexpr const uint8_t AUTH_PAYLOAD_LENGTH = 1;
+
 
     inline constexpr const uint32_t TOTAL_BUFFER_SEGMENTS =  TOTAL_HOSTS_SPACES * BUFFER_SEGMENTS_PER_CLIENT; //262144
     inline constexpr const uint32_t BUFFER_SIZE = TOTAL_BUFFER_SEGMENTS * BUFFER_SEGMENT_SIZE;
@@ -43,10 +45,17 @@ namespace status{
 
 namespace types{
     inline constexpr const uint8_t USER = 1;
-    inline constexpr const uint8_t GROUP = 2;
-    inline constexpr const uint8_t AUTH_KEY = 3;
+    inline constexpr const uint8_t REGISTER = 2;
+    inline constexpr const uint8_t LOGIN = 3;
     inline constexpr const uint8_t SEND_REQUEST = 4;
     inline constexpr const uint8_t ACCEPT_REQUEST = 5;
     inline constexpr const uint8_t UPDATE = 6;
     inline constexpr const uint8_t ACK = 7;
+}
+
+namespace auth{
+    inline constexpr const uint8_t VALID = 1;
+    inline constexpr const uint8_t INVALID_CREDENTIAL = 2;
+    inline constexpr const uint8_t NOT_UNIQUE = 3;
+    inline constexpr const uint8_t ALREADY_LOGGED_IN = 4;
 }

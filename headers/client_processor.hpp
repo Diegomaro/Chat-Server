@@ -43,7 +43,6 @@ class ClientProcessor{
         //input loop
         bool welcomeInputLoop();
         bool validateCredential(std::string &credential, uint8_t min_length, uint8_t max_length);
-        bool checkUniqueness(std::string credential);
 
         bool messageInputLoop();
         int setMessage();
@@ -81,15 +80,21 @@ class ClientProcessor{
 
         std::mutex read_mutex_;
         std::atomic<bool> program_running_{true};
+
         std::atomic<bool> send_message_{false};
+        std::atomic<bool> send_request_{false};
+        std::atomic<bool> send_register_{false};
+        std::atomic<bool> logged_in_{false};
 
         uint32_t pending_messages;
         uint8_t ack_message_[config::HEADER_SIZE];
         uint8_t request_communication_[config::HEADER_SIZE + config::HOSTNAME_LENGTH];
+        uint8_t auth_message_[config::HEADER_SIZE + config::HOSTNAME_LENGTH + config::MAX_PASSWORD_LENGTH];
 
         uint32_t requests_;
         std::string username_;
         std::string password_;
+        uint8_t credentials_length_;
 
         HashTable<UsernameMapping> username_to_socket_;
         std::string receiving_username_;

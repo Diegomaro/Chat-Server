@@ -34,4 +34,6 @@ struct Client{
         uint32_t sender_key_;
         uint32_t receiver_key_;
         int receiver_fd_;
+
+        bool logged_in_;
 };

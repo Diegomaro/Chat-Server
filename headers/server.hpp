@@ -9,6 +9,10 @@
 
 class Server{
     public:
+        struct UsernameMapping{
+            char username_ [config::HOSTNAME_LENGTH];
+            uint32_t key_;
+        };
         Server();
         ~Server();
 
@@ -25,6 +29,7 @@ class Server{
         int acceptConnection();
         bool closeConnection(int client_socket);
         bool addClient();
+        bool registerUser();
 
         // data transmission
         int receiveFromClient(int client_socket);
@@ -34,13 +39,15 @@ class Server{
         bool advanceClientPointer(int client_socket);
         int sendProcessedAcknowledgement(int client_socket);
         int sendDeliveredAcknowledgement(int client_socket);
+        int sendAuthentication(int client_socket, u_int8_t auth);
         int sendToClient(int client_socket);
 
         // print data
         bool printMessageFromClient(int client_socket);
         bool printClientInformation(int client_socket);
-
     private:
+
+        unsigned long stringHash(char *str);
         struct addrinfo hints_;
         struct addrinfo *res_;
 
@@ -48,6 +55,7 @@ class Server{
         int pending_client_;
         HashTable<Client> client_sockets_;
         HashTable<uint32_t> client_key_to_client_sockets_;
+        HashTable<UsernameMapping> client_name_to_client_key_;
 
         int epoll_fd_;
 
@@ -69,5 +77,7 @@ class Server{
 
         uint8_t processed_ack_message_[config::HEADER_SIZE];
         uint8_t delivered_ack_message_[config::HEADER_SIZE];
-
+        uint8_t request_communication_message_[config::HEADER_SIZE + config::HOSTNAME_LENGTH];
+        uint8_t accept_communication_message_[config::HEADER_SIZE + config::HOSTNAME_LENGTH];
+        uint8_t authentication_message_[config::HEADER_SIZE + config::AUTH_PAYLOAD_LENGTH]; // to do
 };

@@ -8,18 +8,21 @@ HEAD_BITS  TYPE     RECEIVER_KEY    PAYLOAD_LENGTH  PAYLOAD
 HEAD_BITS = 11111111
 Simple sequence of bits.
 
-TYPE = USER (1) | GROUP (2) | AUTH_KEY (3) | SEND_REQUEST (4) | ACCEPT_REQUEST (5) | UPDATE (6) | ACK (7)
-only USER for now.
+TYPE = USER (1) | REGISTER (2) | LOGIN (3) | SEND_REQUEST (4) | ACCEPT_REQUEST (5) | UPDATE (6) | ACK (7)
+User - send message to another user.
+Register - Send username + password to register.
+Login - Send username + password to login.
+Send request - Send request to another user to communicate.
+Accept Request - Accept a specific communication request.
+Update - Later.
+ACK - Send ack of messages processed/delivered.
 
 RECEIVER_KEY = The destinatory USER | The destinatory GROUP | The source USER | THe source GROUP
 The username + key must exit in the database.
-The group should be registered with the sender key for them to send it.
-Skipped reading on AUTH_KEY.
+Marked as UINT_32_MAX for SEND_REQUEST, REGISTER and LOGIN.
 
-PAYLOAD_LENGTH = n
+PAYLOAD_LENGTH
 length of payload in bytes.
 
 PAYLOAD = message
 message to be sent.
-message is empty for INITIATE, CONCLUDE and CANCEL.
-65024 bytes of payload subtracting 512 bytes to avoid issues with buffering.

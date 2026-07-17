@@ -39,6 +39,8 @@ ClientProcessor::ClientProcessor(){
     pending_messages = 0;
 
     requests_ = 0; // load requests from file later
+
+    credentials_length_ = 0;
 }
 
 ClientProcessor::~ClientProcessor(){
@@ -67,13 +69,47 @@ bool ClientProcessor::setupHeaderTypes(){
         return false;
     }
     ack_message_[0] = UINT8_MAX;
+
     ack_message_[1] = types::ACK;
+
     ack_message_[2] = UINT8_MAX;
     ack_message_[3] = UINT8_MAX;
     ack_message_[4] = UINT8_MAX;
     ack_message_[5] = UINT8_MAX;
+
     ack_message_[6] = 0;
     ack_message_[7] = 0;
+
+    if(!request_communication_){
+        return false;
+    }
+    request_communication_[0] = UINT8_MAX;
+
+    request_communication_[1] = types::SEND_REQUEST;
+
+    request_communication_[2] = UINT8_MAX;
+    request_communication_[3] = UINT8_MAX;
+    request_communication_[4] = UINT8_MAX;
+    request_communication_[5] = UINT8_MAX;
+
+    request_communication_[6] = 0;
+    request_communication_[7] = config::HOSTNAME_LENGTH;
+
+    if(!auth_message_){
+        return false;
+    }
+    auth_message_[0] = UINT8_MAX;
+
+    auth_message_[1] = UINT8_MAX;
+
+    auth_message_[2] = UINT8_MAX;
+    auth_message_[3] = UINT8_MAX;
+    auth_message_[4] = UINT8_MAX;
+    auth_message_[5] = UINT8_MAX;
+
+    auth_message_[6] = 0;
+    auth_message_[7] = 0;
+
     return true;
 }
 
@@ -132,7 +168,7 @@ void ClientProcessor::centralLoop(){
                         int rcvf_state = receiveFromServer();
                         /*
                         Add receive state that means that the buffer is complete,
-                        and requests a verify message before erasing the buffer and sending an error message
+                        and requests a checkMessage before erasing the buffer and sending an error message
                         */
                         switch(rcvf_state){
                             case status::SUCCESS:{
@@ -181,6 +217,44 @@ void ClientProcessor::centralLoop(){
                 }
             }
         }
+        if(send_register_){
+            {
+                std::unique_lock<std::mutex> lock_message(read_mutex_);
+                int ans = 0;
+                switch(ans = sendMessage(credentials_length_ + config::HEADER_SIZE, auth_message_)){
+                    case status::SUCCESS:{
+                        pending_messages++;
+                        std::cout << "message sent correctly!" << std::endl;
+                    }break;
+                    case status::RESOURCE_UNAVAILABLE:{
+                        std::cout << "Could not sent message!" << std::endl;
+                    }break;
+                    case status::ERROR:{
+                        std::cout << "Could not sent message!" << std::endl;
+                    }break;
+                }
+                send_register_ = false;
+            }
+        }
+        if(send_request_){
+            {
+                std::unique_lock<std::mutex> lock_message(read_mutex_);
+                int ans = 0;
+                switch(ans = sendMessage(msg_len_, outgoing_buffer_)){
+                    case status::SUCCESS:{
+                        pending_messages++;
+                        std::cout << "message sent correctly!" << std::endl;
+                    }break;
+                    case status::RESOURCE_UNAVAILABLE:{
+                        std::cout << "Could not sent message!" << std::endl;
+                    }break;
+                    case status::ERROR:{
+                        std::cout << "Could not sent message!" << std::endl;
+                    }break;
+                }
+                send_request_ = false;
+            }
+        }
         if(send_message_){
             {
                 std::unique_lock<std::mutex> lock_message(read_mutex_);
@@ -207,7 +281,6 @@ void ClientProcessor::centralLoop(){
 }
 
 int ClientProcessor::sendMessage(int bytes_to_send, uint8_t *buffer){
-    int bytes_to_send = msg_len_;
     int total_bytes_sent = 0;
     int sent_bytes = 0;
 
@@ -244,7 +317,6 @@ int ClientProcessor::receiveFromServer(){
         reached_buffer_limit = true;
     }
 
-    //byte counter
     while(total_bytes_received < bytes_to_copy){
         if((bytes_received = recv(
             client_socket_,
@@ -277,6 +349,7 @@ int ClientProcessor::checkMessage(){
     if(8 > byte_counter_){
         return status::INVALID_MESSAGE;
     }
+
     reading_pointer_ = starting_pointer_;
     if((incoming_buffer_[reading_pointer_] ^ 0xFF) != 0){
         return status::INVALID_MESSAGE;
@@ -301,6 +374,7 @@ int ClientProcessor::checkMessage(){
         }
     }
 
+
     // PAYLOAD_LENGTH
     if(payload_length_ == UINT16_MAX){
         payload_length_ = 0;
@@ -311,6 +385,7 @@ int ClientProcessor::checkMessage(){
         advanceReadingPointer();
     }
     advanceReadingPointer();
+
     if(byte_counter_ < payload_length_ + config::HEADER_SIZE){
         return status::INCOMPLETE_MESSAGE;
     }
@@ -326,10 +401,9 @@ int ClientProcessor::actOnMessage(){
             if(payload_length_ == 0 || payload_length_ > config::MAX_MESSAGE_SIZE){
                 return status::INVALID_MESSAGE;
             }
-            if(!printMessage()){
+            if(!printMessage()){ // should not just print, handle later
                 return status::ERROR;
             }
-
             ack_message_[2] = sender_key_ >> 24;
             ack_message_[3] = sender_key_ >> 16;
             ack_message_[4] = sender_key_ >> 8;
@@ -347,10 +421,27 @@ int ClientProcessor::actOnMessage(){
 
             return status::SUCCESS;
         } break;
-        case types::GROUP:{
-            //implement much later
+        case types::REGISTER:{
+            // register will have 7 subtypes
+            uint8_t register_type = incoming_buffer_[reading_pointer_];
+            advanceReadingPointer();
+            switch(register_type){
+                case auth::VALID:{
+                    std::cout << "Logged in!" << std::endl;
+                    logged_in_ = true;
+                }break;
+                case auth::INVALID_CREDENTIAL:{
+                    std::cout << "Invalid credentials. Please try again!" << std::endl;
+                }break;
+                case auth::NOT_UNIQUE:{
+                    std::cout << "\"" << username_ << "\" is not available!" << std::endl;
+                }break;
+                case auth::ALREADY_LOGGED_IN:{
+                    std::cout << "already logged in!" << std::endl;
+                }break;
+            }
         } break;
-        case types::AUTH_KEY:{
+        case types::LOGIN:{
             // implement much later
         } break;
         case types::SEND_REQUEST:{
@@ -418,11 +509,13 @@ bool ClientProcessor::welcomeInputLoop(){
     while(welcome_program_running_){
         std::cout << "Welcome Menu." << std::endl
         << "1. Login. (implement later)" << std::endl
-        << "2. Register." << std::endl // right now only set username.
-        << "3. Exit." << std::endl;
+        << "2. Register." << std::endl
+        << "3. Enter Main Menu." << std::endl
+        << "4. Exit." << std::endl;
         std::cin >> welcome_ans;
         switch(welcome_ans){
             case 1:{
+
             } break;
             case 2:{
                 std::string tmp_username;
@@ -431,12 +524,11 @@ bool ClientProcessor::welcomeInputLoop(){
                 << static_cast<uint>(config::HOSTNAME_LENGTH) << " characters."
                 << std::endl << "Username: ";
                 std::getline(std::cin >> std::ws, tmp_username);
-                if(validateCredential(tmp_username, 1, config::HOSTNAME_LENGTH)){
-                    username_ = tmp_username;
-                    std::cout << "username set!" << std::endl;
-                } else{
+                if(!validateCredential(tmp_username, 1, config::HOSTNAME_LENGTH)){
+                    std::cout << "Try a different username!"  << std::endl;
                     break;
                 }
+                std::cout << "Adequate username!" << std::endl;
 
                 std::string tmp_password;
                 std::cout << "Choose a password. It must only contain letters, numbers and underscores (_)."
@@ -447,15 +539,40 @@ bool ClientProcessor::welcomeInputLoop(){
                 << std::endl << "Password: ";
                 std::getline(std::cin >> std::ws, tmp_password);
 
-                if(validateCredential(tmp_password, config::MIN_PASSWORD_LENGTH, config::MAX_PASSWORD_LENGTH)){
-                    password_ = tmp_password;
-                    std::cout << "Password set!" << std::endl;
-                } else{
+                if(!validateCredential(tmp_password, config::MIN_PASSWORD_LENGTH, config::MAX_PASSWORD_LENGTH)){
                     break;
                 }
-                welcome_program_running_ = false;
+                std::cout << "Adequate password!" << std::endl;
+
+                username_ = tmp_username;
+                password_ = tmp_password;
+
+                auth_message_[1] = types::REGISTER;
+
+                credentials_length_ = config::HOSTNAME_LENGTH + password_.length();
+                auth_message_[7] = credentials_length_;
+
+                for(int i = 0; i < username_.length(); i++){
+                    auth_message_[i + config::HEADER_SIZE] = username_[i];
+                }
+                for(int i = username_.length(); i < config::HOSTNAME_LENGTH; i++){
+                    auth_message_[i + config::HEADER_SIZE] = 0;
+                }
+
+                for(int i = 0; i < password_.length(); i++){
+                    auth_message_[i + config::HOSTNAME_LENGTH + config::HEADER_SIZE] = password_[i];
+                }
+
+                send_register_ = true;
             } break;
             case 3:{
+                if(logged_in_){
+                    welcome_program_running_ = false;
+                } else{
+                    std::cout << "You must register or login first!"  << std::endl;
+                }
+            } break;
+            case 4:{
                 welcome_program_running_ = false;
                 program_running_ = false;
                 return false;
@@ -487,11 +604,6 @@ bool ClientProcessor::validateCredential(std::string &credential, uint8_t min_le
     }
     return false;
 }
-
-bool ClientProcessor::checkUniqueness(std::string credential){
- // later
-}
-
 
 bool ClientProcessor::messageInputLoop(){
     int main_ans = 0;
@@ -532,7 +644,7 @@ bool ClientProcessor::messageInputLoop(){
                         std::cout << "Invalid client, please try again!" << std::endl;
                     }break;
                     case status::ERROR:{
-                        return;
+                        return false;
                     }
                 }
             }break;
@@ -544,17 +656,25 @@ bool ClientProcessor::messageInputLoop(){
                 }
             }break;
             case 4:{
-                result = setDestinatory();
-                switch(result){
-                    case status::SUCCESS:{
-                        std::cout << "Receiver key set correctly!" << std::endl;
-                    }break;
-                    case status::INVALID_MESSAGE:{
-                        std::cout << "Invalid client, please try again!" << std::endl;
-                    }break;
-                    case status::ERROR:{
-                        return;
-                    }
+                std::string tmp_username;
+                std::cout << "Input the username of the user you want to establish a communication with: ";
+                std::getline(std::cin >> std::ws, tmp_username);
+                if(validateCredential(tmp_username, 1, config::HOSTNAME_LENGTH)){
+
+                    /*int msg_state = sendMessage(config::HEADER_SIZE + config::HOSTNAME_LENGTH, request_communication_);
+                    switch(msg_state){
+                        case status::RESOURCE_UNAVAILABLE:{
+                            // should not return, rather be stored
+                            return status::RESOURCE_UNAVAILABLE;
+                        } break;
+                        case status::ERROR:{
+                            return status::ERROR;
+                        } break;
+                    }*/
+
+                    std::cout << "Connection requested!" << std::endl;
+                } else{
+                    break;
                 }
             }break;
             case 5:{

@@ -22,11 +22,10 @@ Run each command on different terminals.
 4. [x] Buffering of client messages. Store messages that are not ready to be sent on server.
 5. [x] Redirect traffic from one client to another.
 6. [x] Send confirmation of received messages by clients to original client.
-7. [ ] Make conversations work based on petitions from client to client.
-8. [ ] Give each client a unique username and password defined when first accesing the program. Store credentials locally and on server bank (username + hash of password).
+7. [ ] Give each client a unique username and password defined when first accesing the program. Store credentials locally and on server bank (username + hash of password).
+8. [ ] Make conversations work based on petitions from client to client.
 9. [ ] Allow clients to login instead of registering.
-10. [ ] Store conversations in local files. Server stores messages until they have been received and acknowledged by receiving party.
-11. [ ] GUI of chat conversations.
+10. [ ] Store data in local files. Server stores messages until they have been received and acknowledged by receiving party.
 
 ### **Resources:**
  - Beej’s Guide to Network Programming: https://beej.us/guide/bgnet/
@@ -34,8 +33,8 @@ Run each command on different terminals.
  - Man pages: https://man7.org/linux/man-pages/
 
 ### **Goals if I continue the project:**
-1. Group creation.
-2. Send files between clients.
-3. User profile icons.
-4. Some sort of session implementation to avoid logging in each time the client program runs.
-5. Encryption of messages.
+1. GUI of chat conversations.
+2. Some sort of session implementation to avoid logging in each time the client program runs.
+3. Encryption of messages.
+4. Group creation.
+5. Send files between clients.

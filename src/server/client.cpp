@@ -26,6 +26,8 @@ Client::Client(){
     sender_key_ = UINT32_MAX;
     receiver_key_ = UINT32_MAX;
     receiver_fd_ = -1;
+
+    logged_in_ = false;
 }
 
 void Client::resetMessage(){
