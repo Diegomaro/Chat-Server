@@ -47,11 +47,10 @@ class ClientProcessor{
         bool messageInputLoop();
         int setMessage();
         int setDestinatory();
-        int sendRequest();
         int manageRequests();
 
         bool addUser(uint32_t key, std::string username);
-        uint32_t getUser(std::string temp_username);
+        uint32_t getUserKey(std::string temp_username);
 
         struct addrinfo hints_;
         struct addrinfo *server_info_;
@@ -87,15 +86,17 @@ class ClientProcessor{
         std::atomic<bool> logged_in_{false};
 
         uint32_t pending_messages;
+        uint8_t auth_message_[config::HEADER_SIZE + config::HOSTNAME_LENGTH + config::MAX_PASSWORD_LENGTH];
         uint8_t ack_message_[config::HEADER_SIZE];
         uint8_t request_communication_[config::HEADER_SIZE + config::HOSTNAME_LENGTH];
-        uint8_t auth_message_[config::HEADER_SIZE + config::HOSTNAME_LENGTH + config::MAX_PASSWORD_LENGTH];
 
-        uint32_t requests_;
+        std::atomic<uint32_t> total_requests_{0}; // load from file later
+        LinkedList<UsernameMapping> requests_;
+
         std::string username_;
         std::string password_;
         uint8_t credentials_length_;
 
-        HashTable<UsernameMapping> username_to_socket_;
+        HashTable<UsernameMapping> username_to_key_;
         std::string receiving_username_;
 };

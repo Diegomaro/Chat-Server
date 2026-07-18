@@ -55,7 +55,7 @@ class Server{
         int listener_socket_;
         int pending_client_;
         HashTable<Client> client_sockets_;
-        HashTable<uint32_t> client_key_to_client_sockets_;
+        HashTable<int> client_key_to_client_sockets_;
         HashTable<UsernameMapping> client_name_to_client_key_;
 
         int epoll_fd_;
@@ -80,5 +80,5 @@ class Server{
         uint8_t delivered_ack_message_[config::HEADER_SIZE];
         uint8_t request_communication_message_[config::HEADER_SIZE + config::HOSTNAME_LENGTH];
         uint8_t accept_communication_message_[config::HEADER_SIZE + config::HOSTNAME_LENGTH];
-        uint8_t authentication_message_[config::HEADER_SIZE + config::AUTH_PAYLOAD_LENGTH]; // to do
+        uint8_t authentication_message_[config::HEADER_SIZE + config::AUTH_PAYLOAD_LENGTH];
 };
