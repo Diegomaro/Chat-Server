@@ -18,6 +18,9 @@ class ClientProcessor{
         struct UsernameMapping{
             char username_ [config::HOSTNAME_LENGTH];
             uint32_t key_;
+            bool operator==(const UsernameMapping& UM) const {
+               return key_ == UM.key_;
+            }
         };
         unsigned long stringHash(char *str);
 
@@ -50,7 +53,8 @@ class ClientProcessor{
         int manageRequests();
 
         bool addUser(uint32_t key, std::string username);
-        uint32_t getUserKey(std::string temp_username);
+        uint32_t getUserKey(std::string &temp_username);
+        char *getUserFromKey(uint32_t key);
 
         struct addrinfo hints_;
         struct addrinfo *server_info_;
@@ -82,6 +86,7 @@ class ClientProcessor{
 
         std::atomic<bool> send_message_{false};
         std::atomic<bool> send_request_{false};
+        std::atomic<bool> send_request_accept_{false};
         std::atomic<bool> send_register_{false};
         std::atomic<bool> logged_in_{false};
 
@@ -89,6 +94,7 @@ class ClientProcessor{
         uint8_t auth_message_[config::HEADER_SIZE + config::HOSTNAME_LENGTH + config::MAX_PASSWORD_LENGTH];
         uint8_t ack_message_[config::HEADER_SIZE];
         uint8_t request_communication_[config::HEADER_SIZE + config::HOSTNAME_LENGTH];
+        uint8_t accept_communication_[config::HEADER_SIZE + config::HOSTNAME_LENGTH];
 
         std::atomic<uint32_t> total_requests_{0}; // load from file later
         LinkedList<UsernameMapping> requests_;

@@ -7,7 +7,7 @@
 
 int main(){
     ClientProcessor clientProcessor;
-    if(!clientProcessor.setupHeaderTypes()){
+    if(!clientProcessor.setupHeaderTypes() || !clientProcessor.setupHashmap()){
         return 1;
     }
     if(clientProcessor.setupSocket()){

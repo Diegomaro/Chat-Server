@@ -247,6 +247,23 @@ void ClientProcessor::centralLoop(){
             }
             send_request_ = false;
         }
+        if(send_request_accept_){
+            // before accesing this, load username + key from requests.
+            int ans = 0;
+            switch(ans = sendMessage(config::HEADER_SIZE + config::HOSTNAME_LENGTH, accept_communication_)){
+                case status::SUCCESS:{
+                    pending_messages++; // rework
+                    std::cout << "message sent correctly!" << std::endl;
+                }break;
+                case status::RESOURCE_UNAVAILABLE:{
+                    std::cout << "Could not sent message!" << std::endl;
+                }break;
+                case status::ERROR:{
+                    std::cout << "Could not sent message!" << std::endl;
+                }break;
+            }
+            send_request_ = false;
+        }
         if(send_message_){
             {
                 std::unique_lock<std::mutex> lock_message(read_mutex_);
@@ -464,7 +481,6 @@ int ClientProcessor::actOnMessage(){
             }
         } break;
         case types::RESPOND_TO_REQUEST:{
-            // implement much later
         } break;
         case types::ACK:{
             if(sender_key_ == UINT32_MAX){
@@ -491,7 +507,22 @@ void ClientProcessor::advanceReadingPointer(){
 }
 
 bool ClientProcessor::printMessage(){
-    std::cout << std::endl << static_cast<uint>(sender_key_) << " -> " << username_ << ": ";
+    char *temp_username;
+    if((temp_username = getUserFromKey(sender_key_)) == nullptr){
+        std::cout << "error here" << std::endl;
+        return false;
+    }
+
+    /*
+    std::cout << std::endl;
+    for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
+        if(temp_username[i] == '\0'){
+            break;
+        }
+        std::cout << temp_username[i];
+    }*/
+
+    std::cout << static_cast<uint>(sender_key_) << " -> " << username_ << ": ";
     for(int i = 0; i < payload_length_; i++){
         std::cout << static_cast<char>(incoming_buffer_[reading_pointer_]);
         advanceReadingPointer();
@@ -531,7 +562,6 @@ bool ClientProcessor::welcomeInputLoop(){
         std::cin >> welcome_ans;
         switch(welcome_ans){
             case 1:{
-
             } break;
             case 2:{
                 std::string tmp_username;
@@ -544,8 +574,6 @@ bool ClientProcessor::welcomeInputLoop(){
                     std::cout << "Try a different username!"  << std::endl;
                     break;
                 }
-                std::cout << "Adequate username!" << std::endl;
-
                 std::string tmp_password;
                 std::cout << "Choose a password. It must only contain letters, numbers and underscores (_)."
                 << std::endl << "The minimum size is "
@@ -558,7 +586,7 @@ bool ClientProcessor::welcomeInputLoop(){
                 if(!validateCredential(tmp_password, config::MIN_PASSWORD_LENGTH, config::MAX_PASSWORD_LENGTH)){
                     break;
                 }
-                std::cout << "Adequate password!" << std::endl;
+                std::cout << "Adequate credentials!" << std::endl;
 
                 username_ = tmp_username;
                 password_ = tmp_password;
@@ -599,7 +627,6 @@ bool ClientProcessor::welcomeInputLoop(){
 }
 
 bool ClientProcessor::validateCredential(std::string &credential, uint8_t min_length, uint8_t max_length){
-    std::cout << "size: " << credential.size() << std::endl;
     if(credential.size() < min_length || credential.size() > max_length){
         std::cout << "Credential is too long or too short!"  << std::endl;
         return false;
@@ -673,14 +700,14 @@ bool ClientProcessor::messageInputLoop(){
                 }
             }break;
             case 4:{
-                std::string tmp_username;
+                std::string temp_username(config::HOSTNAME_LENGTH, '\0');
                 std::cout << "Input the username of the user you want to establish a communication with: ";
-                std::getline(std::cin >> std::ws, tmp_username);
-                if(validateCredential(tmp_username, 1, config::HOSTNAME_LENGTH)){
-                    for(int i = 0; i < tmp_username.length(); i++){
-                        request_communication_[i + config::HEADER_SIZE] = tmp_username[i];
+                std::getline(std::cin >> std::ws, temp_username);
+                if(validateCredential(temp_username, 1, config::HOSTNAME_LENGTH)){
+                    for(int i = 0; i < temp_username.length(); i++){
+                        request_communication_[i + config::HEADER_SIZE] = temp_username[i];
                     }
-                    for(int i = tmp_username.length(); i < config::HOSTNAME_LENGTH; i++){
+                    for(int i = temp_username.length(); i < config::HOSTNAME_LENGTH; i++){
                         request_communication_[i + config::HEADER_SIZE] = 0;
                     }
                     send_request_ = true;
@@ -693,7 +720,7 @@ bool ClientProcessor::messageInputLoop(){
                     std::cout << "No requests available!" << std::endl;
                     break;
                 }
-                std::cout << "Input a number corresponding to a request to decide what to do with it." << std::endl;
+                std::cout << "Input a number corresponding to a request to decide what to do with it. Input 0 to exit." << std::endl;
                 std::cout << "Requests: " << std::endl;
                 requests_.resetNodeIndex();
                 int ctr = 1;
@@ -702,10 +729,57 @@ bool ClientProcessor::messageInputLoop(){
                     ctr++;
                     requests_.advanceNode();
                 }
-                //int ans = 0;
-                //std::cin >> ans;
-
-
+                int ans = 0;
+                std::cin >> ans;
+                if(ans == 0){
+                    break;
+                }
+                if(ans < 0 || ans > ctr){
+                    std::cout << "Invalid request selected!" << std::endl;
+                     break;
+                }
+                requests_.resetNodeIndex();
+                for(int i = 0; i < ans - 1; i++){
+                    if(!requests_.hasNode()){
+                        break;
+                    }
+                    requests_.advanceNode();
+                }
+                std::cout << "Select one option." << std::endl
+                << "Request from : " << requests_.getNode().username_ << std::endl
+                << "1. Accept" << std::endl
+                << "2. Reject" << std::endl
+                << "3. Exit" << std::endl;
+                ans = 0;
+                std::cin >> ans;
+                if(ans == 1){
+                    char *ref_username = requests_.getNode().username_;
+                    UsernameMapping usernameMapping;
+                    usernameMapping.key_ = requests_.getNode().key_;
+                    for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
+                        usernameMapping.username_[i] = ref_username[i];
+                    }
+                    if(!username_to_key_.insertNode(stringHash(requests_.getNode().username_), usernameMapping)){
+                        return false;
+                    }
+                    if(!requests_.deleteNode(usernameMapping)){
+                        return false;
+                    }
+                    total_requests_--;
+                } else if(ans == 2){
+                    char *ref_username = requests_.getNode().username_;
+                    UsernameMapping usernameMapping;
+                    usernameMapping.key_ = requests_.getNode().key_;
+                    for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
+                        usernameMapping.username_[i] = ref_username[i];
+                    }
+                    if(!requests_.deleteNode(usernameMapping)){
+                        return false;
+                    }
+                    total_requests_--;
+                    std::cout << "Request rejected!" << std::endl;
+                    //later send reject status message.
+                }
             }break;
             case 6:{
             }break;
@@ -774,7 +848,8 @@ int ClientProcessor::setDestinatory(){
         }
         username_to_key_.advanceNode();
     }
-    std::string temp_username;
+
+    std::string temp_username(config::HOSTNAME_LENGTH, '\0');
     std::cin >> temp_username;
     uint32_t temp_key;
     if((temp_key = getUserKey(temp_username)) == UINT32_MAX){
@@ -791,14 +866,12 @@ int ClientProcessor::setDestinatory(){
     return status::SUCCESS;
 }
 
-uint32_t ClientProcessor::getUserKey(std::string temp_username){
+uint32_t ClientProcessor::getUserKey(std::string &temp_username){
     char username [config::HOSTNAME_LENGTH];
     std::strcpy(username, temp_username.c_str());
-    if(username_.length() != config::HOSTNAME_LENGTH){
-        username[username_.length()] = '\n';
-    }
     unsigned long hash_key = stringHash(username);
     if(!username_to_key_.searchNode(hash_key)){
+        std::cout << "could not find username!" << std::endl;
         return UINT32_MAX;
     }
     username_to_key_.resetNodeIndex();
@@ -820,12 +893,25 @@ uint32_t ClientProcessor::getUserKey(std::string temp_username){
     return UINT32_MAX;
 }
 
+char* ClientProcessor::getUserFromKey(uint32_t key){
+    username_to_key_.resetNodeIndex();
+    while(username_to_key_.hasNodes()){
+        if(username_to_key_.hasNode()){
+            if(username_to_key_.getNode()->data_.key_ == key){
+                return username_to_key_.getNode()->data_.username_;
+            }
+        }
+        username_to_key_.advanceNode();
+    }
+    return nullptr;
+}
+
 bool ClientProcessor::addUser(uint32_t key, std::string username){
     UsernameMapping user;
     user.key_ = key;
     std::strcpy(user.username_, username.c_str());
     if(username_.length() != config::HOSTNAME_LENGTH){
-        user.username_[username_.length()] = '\n';
+        user.username_[username_.length() - 1] = '\n';
     }
     unsigned long hash_key = stringHash(user.username_);
     if(!username_to_key_.insertNode(hash_key, user)){
