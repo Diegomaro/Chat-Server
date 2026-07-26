@@ -233,18 +233,18 @@ bool Server::loopConnections(){
                                        return status::ERROR;
                                     }
                                     // cannot send messages until authenticated
-                                }break;
+                                } break;
                                 case status::ERROR:{
                                     return false;
-                                }break;
+                                } break;
                                 case status::INVALID_MESSAGE:{
                                     //send signal of error to user
                                     receive_loop = false;
-                                }break;
+                                } break;
                                 case status::INVALID_CLIENT:{
                                     //send signal of error to user
                                     receive_loop = false;
-                                }break;
+                                } break;
                             }
                            //if missing timeout
                         } break;
@@ -253,7 +253,7 @@ bool Server::loopConnections(){
                         } break;
                         case status::INVALID_CLIENT:{
                             return false;
-                        }break;
+                        } break;
                         case status::CLOSED_CONVERSATION:{
                             if(!closeConnection(sender_socket)){
                                 return false;
@@ -272,7 +272,7 @@ bool Server::loopConnections(){
             }
         }
         if(ready_polls == 0){
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
     }
     return true;

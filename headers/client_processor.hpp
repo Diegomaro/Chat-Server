@@ -41,7 +41,7 @@ class ClientProcessor{
         int actOnMessage();
         void advanceReadingPointer();
         bool printMessage();
-        bool cleanIncomingBuffer();
+        void cleanIncomingBuffer();
 
         //input loop
         bool welcomeInputLoop();
@@ -52,7 +52,7 @@ class ClientProcessor{
         int setDestinatory();
         int manageRequests();
 
-        bool addUser(uint32_t key, std::string username);
+        bool addUser(uint32_t key, std::string &username);
         uint32_t getUserKey(std::string &temp_username);
         char *getUserFromKey(uint32_t key);
 
