@@ -23,7 +23,7 @@ class Server{
         bool setupListenerSocket();
 
         //central loop
-        bool loopConnections();
+        void centralLoop();
 
         // connections to client
         int acceptConnection();

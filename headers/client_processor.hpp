@@ -30,7 +30,6 @@ class ClientProcessor{
         bool setupSocket();
 
         void centralLoop();
-
         void inputLoop();
     private:
         // central loop

@@ -189,12 +189,12 @@ bool Server::setupListenerSocket(){
     return true;
 }
 
-bool Server::loopConnections(){
+void Server::centralLoop(){
     while(true){
         int ready_polls = 0;
         if((ready_polls = epoll_wait(epoll_fd_, events_, config::MAX_EVENTS, -1)) == -1){
             perror("epoll wait failed");
-            return false;
+            return;
         }
         for (int i = 0; i < ready_polls; i++) {
             if(events_[i].data.fd == listener_socket_){
@@ -204,17 +204,17 @@ bool Server::loopConnections(){
                     switch(accept_state){
                         case status::SUCCESS:{
                             if(!printClientInformation(pending_client_)){
-                                return false;
+                                return;
                             }
                         } break;
                         case status::NOTHING_TO_READ:{
                             accept_loop = false;
                         } break;
                         case status::ERROR:{
-                            return false;
+                            return;
                         } break;
                         case status::EXCEEDED_CLIENT_MAX:{
-                            return false;
+                            return;
                         } break;
                     }
                 }
@@ -230,12 +230,12 @@ bool Server::loopConnections(){
                                 case status::SUCCESS:{
                                     actOnMessage(sender_socket);
                                      if(!cleanClientBuffer(sender_socket)){
-                                       return status::ERROR;
+                                       return;
                                     }
                                     // cannot send messages until authenticated
                                 } break;
                                 case status::ERROR:{
-                                    return false;
+                                    return;
                                 } break;
                                 case status::INVALID_MESSAGE:{
                                     //send signal of error to user
@@ -252,17 +252,17 @@ bool Server::loopConnections(){
                             receive_loop = false;
                         } break;
                         case status::INVALID_CLIENT:{
-                            return false;
+                            return;
                         } break;
                         case status::CLOSED_CONVERSATION:{
                             if(!closeConnection(sender_socket)){
-                                return false;
+                                return;
                             }
                             receive_loop = false;
-                            return true; // to test for memory leaks
+                            return; // to test for memory leaks
                         } break;
                         case status::ERROR:{
-                            return false;
+                            return;
                         } break;
                         case status::EXCEEDED_CLIENT_BUFFER_SIZE:{
                             // return error message to client and restart buffer segments
@@ -275,7 +275,6 @@ bool Server::loopConnections(){
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
     }
-    return true;
 }
 
 // returns EXCEEDED_CLIENT_MAX, NOTHING_TO_READ, PERROR, SUCCESS
@@ -965,10 +964,8 @@ bool Server::printClientInformation(int client_socket){
         return false;
     }
     std::cout
-    //<< "Name: " << client_->name_ << std::endl
-    << "Key: " << static_cast<uint>(client_->sender_key_) << std::endl
-    //<< "IP: " << client_->ip_ << std::endl
-    //<< "Port: " << client_->port_ << std::endl
+    << "IP: " << client_->ip_ << std::endl
+    << "Port: " << client_->port_ << std::endl
     << "Socket: " << client_socket << std::endl
     << std::endl;
     client_ = nullptr;

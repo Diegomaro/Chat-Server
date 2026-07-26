@@ -335,17 +335,16 @@ Returns INSUFFICIENT_BUFFER_SPACE, ERROR, CLOSED CONVERSATION, SUCCESS.
 int ClientProcessor::receiveFromServer(){
     int total_bytes_received = 0;
     int bytes_received = 0;
-    if(byte_counter_ + config::BUFFER_READING_SIZE > config::READING_BUFFER_SIZE){
+    if(byte_counter_ >= config::READING_BUFFER_SIZE){
         return status::INSUFFICIENT_BUFFER_SPACE;
     }
-
-    int reached_buffer_limit = false;
     int bytes_to_copy = config::BUFFER_READING_SIZE;
-    if(writing_pointer_ + config::BUFFER_READING_SIZE > config::READING_BUFFER_SIZE){
-        bytes_to_copy = config::READING_BUFFER_SIZE - writing_pointer_;
-        reached_buffer_limit = true;
+    if(byte_counter_ + config::BUFFER_READING_SIZE > config::READING_BUFFER_SIZE){
+    bytes_to_copy = config::READING_BUFFER_SIZE - byte_counter_;
     }
-
+    if(writing_pointer_ + bytes_to_copy > config::READING_BUFFER_SIZE){
+        bytes_to_copy = config::READING_BUFFER_SIZE - writing_pointer_;
+    }
     while(total_bytes_received < bytes_to_copy){
         if((bytes_received = recv(
             client_socket_,
@@ -367,7 +366,6 @@ int ClientProcessor::receiveFromServer(){
     if(total_bytes_received == 0){
         return status::CLOSED_CONVERSATION;
     }
-
     byte_counter_ += total_bytes_received;
     writing_pointer_ = (writing_pointer_ + total_bytes_received) % config::READING_BUFFER_SIZE;
     return status::SUCCESS;
@@ -464,42 +462,14 @@ int ClientProcessor::actOnMessage(){
                     std::cout << "\"" << username_ << "\" is not available!" << std::endl;
                 } break;
                 case auth::ALREADY_LOGGED_IN:{
-                    std::cout << "already logged in!" << std::endl;
+                    std::cout << "Already logged in!" << std::endl;
                 } break;
             }
         } break;
         case types::LOGIN:{
             // implement much later
         } break;
-        case types::SEND_REQUEST:{
-            if(payload_length_ != config::HOSTNAME_LENGTH){
-                return status::INVALID_MESSAGE;
-            }
-            std::string temp_username(config::HOSTNAME_LENGTH, '\0');
-            for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
-                temp_username[i] += incoming_buffer_[reading_pointer_];
-                advanceReadingPointer();
-            }
-            if(!validateCredential(temp_username, config::HOSTNAME_LENGTH, config::HOSTNAME_LENGTH)){
-                std::cout << "Invalid username request received!" << std::endl;
-                return status::INVALID_CLIENT;
-            }
-            int temp_key = UINT32_MAX;
-            if((temp_key = getUserKey(temp_username)) != UINT32_MAX){
-                std::cout << "already known client" << std::endl;
-                return status::INVALID_CLIENT;
-            } else{
-                total_incoming_requests_++;
-                UsernameMapping usernameMapping;
-                usernameMapping.key_ = sender_key_;
-                for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
-                    usernameMapping.username_[i] = temp_username[i];
-                }
-                if(!incoming_requests_.insertTail(usernameMapping)){
-                    return status::ERROR;
-                }
-            }
-        } break;
+        case types::SEND_REQUEST:
         case types::REJECT_REQUEST:
         case types::ACCEPT_REQUEST:{
             if(payload_length_ != config::HOSTNAME_LENGTH){
@@ -519,8 +489,23 @@ int ClientProcessor::actOnMessage(){
                 std::cout << "already known client" << std::endl;
                 return status::INVALID_CLIENT;
             } else{
-                if(!addUser(sender_key_, temp_username)){
-                    return status::ERROR;
+                if(type_ == types::ACCEPT_REQUEST){
+                    if(!addUser(sender_key_, temp_username)){
+                        return status::ERROR;
+                    }
+                    total_outgoing_requests_--;
+                } else if(type_ == types::SEND_REQUEST){
+                    total_incoming_requests_++;
+                    UsernameMapping usernameMapping;
+                    usernameMapping.key_ = sender_key_;
+                    for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
+                        usernameMapping.username_[i] = temp_username[i];
+                    }
+                    if(!incoming_requests_.insertTail(usernameMapping)){
+                        return status::ERROR;
+                    }
+                } else{
+                    total_outgoing_requests_--;
                 }
                 // remove from outgoing requests
             }
@@ -557,7 +542,6 @@ bool ClientProcessor::printMessage(){
     if((temp_username = getUserFromKey(sender_key_)) == nullptr){
         return false;
     }
-
     std::cout << std::endl;
     for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
         if(temp_username[i] == '\0'){
@@ -581,7 +565,6 @@ void ClientProcessor::cleanIncomingBuffer(){
     type_ = 0;
     payload_length_ = UINT16_MAX;
     sender_key_ = UINT32_MAX;
-    return;
 }
 
 // Central loop that handles login/register and user input to communicate to other clients.
@@ -627,27 +610,24 @@ bool ClientProcessor::welcomeInputLoop(){
                 << static_cast<uint>(config::MAX_PASSWORD_LENGTH) << " characters."
                 << std::endl << "Password: ";
                 std::getline(std::cin >> std::ws, tmp_password);
-
                 if(!validateCredential(tmp_password, config::MIN_PASSWORD_LENGTH, config::MAX_PASSWORD_LENGTH)){
                     break;
                 }
+
                 std::cout << "Adequate credentials!" << std::endl;
 
                 username_ = tmp_username;
                 password_ = tmp_password;
+                credentials_length_ = config::HOSTNAME_LENGTH + password_.length();
 
                 auth_message_[1] = types::REGISTER;
-
-                credentials_length_ = config::HOSTNAME_LENGTH + password_.length();
                 auth_message_[7] = credentials_length_;
-
                 for(int i = 0; i < username_.length(); i++){
                     auth_message_[i + config::HEADER_SIZE] = username_[i];
                 }
                 for(int i = username_.length(); i < config::HOSTNAME_LENGTH; i++){
                     auth_message_[i + config::HEADER_SIZE] = 0;
                 }
-
                 for(int i = 0; i < password_.length(); i++){
                     auth_message_[i + config::HOSTNAME_LENGTH + config::HEADER_SIZE] = password_[i];
                 }
@@ -884,13 +864,11 @@ int ClientProcessor::setDestinatory(){
     }
     int ctr = 1;
     if(username_to_key_.getDataCount() == 0){
-        std::cout << "no known users!" << std::endl;
-        std::cout << "Request a user to establish a connection first!" << std::endl;
+        std::cout << "No known users, request a user to establish a connection first!" << std::endl;
         return status::NOTHING_TO_DO;
     }
     std::cout << "Please input the destinatory username. " << std::endl
-    << "Available Destinatories: " << std::endl;
-
+    << "Known users: " << std::endl;
     username_to_key_.resetNodeIndex();
     while(username_to_key_.hasNodes()){
         if(username_to_key_.hasNode()){

@@ -13,7 +13,7 @@ int main(){
         return 1;
     }
     if(server.setupListenerSocket()){
-        server.loopConnections();
+        server.centralLoop();
     }
     return 0;
 }
