@@ -44,7 +44,6 @@ class Server{
         int sendToClient(int client_socket);
 
         // print data
-        bool printMessageFromClient(int client_socket);
         bool printClientInformation(int client_socket);
     private:
 

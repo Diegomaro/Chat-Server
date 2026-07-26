@@ -728,9 +728,31 @@ int Server::actOnMessage(int client_socket){
                 client_name_to_client_key_.advanceNode();
             }
             return status::INVALID_CLIENT;
-
         } break;
-        case types::RESPOND_TO_REQUEST:{
+        case types::ACCEPT_REQUEST:
+        case types::REJECT_REQUEST:{
+            if(client_->payload_length_ != config::HOSTNAME_LENGTH){
+                return status::INVALID_MESSAGE;
+            }
+            if(client_name_to_client_key_.getDataCount() == 0){
+                return status::INVALID_CLIENT;
+            }
+            if(!client_sockets_.searchNode(client_->receiver_fd_)){
+                    return status::INVALID_CLIENT;
+                }
+                uint8_t send_state = sendToClient(client_socket);
+
+                switch(send_state){
+                    case status::RESOURCE_UNAVAILABLE:{
+                        //should not return, rather be stored
+                        return status::RESOURCE_UNAVAILABLE;
+                    } break;
+                    case status::ERROR:{
+                        return status::ERROR;
+                    } break;
+                }
+                return status::SUCCESS;
+            return status::INVALID_CLIENT;
         } break;
         case types::ACK:{
             if(!client_sockets_.searchNode(client_->receiver_fd_)){
@@ -932,28 +954,6 @@ int Server::sendToClient(int client_socket){
         }
     }
     return status::SUCCESS;
-}
-
-/*
-Prints message from client. Doesn't move reading pointer.
-*/
-bool Server::printMessageFromClient(int client_socket){
-    client_ = client_sockets_.getNode(client_socket);
-    uint32_t temp_reading_pointer = client_->reading_pointer_;
-    uint8_t temp_reading_buffer = client_->reading_buffer_;
-    std::cout << "Message: ";
-    for(int i = 0; i < client_->payload_length_; i++){
-        std::cout << static_cast<char>(buffer_pool_[client_->reading_pointer_]);
-        if(!advanceClientPointer(client_socket)){
-            client_->reading_pointer_ = temp_reading_pointer;
-            client_->reading_buffer_ = temp_reading_buffer;
-            return false;
-        }
-    }
-    std::cout << std::endl;
-    client_->reading_pointer_ = temp_reading_pointer;
-    client_->reading_buffer_ = temp_reading_buffer;
-    return true;
 }
 
 bool Server::printClientInformation(int client_socket){

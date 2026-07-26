@@ -86,7 +86,7 @@ class ClientProcessor{
 
         std::atomic<bool> send_message_{false};
         std::atomic<bool> send_request_{false};
-        std::atomic<bool> send_request_accept_{false};
+        std::atomic<bool> respond_request_{false};
         std::atomic<bool> send_register_{false};
         std::atomic<bool> logged_in_{false};
 
@@ -94,10 +94,13 @@ class ClientProcessor{
         uint8_t auth_message_[config::HEADER_SIZE + config::HOSTNAME_LENGTH + config::MAX_PASSWORD_LENGTH];
         uint8_t ack_message_[config::HEADER_SIZE];
         uint8_t request_communication_[config::HEADER_SIZE + config::HOSTNAME_LENGTH];
-        uint8_t accept_communication_[config::HEADER_SIZE + config::HOSTNAME_LENGTH];
+        uint8_t respond_communication_[config::HEADER_SIZE + config::HOSTNAME_LENGTH];
 
-        std::atomic<uint32_t> total_requests_{0}; // load from file later
-        LinkedList<UsernameMapping> requests_;
+        std::atomic<uint32_t> total_incoming_requests_{0}; // load from file later
+        LinkedList<UsernameMapping> incoming_requests_;
+
+        std::atomic<uint32_t> total_outgoing_requests_{0}; // load from file later
+        LinkedList<UsernameMapping> outgoing_requests_;
 
         std::string username_;
         std::string password_;
