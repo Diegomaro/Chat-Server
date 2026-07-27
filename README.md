@@ -2,7 +2,7 @@
 A TCP chat server written in C++ to explore networking, protocol design, systems programming and client-server architecture. This repository serves as a long-term systems programming project that incrementally explores concepts in networking, security, system design, testing and performance.
 
 ## Project Goals
-THe goal of thhis project is to learn the fundamentals of network programming, security and understand the design principles behind reliable client-server applications.
+The goal of this project is to learn the fundamentals of network programming, security and understand the design principles behind reliable client-server applications.
 
 The project focuses on:
 * TCP/IP networking
@@ -24,12 +24,12 @@ Some guiding principles include:
 - C++ compiler with C++17 support
 
 ### Installation
-1. Clone the repository and enter the project directory.
+1. Clone the repository and enter the project directory:
 ```sh
 git clone https://github.com/Diegomaro/Chat-Server.git
 cd Chat-Server
 ```
-2. Build the project
+2. Build the project:
 ```sh
 . compile.sh
 ```
@@ -46,11 +46,11 @@ In other terminals, start one or more clients:
 ```
 
 ## Current Features
-* TCP client/server communication.
-* Multiple simultaneous client connections.
-* Message forwarding between clients.
-* Buffering of incoming and outgoing messages.
-* Unique user registration.
+* TCP client/server communication
+* Multiple simultaneous client connections
+* Message forwarding between clients
+* Buffering of incoming and outgoing messages
+* Unique user registration
 
 ## Roadmap
 
