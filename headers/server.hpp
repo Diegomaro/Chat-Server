@@ -27,16 +27,15 @@ class Server{
 
         // connections to client
         int acceptConnection();
-        bool closeConnection(int client_socket);
         bool addClient();
-        bool registerUser();
+        bool closeConnection(int client_socket);
 
         // data transmission
         int receiveFromClient(int client_socket);
         int checkMessage(int client_socket);
         int actOnMessage(int client_socket);
         bool cleanClientBuffer(int client_socket);
-        bool advanceClientPointer(int client_socket);
+        bool advanceClientPointer();
         int sendProcessedAcknowledgement(int client_socket);
         int sendDeliveredAcknowledgement(int client_socket);
         int sendAuthentication(int client_socket, u_int8_t auth);

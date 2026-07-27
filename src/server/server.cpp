@@ -74,13 +74,13 @@ Server::~Server(){
 }
 
 bool Server::setupHashTables(){
-    if(!client_sockets_.createTable(16)) {
+    if(!client_sockets_.createTable(config::INITIAL_HASHTABLE_SIZE)){
         return false;
     }
-    if(!client_key_to_client_sockets_.createTable(16)) {
+    if(!client_key_to_client_sockets_.createTable(config::INITIAL_HASHTABLE_SIZE)){
         return false;
     }
-    if(!client_name_to_client_key_.createTable(16)) {
+    if(!client_name_to_client_key_.createTable(config::INITIAL_HASHTABLE_SIZE)){
         return false;
     }
     return true;
@@ -104,7 +104,7 @@ bool Server::setupBuffer(){
         if(!available_buffers_.insertTail(current_address)){
             return false;
         }
-        current_address += 0x00000200;
+        current_address += config::BUFFER_SEGMENT_SIZE;
     }
     return true;
 }
@@ -163,7 +163,7 @@ bool Server::setupListenerSocket(){
         return false;
     }
     int yes = 1;
-    if (setsockopt(listener_socket_, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1) {
+    if (setsockopt(listener_socket_, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1){
         perror("setsockopt SO_REUSEADDR failed");
     }
     if((bind(listener_socket_, res_->ai_addr, res_->ai_addrlen)) == -1){
@@ -175,7 +175,7 @@ bool Server::setupListenerSocket(){
         return false;
     }
     freeaddrinfo(res_);
-    if ((epoll_fd_ = epoll_create1(0)) == -1) {
+    if ((epoll_fd_ = epoll_create1(0)) == -1){
         perror("epoll failed");
         return false;
     }
@@ -189,6 +189,7 @@ bool Server::setupListenerSocket(){
     return true;
 }
 
+// Central loop that handles message receiving and sending.
 void Server::centralLoop(){
     while(true){
         int ready_polls = 0;
@@ -196,7 +197,7 @@ void Server::centralLoop(){
             perror("epoll wait failed");
             return;
         }
-        for (int i = 0; i < ready_polls; i++) {
+        for (int i = 0; i < ready_polls; i++){
             if(events_[i].data.fd == listener_socket_){
                 bool accept_loop = true;
                 while(accept_loop){
@@ -218,7 +219,7 @@ void Server::centralLoop(){
                         } break;
                     }
                 }
-            } else if (events_[i].events & EPOLLIN) {
+            } else if (events_[i].events & EPOLLIN){
                 int sender_socket = events_[i].data.fd;
                 bool receive_loop = true;
                 while(receive_loop){
@@ -277,7 +278,10 @@ void Server::centralLoop(){
     }
 }
 
-// returns EXCEEDED_CLIENT_MAX, NOTHING_TO_READ, PERROR, SUCCESS
+/*
+Accepts a incoming connection request and adds them as as a client.
+Returns EXCEEDED_CLIENT_MAX, NOTHING_TO_READ, ERROR, SUCCESS.
+*/
 int Server::acceptConnection(){
     if(client_sockets_.getDataCount() + 1 >= config::MAX_HOSTS){
         return status::EXCEEDED_CLIENT_MAX;
@@ -308,7 +312,45 @@ int Server::acceptConnection(){
     return status::SUCCESS;
 }
 
+// Registers a client with their socket info. Gives each registered client a buffer segment to occupy.
+bool Server::addClient(){
+    Client new_client;
+    new_client.name_[0] = '\0';
+    void* addr;
+    if(client_sockaddr_.ss_family == AF_INET){
+        sockaddr_in* ipv4 = (sockaddr_in*)&client_sockaddr_;
+        addr = &(ipv4->sin_addr);
+        new_client.port_ = ntohs(ipv4->sin_port);
+    }
+    else {
+        sockaddr_in6* ipv6 = (sockaddr_in6*)&client_sockaddr_;
+        addr = &(ipv6->sin6_addr);
+        new_client.port_ = ntohs(ipv6->sin6_port);
+    }
+    inet_ntop(client_sockaddr_.ss_family, addr, new_client.ip_, sizeof(new_client.ip_));
+    if(available_buffers_.isEmpty()){
+        return false;
+    }
+    new_client.buffer_pointers_[0] = available_buffers_.getHead();
+    if(!available_buffers_.deleteHead()){
+        return false;
+    }
+    new_client.buffer_pointers_amount_ = 1;
+    new_client.starting_pointer_ = new_client.buffer_pointers_[0];
+    new_client.reading_pointer_ = new_client.buffer_pointers_[0];
+    new_client.writing_pointer_ = new_client.buffer_pointers_[0];
+
+    if(!client_sockets_.insertNode(pending_client_, new_client)){
+        return false;
+    }
+    return true;
+}
+
+// Closes a client connection. Returns occupied buffer segments to the buffer pool.
 bool Server::closeConnection(int client_socket){
+    if(client_socket == -1){
+        return false;
+    }
     if(close(client_socket) == -1){
         perror("clossing failed");
         return false;
@@ -343,45 +385,14 @@ bool Server::closeConnection(int client_socket){
     return true;
 }
 
-bool Server::addClient(){
-    Client new_client;
-    new_client.name_[0] = '\0';
-    void* addr;
-    if(client_sockaddr_.ss_family == AF_INET) {
-        sockaddr_in* ipv4 = (sockaddr_in*)&client_sockaddr_;
-        addr = &(ipv4->sin_addr);
-        new_client.port_ = ntohs(ipv4->sin_port);
-    }
-    else {
-        sockaddr_in6* ipv6 = (sockaddr_in6*)&client_sockaddr_;
-        addr = &(ipv6->sin6_addr);
-        new_client.port_ = ntohs(ipv6->sin6_port);
-    }
-    inet_ntop(client_sockaddr_.ss_family, addr, new_client.ip_, sizeof(new_client.ip_));
-    if(available_buffers_.isEmpty()){
-        return false;
-    }
-    new_client.buffer_pointers_[0] = available_buffers_.getHead();
-    if(!available_buffers_.deleteHead()){
-        return false;
-    }
-    new_client.buffer_pointers_amount_ = 1;
-    new_client.starting_pointer_ = new_client.buffer_pointers_[0];
-    new_client.reading_pointer_ = new_client.buffer_pointers_[0];
-    new_client.writing_pointer_ = new_client.buffer_pointers_[0];
-
-    if(!client_sockets_.insertNode(pending_client_, new_client)){
-        return false;
-    }
-    return true;
-}
-
-// returns INVALID_CLIENT, ERROR, NOTHING_TO_READ, CLOSED_CONVERSATION, SUCCESS, EXCEEDED_CLIENT_BUFFER_SIZE, INSUFFICIENT_BUFFER_SPACE
+/*
+Copies an incoming message (possibly fragmented) to the corresponding client buffers.
+Returns INVALID_CLIENT, ERROR, NOTHING_TO_READ, CLOSED_CONVERSATION, EXCEEDED_CLIENT_BUFFER_SIZE, INSUFFICIENT_BUFFER_SPACE, SUCCESS
+*/
 int Server::receiveFromClient(int client_socket){
     if(client_socket == -1){
         return status::INVALID_CLIENT;
     }
-
     client_ = client_sockets_.getNode(client_socket);
     if(!client_){
         return status::ERROR;
@@ -440,9 +451,12 @@ int Server::receiveFromClient(int client_socket){
 
 /*
 Verifies that a message has a valid header and replaces target key with sender key.
-returns SUCCESS, ERROR, INVALID_MESSAGE, INVALID_CLIENT, INCOMPLETE_MESSAGE
+returns INVALID_CLIENT, ERROR, INVALID_MESSAGE, INCOMPLETE_MESSAGE, SUCCESS
 */
 int Server::checkMessage(int client_socket){
+    if(client_socket == -1){
+        return status::INVALID_CLIENT;
+    }
     client_ = client_sockets_.getNode(client_socket);
     if(!client_){
         return status::ERROR;
@@ -454,7 +468,7 @@ int Server::checkMessage(int client_socket){
     if((buffer_pool_[client_->reading_pointer_] ^ 0xFF) != 0){
         return status::INVALID_MESSAGE;
     }
-    if(!advanceClientPointer(client_socket)){
+    if(!advanceClientPointer()){
         return status::INVALID_MESSAGE; // other error
     }
 
@@ -462,7 +476,7 @@ int Server::checkMessage(int client_socket){
     if(client_->type_ == 0){
         client_->type_ = buffer_pool_[client_->reading_pointer_];
     }
-    if(!advanceClientPointer(client_socket)){
+    if(!advanceClientPointer()){
         return status::INVALID_MESSAGE;
     }
 
@@ -475,7 +489,7 @@ int Server::checkMessage(int client_socket){
 
         for(int i = 0; i < config::CLIENT_KEY_LENGTH; i++){
             client_->receiver_key_ += (buffer_pool_[client_->reading_pointer_]) << ((config::CLIENT_KEY_LENGTH - 1 - i) * 8);
-            if(!advanceClientPointer(client_socket)){
+            if(!advanceClientPointer()){
                 return status::INVALID_MESSAGE;
             }
         }
@@ -491,14 +505,14 @@ int Server::checkMessage(int client_socket){
 
             for(int i = 0; i < config::CLIENT_KEY_LENGTH; i++){
                 buffer_pool_[client_->reading_pointer_] = client_->sender_key_ << ((config::CLIENT_KEY_LENGTH - 1 - i) * 8);
-                if(!advanceClientPointer(client_socket)){
+                if(!advanceClientPointer()){
                     return status::INVALID_MESSAGE;
                 }
             }
         }
     } else{
         for(int i = 0; i < 4; i++){
-            if(!advanceClientPointer(client_socket)){
+            if(!advanceClientPointer()){
                 return status::INVALID_MESSAGE;
             }
         }
@@ -508,16 +522,16 @@ int Server::checkMessage(int client_socket){
     if(client_->payload_length_ == UINT16_MAX){
         client_->payload_length_ = 0;
         client_->payload_length_ = buffer_pool_[client_->reading_pointer_] << 8;
-        if(!advanceClientPointer(client_socket)){
+        if(!advanceClientPointer()){
             return status::INVALID_MESSAGE;
         }
         client_->payload_length_ = client_->payload_length_ | (buffer_pool_[client_->reading_pointer_]);
     } else{
-        if(!advanceClientPointer(client_socket)){
+        if(!advanceClientPointer()){
             return status::INVALID_MESSAGE;
         }
     }
-    if(!advanceClientPointer(client_socket)){
+    if(!advanceClientPointer()){
         return status::INVALID_MESSAGE;
     }
     if(client_->byte_counter_ < client_->payload_length_ + config::HEADER_SIZE){
@@ -527,10 +541,13 @@ int Server::checkMessage(int client_socket){
 }
 
 /*
-Depending on the type of message received, it does something different.
-returns SUCCESS, ERROR, INVALID_MESSAGE, RESOURCE_UNAVAILABLE, INVALID_CLIENT, INCOMPLETE_MESSAGE
+Performs different tasks depending on the type of message received.
+returns ERROR, INVALID_MESSAGE, RESOURCE_UNAVAILABLE, INVALID_CLIENT, INCOMPLETE_MESSAGE, SUCCESS
 */
 int Server::actOnMessage(int client_socket){
+    if(client_socket == -1){
+        return status::INVALID_CLIENT;
+    }
     client_ = client_sockets_.getNode(client_socket);
     switch(client_->type_){
         case types::USER:{
@@ -593,7 +610,7 @@ int Server::actOnMessage(int client_socket){
                     return sendAuthentication(client_socket, auth::INVALID_CREDENTIAL);
                 }
                 usr_ctr++;
-                if(!advanceClientPointer(client_socket)){
+                if(!advanceClientPointer()){
                     return status::INVALID_MESSAGE;
                 }
             }
@@ -612,7 +629,7 @@ int Server::actOnMessage(int client_socket){
                     return sendAuthentication(client_socket, auth::INVALID_CREDENTIAL);
                 }
                 psw_ctr++;
-                if(!advanceClientPointer(client_socket)){
+                if(!advanceClientPointer()){
                     return status::INVALID_MESSAGE;
                 }
             }
@@ -684,7 +701,7 @@ int Server::actOnMessage(int client_socket){
                     return status::INVALID_MESSAGE;
                 }
                 usr_ctr++;
-                if(!advanceClientPointer(client_socket)){
+                if(!advanceClientPointer()){
                     return status::INVALID_MESSAGE;
                 }
             }
@@ -777,7 +794,12 @@ int Server::actOnMessage(int client_socket){
     return status::SUCCESS;
 }
 
+// Resets client buffer segments indicators to process new messages.
 bool Server::cleanClientBuffer(int client_socket){
+    if(client_socket == -1){
+        return false;
+    }
+    client_ = client_sockets_.getNode(client_socket);
     int dif = client_->writing_buffer_ - client_->starting_buffer_;
     if(dif < 0){
         dif *= -1;
@@ -798,11 +820,17 @@ bool Server::cleanClientBuffer(int client_socket){
     return true;
 }
 
-bool Server::advanceClientPointer(int client_socket){
+// Advances client reading pointer, if the border of a buffer is reached, the pointer advances to the next buffer segment. Returns false if there are no more buffer segments to occupy.
+bool Server::advanceClientPointer(){
     if(!client_->advanceReadingPointer()){
         client_->reading_buffer_++;
         if(client_->reading_buffer_ >= config::BUFFER_SEGMENTS_PER_CLIENT){
-            return false;
+            if(client_->buffer_pointers_amount_ < config::BUFFER_SEGMENTS_PER_CLIENT){
+                client_->reading_buffer_ = 0;
+                client_->reading_pointer_ = client_->buffer_pointers_[client_->reading_buffer_];
+            } else{
+                return false;
+            }
         } else{
             client_->reading_pointer_ = client_->buffer_pointers_[client_->reading_buffer_];
         }
@@ -812,9 +840,12 @@ bool Server::advanceClientPointer(int client_socket){
 
 /*
 Sends acknowledgement to client when the entire message has been processed and verified.
-Return values: SUCCESS, ERROR, RESOURCE_UNAVAILABLE.
+Returns INVALID_CLIENT, ERROR, RESOURCE_UNAVAILABLE, SUCCESS.
 */
 int Server::sendProcessedAcknowledgement(int client_socket){
+    if(client_socket == -1){
+        return status::INVALID_CLIENT;
+    }
     int total_bytes_sent = 0;
     int bytes_sent = 0;
     while(total_bytes_sent < config::HEADER_SIZE){
@@ -834,9 +865,12 @@ int Server::sendProcessedAcknowledgement(int client_socket){
 
 /*
 Sends acknowledgement to client when the destinatory client has received the entire message.
-Return values: SUCCESS, ERROR, RESOURCE_UNAVAILABLE.
+Returns INVALID_CLIENT, ERROR, RESOURCE_UNAVAILABLE, SUCCESS.
 */
 int Server::sendDeliveredAcknowledgement(int client_socket){
+    if(client_socket == -1){
+        return status::INVALID_CLIENT;
+    }
     client_ = client_sockets_.getNode(client_socket);
 
     int total_bytes_sent = 0;
@@ -845,7 +879,6 @@ int Server::sendDeliveredAcknowledgement(int client_socket){
     delivered_ack_message_[3] = client_->sender_key_ >> 16;
     delivered_ack_message_[4] = client_->sender_key_ >> 8;
     delivered_ack_message_[5] = client_->sender_key_;
-
 
     while(total_bytes_sent < config::HEADER_SIZE){
         if((bytes_sent = send(client_->receiver_fd_, &delivered_ack_message_[total_bytes_sent], config::HEADER_SIZE - total_bytes_sent, 0)) == -1){
@@ -863,10 +896,13 @@ int Server::sendDeliveredAcknowledgement(int client_socket){
 }
 
 /*
-Sends authentication results to client.
-Return values: SUCCESS, ERROR, RESOURCE_UNAVAILABLE.
+Sends authentication from receiving client to sending client.
+Returns INVALID_CLIENT, ERROR, RESOURCE_UNAVAILABLE, SUCCESS.
 */
 int Server::sendAuthentication(int client_socket, u_int8_t auth){
+    if(client_socket == -1){
+        return status::INVALID_CLIENT;
+    }
     client_ = client_sockets_.getNode(client_socket);
 
     int total_bytes_sent = 0;
@@ -889,10 +925,13 @@ int Server::sendAuthentication(int client_socket, u_int8_t auth){
 }
 
 /*
-Sends request results to client.
-Return values: SUCCESS, ERROR, RESOURCE_UNAVAILABLE.
+Sends request to client.
+Returns INVALID_CLIENT, ERROR, RESOURCE_UNAVAILABLE, SUCCESS.
 */
 int Server::sendRequestCommunication(int client_socket){
+    if(client_socket == -1){
+        return status::INVALID_CLIENT;
+    }
     client_ = client_sockets_.getNode(client_socket);
 
     int total_bytes_sent = 0;
@@ -916,9 +955,12 @@ int Server::sendRequestCommunication(int client_socket){
 
 /*
 Sends message from one client to another.
-Return values: SUCCESS, ERROR, RESOURCE_UNAVAILABLE.
+Returns INVALID_CLIENT, ERROR, RESOURCE_UNAVAILABLE, SUCCESS.
 */
 int Server::sendToClient(int client_socket){
+    if(client_socket == -1){
+        return status::INVALID_CLIENT;
+    }
     client_ = client_sockets_.getNode(client_socket);
 
     int print_pointer = config::READER_BUFFER_POINTER;
@@ -928,7 +970,7 @@ int Server::sendToClient(int client_socket){
     client_->reading_pointer_ = client_->starting_pointer_;
     for(int i = 0; i <  bytes_to_send; i++){
         buffer_pool_[print_pointer] = buffer_pool_[client_->reading_pointer_];
-        if(!advanceClientPointer(client_socket)){
+        if(!advanceClientPointer()){
             return status::ERROR;
         }
         print_pointer++;
@@ -955,6 +997,7 @@ int Server::sendToClient(int client_socket){
     return status::SUCCESS;
 }
 
+// Prints the IP, Port and Socket of a new client.
 bool Server::printClientInformation(int client_socket){
     if(client_socket == -1){
         return false;
@@ -975,7 +1018,7 @@ bool Server::printClientInformation(int client_socket){
 unsigned long Server::stringHash(char *str){
     unsigned long hash = 5381;
     int c;
-    while (c = *str++) {
+    while (c = *str++){
         hash = ((hash << 5) + hash) + c;
     }
     return hash;

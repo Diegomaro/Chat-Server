@@ -56,7 +56,7 @@ ClientProcessor::~ClientProcessor(){
 unsigned long ClientProcessor::stringHash(char *str){
     unsigned long hash = 5381;
     int c;
-    while (c = *str++) {
+    while (c = *str++){
         hash = ((hash << 5) + hash) + c;
     }
     return hash;
@@ -127,7 +127,7 @@ bool ClientProcessor::setupHeaderTypes(){
 }
 
 bool ClientProcessor::setupHashmap(){
-    if(!username_to_key_.createTable(16)) {
+    if(!username_to_key_.createTable(config::INITIAL_HASHTABLE_SIZE)){
         return false;
     }
     return true;
@@ -144,7 +144,7 @@ bool ClientProcessor::setupSocket(){
         return false;
     }
     int yes = 1;
-    if (setsockopt(client_socket_, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1) {
+    if (setsockopt(client_socket_, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1){
         perror("setsockopt SO_REUSEADDR failed");
     }
     if(fcntl(client_socket_, F_SETFL, O_NONBLOCK) == -1){
@@ -156,7 +156,7 @@ bool ClientProcessor::setupSocket(){
         return false;
     }
     freeaddrinfo(server_info_);
-    if ((epoll_fd_ = epoll_create1(0)) == -1) {
+    if ((epoll_fd_ = epoll_create1(0)) == -1){
         perror("epoll failed");
         return false;
     }
@@ -174,9 +174,9 @@ void ClientProcessor::centralLoop(){
             perror("epoll wait failed");
             return;
         }
-        for (int i = 0; i < ready_polls; i++) {
+        for (int i = 0; i < ready_polls; i++){
             if(events_[i].data.fd == client_socket_){
-                if (events_[i].events & EPOLLIN) {
+                if (events_[i].events & EPOLLIN){
                     bool receive_loop = true;
                     while(receive_loop){
                         int rcvf_state = receiveFromServer();
