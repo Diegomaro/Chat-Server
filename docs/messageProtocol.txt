@@ -1,6 +1,4 @@
-Message Header (8 bytes)
-
-Each client message should be composed as:
+Message Protocol (8 bytes)
 
 HEAD_BITS  TYPE     RECEIVER_KEY    PAYLOAD_LENGTH  PAYLOAD
 1 byte     1 byte   4 bytes         2 bytes         0 - 65024 bytes

@@ -27,7 +27,7 @@ class Server{
 
         // connections to client
         int acceptConnection();
-        bool addClient();
+        bool addClient(const sockaddr_storage& client_sockaddr_);
         bool closeConnection(int client_socket);
 
         // data transmission
@@ -35,7 +35,7 @@ class Server{
         int checkMessage(int client_socket);
         int actOnMessage(int client_socket);
         bool cleanClientBuffer(int client_socket);
-        bool advanceClientPointer();
+        bool advanceClientPointer(int client_socket);
         int sendProcessedAcknowledgement(int client_socket);
         int sendDeliveredAcknowledgement(int client_socket);
         int sendAuthentication(int client_socket, u_int8_t auth);
@@ -45,36 +45,23 @@ class Server{
         // print data
         bool printClientInformation(int client_socket);
     private:
-        unsigned long stringHash(char *str);
+        unsigned long stringHash(const char *str);
 
-        struct addrinfo hints_;
-        struct addrinfo *res_;
+        HashTable<Client> clients_;
+        HashTable<int> client_key_to_socket_;
+        HashTable<UsernameMapping> username_to_client_key_;
+        HashTable<LinkedList<uint32_t>*> client_key_to_known_keys_;
 
-        int listener_socket_;
-        int pending_client_;
-
-        HashTable<Client> client_sockets_;
-        HashTable<int> client_key_to_client_sockets_;
-        HashTable<UsernameMapping> client_name_to_client_key_;
-        HashTable<LinkedList<int>*> client_key_to_known_client_keys_;
-
-        int epoll_fd_;
-
-        struct sockaddr_storage client_sockaddr_;
-        socklen_t client_sockaddr_len_;
-
-        Client *client_;
-
-        int bytes_received_;
-        uint8_t *buffer_pool_;
+        uint8_t *buffer_pool_{nullptr};
+        uint8_t *receiver_buffer_{nullptr};
         LinkedList<uint32_t> available_buffers_;
-        uint8_t *msg_buffer_;
 
-        struct epoll_event ev_;
+        int epoll_fd_{-1};
+        int listener_fd_{-1};
+        int pending_client_fd_{-1};
+        uint32_t next_client_key_{0};
+
         struct epoll_event events_[config::MAX_EVENTS];
-
-        uint32_t current_client_key_;
-        // later on it will have to be non-volatile memory
 
         uint8_t processed_ack_message_[config::HEADER_SIZE];
         uint8_t delivered_ack_message_[config::HEADER_SIZE];
