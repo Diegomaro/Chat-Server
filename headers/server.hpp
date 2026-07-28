@@ -9,42 +9,49 @@
 
 class Server{
     public:
-        struct UsernameMapping{
-            char username_ [config::HOSTNAME_LENGTH];
-            uint32_t key_;
-        };
         Server();
         ~Server();
 
-        //setup
+        // setup
+        bool setupServer();
+        // central
+        void centralLoop();
+    private:
+        struct UsernameMapping{
+            char username[config::HOSTNAME_LENGTH];
+            uint32_t key;
+        };
+
+        // setup
         bool setupHashTables();
         bool setupBuffer();
         bool setupHeaderTypes();
         bool setupListenerSocket();
 
-        //central loop
-        void centralLoop();
-
         // connections to client
         int acceptConnection();
-        bool addClient(const sockaddr_storage& client_sockaddr_);
+        bool addClient(const sockaddr_storage& client_sockaddr);
         bool closeConnection(int client_socket);
 
-        // data transmission
+        // incoming data
         int receiveFromClient(int client_socket);
         int checkMessage(int client_socket);
         int actOnMessage(int client_socket);
+
+        // client
         bool cleanClientBuffer(int client_socket);
         bool advanceClientPointer(int client_socket);
+
+        // sending data
         int sendProcessedAcknowledgement(int client_socket);
         int sendDeliveredAcknowledgement(int client_socket);
-        int sendAuthentication(int client_socket, u_int8_t auth);
+        int sendAuthentication(int client_socket, uint8_t auth);
         int sendRequestCommunication(int client_socket);
         int sendToClient(int client_socket);
 
         // print data
         bool printClientInformation(int client_socket);
-    private:
+
         unsigned long stringHash(const char *str);
 
         HashTable<Client> clients_;

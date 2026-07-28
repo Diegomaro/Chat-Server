@@ -3,16 +3,7 @@
 
 int main(){
     Server server;
-    if(!server.setupHashTables()){
-        return 1;
-    }
-    if(!server.setupBuffer()){
-        return 1;
-    }
-    if(!server.setupHeaderTypes()){
-        return 1;
-    }
-    if(server.setupListenerSocket()){
+    if(server.setupServer()){
         server.centralLoop();
     }
     return 0;

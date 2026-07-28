@@ -53,6 +53,108 @@ Server::~Server(){
     }
 }
 
+bool Server::setupServer(){
+    if(!setupHashTables()){
+        return false;
+    }
+    if(!setupBuffer()){
+        return false;
+    }
+    if(!setupHeaderTypes()){
+        return false;
+    }
+    if(!setupListenerSocket()){
+        return false;
+    }
+    return true;
+}
+
+// Central loop that handles message receiving and sending.
+void Server::centralLoop(){
+    while(true){
+        int ready_polls = 0;
+        if((ready_polls = epoll_wait(epoll_fd_, events_, config::MAX_EVENTS, -1)) == -1){
+            perror("epoll wait failed");
+            return;
+        }
+        for (int i = 0; i < ready_polls; i++){
+            if(events_[i].data.fd == listener_fd_){
+                bool accept_loop = true;
+                while(accept_loop){
+                    uint8_t accept_state = acceptConnection();
+                    switch(accept_state){
+                        case status::SUCCESS:{
+                        } break;
+                        case status::NOTHING_TO_READ:{
+                            accept_loop = false;
+                        } break;
+                        case status::ERROR:{
+                            return;
+                        } break;
+                        case status::EXCEEDED_CLIENT_MAX:{
+                            return;
+                        } break;
+                    }
+                }
+            } else if (events_[i].events & EPOLLIN){
+                int sender_socket = events_[i].data.fd;
+                bool receive_loop = true;
+                while(receive_loop){
+                    int rcvf_state = receiveFromClient(sender_socket);
+                    switch(rcvf_state){
+                        case status::SUCCESS:{
+                            int check_state = checkMessage(sender_socket);
+                            switch(check_state){
+                                case status::SUCCESS:{
+                                    actOnMessage(sender_socket);
+                                     if(!cleanClientBuffer(sender_socket)){
+                                       return;
+                                    }
+                                    // cannot send messages until authenticated
+                                } break;
+                                case status::ERROR:{
+                                    return;
+                                } break;
+                                case status::INVALID_MESSAGE:{
+                                    //send signal of error to user
+                                    receive_loop = false;
+                                } break;
+                                case status::INVALID_CLIENT:{
+                                    //send signal of error to user
+                                    receive_loop = false;
+                                } break;
+                            }
+                           //if missing timeout
+                        } break;
+                        case status::NOTHING_TO_READ:{
+                            receive_loop = false;
+                        } break;
+                        case status::INVALID_CLIENT:{
+                            return;
+                        } break;
+                        case status::CLOSED_CONVERSATION:{
+                            if(!closeConnection(sender_socket)){
+                                return;
+                            }
+                            receive_loop = false;
+                            return; // to test for memory leaks
+                        } break;
+                        case status::ERROR:{
+                            return;
+                        } break;
+                        case status::EXCEEDED_CLIENT_BUFFER_SIZE:{
+                            // return error message to client and restart buffer segments
+                        } break;
+                    }
+                }
+            }
+        }
+        if(ready_polls == 0){
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+    }
+}
+
 bool Server::setupHashTables(){
     if(!clients_.createTable(config::INITIAL_HASHTABLE_SIZE)){
         return false;
@@ -178,92 +280,6 @@ bool Server::setupListenerSocket(){
     }
     epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, listener_fd_, &ev);
     return true;
-}
-
-// Central loop that handles message receiving and sending.
-void Server::centralLoop(){
-    while(true){
-        int ready_polls = 0;
-        if((ready_polls = epoll_wait(epoll_fd_, events_, config::MAX_EVENTS, -1)) == -1){
-            perror("epoll wait failed");
-            return;
-        }
-        for (int i = 0; i < ready_polls; i++){
-            if(events_[i].data.fd == listener_fd_){
-                bool accept_loop = true;
-                while(accept_loop){
-                    uint8_t accept_state = acceptConnection();
-                    switch(accept_state){
-                        case status::SUCCESS:{
-                        } break;
-                        case status::NOTHING_TO_READ:{
-                            accept_loop = false;
-                        } break;
-                        case status::ERROR:{
-                            return;
-                        } break;
-                        case status::EXCEEDED_CLIENT_MAX:{
-                            return;
-                        } break;
-                    }
-                }
-            } else if (events_[i].events & EPOLLIN){
-                int sender_socket = events_[i].data.fd;
-                bool receive_loop = true;
-                while(receive_loop){
-                    int rcvf_state = receiveFromClient(sender_socket);
-                    switch(rcvf_state){
-                        case status::SUCCESS:{
-                            int check_state = checkMessage(sender_socket);
-                            switch(check_state){
-                                case status::SUCCESS:{
-                                    actOnMessage(sender_socket);
-                                     if(!cleanClientBuffer(sender_socket)){
-                                       return;
-                                    }
-                                    // cannot send messages until authenticated
-                                } break;
-                                case status::ERROR:{
-                                    return;
-                                } break;
-                                case status::INVALID_MESSAGE:{
-                                    //send signal of error to user
-                                    receive_loop = false;
-                                } break;
-                                case status::INVALID_CLIENT:{
-                                    //send signal of error to user
-                                    receive_loop = false;
-                                } break;
-                            }
-                           //if missing timeout
-                        } break;
-                        case status::NOTHING_TO_READ:{
-                            receive_loop = false;
-                        } break;
-                        case status::INVALID_CLIENT:{
-                            return;
-                        } break;
-                        case status::CLOSED_CONVERSATION:{
-                            if(!closeConnection(sender_socket)){
-                                return;
-                            }
-                            receive_loop = false;
-                            return; // to test for memory leaks
-                        } break;
-                        case status::ERROR:{
-                            return;
-                        } break;
-                        case status::EXCEEDED_CLIENT_BUFFER_SIZE:{
-                            // return error message to client and restart buffer segments
-                        } break;
-                    }
-                }
-            }
-        }
-        if(ready_polls == 0){
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-    }
 }
 
 /*
@@ -646,7 +662,7 @@ int Server::actOnMessage(int client_socket){
                 while(username_to_client_key_.hasNodes()){
                     if(username_to_client_key_.hasNode()){
                         bool equal_usernames = true;
-                        char *ref_username = username_to_client_key_.getNode()->data_.username_;
+                        char *ref_username = username_to_client_key_.getNode()->data_.username;
                         for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
                             if(ref_username[i] != username[i]){
                                 equal_usernames = false;
@@ -669,9 +685,9 @@ int Server::actOnMessage(int client_socket){
             UsernameMapping userMapping;
             for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
                 client->name_[i] = username[i];
-                userMapping.username_[i] = username[i];
+                userMapping.username[i] = username[i];
             }
-            userMapping.key_ = client->sender_key_;
+            userMapping.key = client->sender_key_;
 
             if(!username_to_client_key_.insertNode(stringHash(client->name_), userMapping)){
                 return status::ERROR;
@@ -730,8 +746,8 @@ int Server::actOnMessage(int client_socket){
             while(username_to_client_key_.hasNodes()){
                 if(username_to_client_key_.hasNode()){
                     bool equal_usernames = true;
-                    client_username = username_to_client_key_.getNode()->data_.username_;
-                    client_key = username_to_client_key_.getNode()->data_.key_;
+                    client_username = username_to_client_key_.getNode()->data_.username;
+                    client_key = username_to_client_key_.getNode()->data_.key;
                     client->receiver_key_ = client_key;
                     for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
                         if(client_username[i] != target_username[i]){
@@ -943,7 +959,7 @@ int Server::sendDeliveredAcknowledgement(int client_socket){
 Sends authentication from receiving client to sending client.
 Returns INVALID_CLIENT, ERROR, RESOURCE_UNAVAILABLE, SUCCESS.
 */
-int Server::sendAuthentication(int client_socket, u_int8_t auth){
+int Server::sendAuthentication(int client_socket, uint8_t auth){
     if(client_socket == -1){
         return status::INVALID_CLIENT;
     }
