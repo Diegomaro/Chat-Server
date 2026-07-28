@@ -41,6 +41,7 @@ namespace status{
     inline constexpr const uint8_t EXCEEDED_CLIENT_BUFFER_SIZE = 9;
     inline constexpr const uint8_t INSUFFICIENT_BUFFER_SPACE = 10;
     inline constexpr const uint8_t NOTHING_TO_DO = 10;
+    inline constexpr const uint8_t UNAUTHENTICATED_USER = 11;
 }
 
 namespace types{

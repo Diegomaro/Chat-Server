@@ -51,7 +51,7 @@ class ClientProcessor{
         int setDestinatory();
         int manageRequests();
 
-        bool addUser(uint32_t key, std::string &username);
+        bool addUser(uint32_t key, const std::string &username);
         uint32_t getUserKey(std::string &temp_username);
         char *getUserFromKey(uint32_t key);
 

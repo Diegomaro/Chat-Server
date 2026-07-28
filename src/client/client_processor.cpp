@@ -340,7 +340,7 @@ int ClientProcessor::receiveFromServer(){
     }
     int bytes_to_copy = config::BUFFER_READING_SIZE;
     if(byte_counter_ + config::BUFFER_READING_SIZE > config::READING_BUFFER_SIZE){
-    bytes_to_copy = config::READING_BUFFER_SIZE - byte_counter_;
+        bytes_to_copy = config::READING_BUFFER_SIZE - byte_counter_;
     }
     if(writing_pointer_ + bytes_to_copy > config::READING_BUFFER_SIZE){
         bytes_to_copy = config::READING_BUFFER_SIZE - writing_pointer_;
@@ -359,12 +359,13 @@ int ClientProcessor::receiveFromServer(){
                 return status::ERROR;
             }
         } else if(bytes_received == 0){
+            return status::CLOSED_CONVERSATION;
             break;
         }
         total_bytes_received += bytes_received;
     }
     if(total_bytes_received == 0){
-        return status::CLOSED_CONVERSATION;
+        return status::NOTHING_TO_READ;
     }
     byte_counter_ += total_bytes_received;
     writing_pointer_ = (writing_pointer_ + total_bytes_received) % config::READING_BUFFER_SIZE;
@@ -421,7 +422,7 @@ int ClientProcessor::checkMessage(){
 }
 
 /*
-Returns INVALID_MESSAGE, RESOURCE_UNAVAILABLE, ERROR, SUCCESS
+Returns INVALID_MESSAGE, RESOURCE_UNAVAILABLE, ERROR, SUCCESS.
 */
 int ClientProcessor::actOnMessage(){
     switch(type_){
@@ -937,10 +938,10 @@ char* ClientProcessor::getUserFromKey(uint32_t key){
 }
 
 // Add a user to the "list" of known users.
-bool ClientProcessor::addUser(uint32_t key, std::string &username){
+bool ClientProcessor::addUser(uint32_t key, const std::string &username){
     UsernameMapping user;
     user.key_ = key;
-    std::strcpy(user.username_, username.c_str());
+    std::memcpy(user.username_, username.data(), config::HOSTNAME_LENGTH);
     unsigned long hash_key = stringHash(user.username_);
     if(!username_to_key_.insertNode(hash_key, user)){
         return false;

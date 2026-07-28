@@ -21,7 +21,7 @@ Some guiding principles include:
 ## Getting Started
 ### Prerequisites
 - Linux
-- C++ compiler with C++17 support
+- gcc compiler with C++17 support
 
 ### Installation
 1. Clone the repository and enter the project directory:
@@ -39,7 +39,6 @@ Start the server:
 ```sh
 ./build/server
 ```
-
 In other terminals, start one or more clients:
 ```sh
 ./build/client
@@ -62,7 +61,7 @@ In other terminals, start one or more clients:
 5. [x] Redirect traffic from one client to another.
 6. [x] Send confirmation of received messages by clients to original client.
 7. [x] Give each client a unique username and password defined when first accessing the program.
-8. [ ] Make conversations work based on requests from client to client.
+8. [x] Make conversations work based on requests from client to client.
 9. [ ] User input validation.
 10. [ ] Allow clients to login instead of registering.
 

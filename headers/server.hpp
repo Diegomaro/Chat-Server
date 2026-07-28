@@ -45,16 +45,18 @@ class Server{
         // print data
         bool printClientInformation(int client_socket);
     private:
-
         unsigned long stringHash(char *str);
+
         struct addrinfo hints_;
         struct addrinfo *res_;
 
         int listener_socket_;
         int pending_client_;
+
         HashTable<Client> client_sockets_;
         HashTable<int> client_key_to_client_sockets_;
         HashTable<UsernameMapping> client_name_to_client_key_;
+        HashTable<LinkedList<int>*> client_key_to_known_client_keys_;
 
         int epoll_fd_;
 
