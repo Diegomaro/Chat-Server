@@ -45,6 +45,7 @@ namespace status{
 }
 
 namespace types{
+    inline constexpr const uint8_t INVALID_TYPE = 0;
     inline constexpr const uint8_t USER = 1;
     inline constexpr const uint8_t REGISTER = 2;
     inline constexpr const uint8_t LOGIN = 3;

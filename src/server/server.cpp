@@ -322,30 +322,30 @@ int Server::acceptConnection(){
 // Registers a client with their socket info. Gives each registered client a buffer segment to occupy.
 bool Server::addClient(const sockaddr_storage& client_sockaddr){
     Client new_client;
-    new_client.name_[0] = '\0';
+    new_client.name[0] = '\0';
     void* addr;
     if(client_sockaddr.ss_family == AF_INET){
         sockaddr_in* ipv4 = (sockaddr_in*)&client_sockaddr;
         addr = &(ipv4->sin_addr);
-        new_client.port_ = ntohs(ipv4->sin_port);
+        new_client.port = ntohs(ipv4->sin_port);
     }
     else {
         sockaddr_in6* ipv6 = (sockaddr_in6*)&client_sockaddr;
         addr = &(ipv6->sin6_addr);
-        new_client.port_ = ntohs(ipv6->sin6_port);
+        new_client.port = ntohs(ipv6->sin6_port);
     }
-    inet_ntop(client_sockaddr.ss_family, addr, new_client.ip_, sizeof(new_client.ip_));
+    inet_ntop(client_sockaddr.ss_family, addr, new_client.ip, sizeof(new_client.ip));
     if(available_buffers_.isEmpty()){
         return false;
     }
-    new_client.buffer_pointers_[0] = available_buffers_.getHead();
+    new_client.buffer_pointers[0] = available_buffers_.getHead();
     if(!available_buffers_.deleteHead()){
         return false;
     }
-    new_client.buffer_pointers_amount_ = 1;
-    new_client.starting_pointer_ = new_client.buffer_pointers_[0];
-    new_client.reading_pointer_ = new_client.buffer_pointers_[0];
-    new_client.writing_pointer_ = new_client.buffer_pointers_[0];
+    new_client.buffer_pointers_count = 1;
+    new_client.starting_pointer = new_client.buffer_pointers[0];
+    new_client.reading_pointer = new_client.buffer_pointers[0];
+    new_client.writing_pointer = new_client.buffer_pointers[0];
 
     if(!clients_.insertNode(pending_client_fd_, new_client)){
         return false;
@@ -368,20 +368,20 @@ bool Server::closeConnection(int client_socket){
     }
     int8_t buffers_erased = 0;
     for(int i = 0; i < config::BUFFER_SEGMENTS_PER_CLIENT; i++){
-        if(buffers_erased >= client->buffer_pointers_amount_){
+        if(buffers_erased >= client->buffer_pointers_count){
             break;
         }
-        if(client->buffer_pointers_[i] != UINT32_MAX){
-            if(!available_buffers_.insertHead(client->buffer_pointers_[i])){
+        if(client->buffer_pointers[i] != UINT32_MAX){
+            if(!available_buffers_.insertHead(client->buffer_pointers[i])){
                 return false;
             }
             buffers_erased++;
         }
     }
-    if(!client_key_to_socket_.deleteNode(client->sender_key_)){
+    if(!client_key_to_socket_.deleteNode(client->sender_key)){
         return false;
     }
-    if(!username_to_client_key_.deleteNode(stringHash(client->name_))){
+    if(!username_to_client_key_.deleteNode(stringHash(client->name))){
         return false;
     }
     if(!clients_.deleteNode(client_socket)){
@@ -423,16 +423,16 @@ int Server::receiveFromClient(int client_socket){
     while(bytes_remaining > 0){
         uint32_t available_segment_bytes = client->getRemainingBytesWriting();
         if(available_segment_bytes > bytes_remaining){
-            memcpy(&buffer_pool_[client->writing_pointer_], &receiver_buffer_[msg_buffer_offset], bytes_remaining);
-            client->writing_pointer_ += bytes_remaining;
-            client->byte_counter_ += bytes_remaining;
+            memcpy(&buffer_pool_[client->writing_pointer], &receiver_buffer_[msg_buffer_offset], bytes_remaining);
+            client->writing_pointer += bytes_remaining;
+            client->byte_counter += bytes_remaining;
             bytes_remaining = 0;
         }else {
-            memcpy(&buffer_pool_[client->writing_pointer_], &receiver_buffer_[msg_buffer_offset], available_segment_bytes);
-            client->byte_counter_ += available_segment_bytes;
+            memcpy(&buffer_pool_[client->writing_pointer], &receiver_buffer_[msg_buffer_offset], available_segment_bytes);
+            client->byte_counter += available_segment_bytes;
             msg_buffer_offset += available_segment_bytes;
             bytes_remaining -= available_segment_bytes;
-            if(client->buffer_pointers_amount_ + 1 >= config::BUFFER_SEGMENTS_PER_CLIENT){
+            if(client->buffer_pointers_count + 1 >= config::BUFFER_SEGMENTS_PER_CLIENT){
                 if(checkMessage(client_socket) == status::SUCCESS){
                     std::cout << "work on it later" << std::endl;
                     // delete old message
@@ -442,13 +442,13 @@ int Server::receiveFromClient(int client_socket){
                 return status::INSUFFICIENT_BUFFER_SPACE;
             } else{
                 uint32_t new_buffer_segment = available_buffers_.getHead();
-                client->buffer_pointers_[(client->writing_buffer_ + 1) % 128] = new_buffer_segment;
+                client->buffer_pointers[(client->writing_buffer + 1) % 128] = new_buffer_segment;
                 if(!available_buffers_.deleteHead()){
                     return status::ERROR;
                 }
-                client->buffer_pointers_amount_++;
-                client->writing_buffer_ = (client->writing_buffer_ + 1) % 128;
-                client->writing_pointer_ = new_buffer_segment;
+                client->buffer_pointers_count++;
+                client->writing_buffer = (client->writing_buffer + 1) % 128;
+                client->writing_pointer = new_buffer_segment;
             }
         }
     }
@@ -467,11 +467,11 @@ int Server::checkMessage(int client_socket){
     if(!client){
         return status::ERROR;
     }
-    if(client->byte_counter_ < 8){
+    if(client->byte_counter < 8){
         return status::INVALID_MESSAGE;
     }
     // HEAD_BITS
-    if((buffer_pool_[client->reading_pointer_] ^ 0xFF) != 0){
+    if((buffer_pool_[client->reading_pointer] ^ 0xFF) != 0){
         return status::INVALID_MESSAGE;
     }
     if(!advanceClientPointer(client_socket)){
@@ -479,38 +479,38 @@ int Server::checkMessage(int client_socket){
     }
 
     // TYPE
-    if(client->type_ == 0){
-        client->type_ = buffer_pool_[client->reading_pointer_];
+    if(client->type == types::INVALID_TYPE){
+        client->type = buffer_pool_[client->reading_pointer];
     }
     if(!advanceClientPointer(client_socket)){
         return status::INVALID_MESSAGE;
     }
 
     // HOST_KEY
-    if(client->receiver_key_ == UINT32_MAX){
-        uint32_t tmp_pointer = client->reading_pointer_;
-        uint8_t tmp_buffer = client->reading_buffer_;
+    if(client->receiver_key == UINT32_MAX){
+        uint32_t tmp_pointer = client->reading_pointer;
+        uint8_t tmp_buffer = client->reading_buffer;
 
-        client->receiver_key_ = 0;
+        client->receiver_key = 0;
 
         for(int i = 0; i < config::CLIENT_KEY_LENGTH; i++){
-            client->receiver_key_ += (buffer_pool_[client->reading_pointer_]) << ((config::CLIENT_KEY_LENGTH - 1 - i) * 8);
+            client->receiver_key += (buffer_pool_[client->reading_pointer]) << ((config::CLIENT_KEY_LENGTH - 1 - i) * 8);
             if(!advanceClientPointer(client_socket)){
                 return status::INVALID_MESSAGE;
             }
         }
-        if(client->receiver_key_ != UINT32_MAX){
+        if(client->receiver_key != UINT32_MAX){
 
-            if(!client_key_to_socket_.searchNode(client->receiver_key_)){
+            if(!client_key_to_socket_.searchNode(client->receiver_key)){
                 // rework for file storage.
                 return status::INVALID_CLIENT;
             }
-            client->receiver_fd_ = *client_key_to_socket_.getNode(client->receiver_key_);
+            client->receiver_fd = *client_key_to_socket_.getNode(client->receiver_key);
 
-            client->reading_pointer_ = tmp_pointer;
-            client->reading_buffer_ = tmp_buffer;
+            client->reading_pointer = tmp_pointer;
+            client->reading_buffer = tmp_buffer;
             for(int i = 0; i < config::CLIENT_KEY_LENGTH; i++){
-                buffer_pool_[client->reading_pointer_] = client->sender_key_ << ((config::CLIENT_KEY_LENGTH - 1 - i) * 8);
+                buffer_pool_[client->reading_pointer] = client->sender_key << ((config::CLIENT_KEY_LENGTH - 1 - i) * 8);
                 if(!advanceClientPointer(client_socket)){
                     return status::INVALID_MESSAGE;
                 }
@@ -525,13 +525,13 @@ int Server::checkMessage(int client_socket){
     }
 
     // PAYLOAD_LENGTH
-    if(client->payload_length_ == UINT16_MAX){
-        client->payload_length_ = 0;
-        client->payload_length_ = buffer_pool_[client->reading_pointer_] << 8;
+    if(client->payload_length == UINT16_MAX){
+        client->payload_length = 0;
+        client->payload_length = buffer_pool_[client->reading_pointer] << 8;
         if(!advanceClientPointer(client_socket)){
             return status::INVALID_MESSAGE;
         }
-        client->payload_length_ = client->payload_length_ | (buffer_pool_[client->reading_pointer_]);
+        client->payload_length = client->payload_length | (buffer_pool_[client->reading_pointer]);
     } else{
         if(!advanceClientPointer(client_socket)){
             return status::INVALID_MESSAGE;
@@ -540,7 +540,7 @@ int Server::checkMessage(int client_socket){
     if(!advanceClientPointer(client_socket)){
         return status::INVALID_MESSAGE;
     }
-    if(client->byte_counter_ < client->payload_length_ + config::HEADER_SIZE){
+    if(client->byte_counter < client->payload_length + config::HEADER_SIZE){
         return status::INCOMPLETE_MESSAGE;
     }
     return status::SUCCESS;
@@ -555,25 +555,25 @@ int Server::actOnMessage(int client_socket){
         return status::INVALID_CLIENT;
     }
     Client* client = clients_.getNode(client_socket);
-    switch(client->type_){
+    switch(client->type){
         case types::USER:{
-            if(!client->logged_in_){
+            if(!client->logged_in){
                 return status::UNAUTHENTICATED_USER;
             }
-            if(client->payload_length_ == 0 || client->payload_length_ > config::MAX_MESSAGE_SIZE){
+            if(client->payload_length == 0 || client->payload_length > config::MAX_MESSAGE_SIZE){
                 return status::INVALID_MESSAGE;
             }
 
-            if(client_key_to_known_keys_.searchNode(client->sender_key_)){
-                LinkedList<uint32_t> *known_users = *client_key_to_known_keys_.getNode(client->sender_key_);
-                if(!known_users->searchNode(client->receiver_key_)){
+            if(client_key_to_known_keys_.searchNode(client->sender_key)){
+                LinkedList<uint32_t> *known_users = *client_key_to_known_keys_.getNode(client->sender_key);
+                if(!known_users->searchNode(client->receiver_key)){
                     return status::INVALID_CLIENT;
                 }
             } else{
                 return status::ERROR;
             }
 
-            if(!clients_.searchNode(client->receiver_fd_)){
+            if(!clients_.searchNode(client->receiver_fd)){
                 return status::INVALID_CLIENT;
                 // later it should be changed to store all client keys, regardless of whether online or not.
                 // If client is not available it should be stored in some file. (much later)
@@ -606,12 +606,12 @@ int Server::actOnMessage(int client_socket){
             return status::SUCCESS;
         } break;
         case types::REGISTER:{
-            if(client->logged_in_){
+            if(client->logged_in){
                 // do smth
             }
 
-            if(client->payload_length_ < config::HOSTNAME_LENGTH + config::MIN_PASSWORD_LENGTH
-            || client->payload_length_ > config::HOSTNAME_LENGTH + config::MAX_PASSWORD_LENGTH){
+            if(client->payload_length < config::HOSTNAME_LENGTH + config::MIN_PASSWORD_LENGTH
+            || client->payload_length > config::HOSTNAME_LENGTH + config::MAX_PASSWORD_LENGTH){
                 return status::INVALID_MESSAGE;
             }
 
@@ -619,7 +619,7 @@ int Server::actOnMessage(int client_socket){
             uint8_t username [config::HOSTNAME_LENGTH];
             uint32_t usr_ctr = 0;
             for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
-                username[i] = buffer_pool_[client->reading_pointer_];
+                username[i] = buffer_pool_[client->reading_pointer];
                 if((username[i] > 0 && username[i] < 48)
                 || (username[i] > 57 && username[i] < 65)
                 || (username[i] > 90 && username[i] < 95)
@@ -635,10 +635,10 @@ int Server::actOnMessage(int client_socket){
             if(usr_ctr < 1){
                 return sendAuthentication(client_socket, auth::INVALID_CREDENTIAL);
             }
-            uint8_t password [client->payload_length_ - config::HOSTNAME_LENGTH];
+            uint8_t password [client->payload_length - config::HOSTNAME_LENGTH];
             uint32_t psw_ctr = 0;
-            for(int i = 0; i < client->payload_length_ - config::HOSTNAME_LENGTH; i++){
-                password[i] = buffer_pool_[client->reading_pointer_];
+            for(int i = 0; i < client->payload_length - config::HOSTNAME_LENGTH; i++){
+                password[i] = buffer_pool_[client->reading_pointer];
                 if(password[i] < 48
                 || (password[i] > 57 && password[i] < 65)
                 || (password[i] > 90 && password[i] < 95)
@@ -677,31 +677,31 @@ int Server::actOnMessage(int client_socket){
                 }
             }
             // get key
-            client->sender_key_ = next_client_key_;
+            client->sender_key = next_client_key_;
             if(next_client_key_ >= UINT32_MAX){
                 return status::EXCEEDED_CLIENT_MAX;
             }
             next_client_key_++;
             UsernameMapping userMapping;
             for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
-                client->name_[i] = username[i];
+                client->name[i] = username[i];
                 userMapping.username[i] = username[i];
             }
-            userMapping.key = client->sender_key_;
+            userMapping.key = client->sender_key;
 
-            if(!username_to_client_key_.insertNode(stringHash(client->name_), userMapping)){
+            if(!username_to_client_key_.insertNode(stringHash(client->name), userMapping)){
                 return status::ERROR;
             }
-            if(!client_key_to_socket_.insertNode(client->sender_key_, client_socket)){
+            if(!client_key_to_socket_.insertNode(client->sender_key, client_socket)){
                 return status::ERROR;
             }
-            client->logged_in_ = true;
+            client->logged_in = true;
 
             LinkedList<uint32_t> *known_users = new(std::nothrow) LinkedList<uint32_t>;
             if(known_users == nullptr){
                 return status::ERROR;
             }
-            client_key_to_known_keys_.insertNode(client->sender_key_, known_users);
+            client_key_to_known_keys_.insertNode(client->sender_key, known_users);
             if(!printClientInformation(client_socket)){
                 return status::ERROR;
             }
@@ -711,17 +711,17 @@ int Server::actOnMessage(int client_socket){
             // implement eventually
         } break;
         case types::SEND_REQUEST:{
-            if(!client->logged_in_){
+            if(!client->logged_in){
                 return status::UNAUTHENTICATED_USER;
             }
             // search username. Verify that the connection is not established, if yes, just return true without doing anything.
-            if(client->payload_length_ != config::HOSTNAME_LENGTH){
+            if(client->payload_length != config::HOSTNAME_LENGTH){
                 return status::INVALID_MESSAGE;
             }
             uint8_t target_username [config::HOSTNAME_LENGTH];
             uint32_t usr_ctr = 0;
             for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
-                target_username[i] = buffer_pool_[client->reading_pointer_];
+                target_username[i] = buffer_pool_[client->reading_pointer];
                 if((target_username[i] > 0 && target_username[i] < 48)
                 || (target_username[i] > 57 && target_username[i] < 65)
                 || (target_username[i] > 90 && target_username[i] < 95)
@@ -748,7 +748,7 @@ int Server::actOnMessage(int client_socket){
                     bool equal_usernames = true;
                     client_username = username_to_client_key_.getNode()->data_.username;
                     client_key = username_to_client_key_.getNode()->data_.key;
-                    client->receiver_key_ = client_key;
+                    client->receiver_key = client_key;
                     for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
                         if(client_username[i] != target_username[i]){
                             equal_usernames = false;
@@ -760,12 +760,12 @@ int Server::actOnMessage(int client_socket){
                         if(client_fd == nullptr){
                             return status::ERROR;
                         }
-                        client->receiver_fd_ = *client_fd;
+                        client->receiver_fd = *client_fd;
                         for(int i = 0; i < config::CLIENT_KEY_LENGTH; i++){
-                            request_communication_message_[i + 2] = client->sender_key_ << ((config::CLIENT_KEY_LENGTH - 1 - i) * 8);
+                            request_communication_message_[i + 2] = client->sender_key << ((config::CLIENT_KEY_LENGTH - 1 - i) * 8);
                         }
                         for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
-                            request_communication_message_[i + config::HEADER_SIZE] = client->name_[i];
+                            request_communication_message_[i + config::HEADER_SIZE] = client->name[i];
                         }
                         return sendRequestCommunication(client_socket);
                     }
@@ -776,10 +776,10 @@ int Server::actOnMessage(int client_socket){
         } break;
         case types::ACCEPT_REQUEST:
         case types::REJECT_REQUEST:{
-            if(client->payload_length_ != config::HOSTNAME_LENGTH){
+            if(client->payload_length != config::HOSTNAME_LENGTH){
                 return status::INVALID_MESSAGE;
             }
-            if(username_to_client_key_.getDataCount() == 0 || !clients_.searchNode(client->receiver_fd_)){
+            if(username_to_client_key_.getDataCount() == 0 || !clients_.searchNode(client->receiver_fd)){
                 return status::INVALID_CLIENT;
             }
             uint8_t send_state = sendToClient(client_socket);
@@ -794,20 +794,20 @@ int Server::actOnMessage(int client_socket){
                 } break;
             }
 
-            if(client->type_ == types::ACCEPT_REQUEST){
-                if(!client_key_to_known_keys_.searchNode(client->sender_key_)){
+            if(client->type == types::ACCEPT_REQUEST){
+                if(!client_key_to_known_keys_.searchNode(client->sender_key)){
                     return status::ERROR;
                 }
-                LinkedList<uint32_t> *known_users = *client_key_to_known_keys_.getNode(client->sender_key_);
-                if(!known_users->insertHead(client->receiver_key_)){
+                LinkedList<uint32_t> *known_users = *client_key_to_known_keys_.getNode(client->sender_key);
+                if(!known_users->insertHead(client->receiver_key)){
                     return status::ERROR;
                 }
 
-                if(!client_key_to_known_keys_.searchNode(client->receiver_key_)){
+                if(!client_key_to_known_keys_.searchNode(client->receiver_key)){
                     return status::ERROR;
                 }
-                known_users = *client_key_to_known_keys_.getNode(client->receiver_key_);
-                if(!known_users->insertHead(client->sender_key_)){
+                known_users = *client_key_to_known_keys_.getNode(client->receiver_key);
+                if(!known_users->insertHead(client->sender_key)){
                     return status::ERROR;
                 }
             }
@@ -816,18 +816,18 @@ int Server::actOnMessage(int client_socket){
             return status::SUCCESS;
         } break;
         case types::ACK:{
-            if(!client->logged_in_){
+            if(!client->logged_in){
                 return status::UNAUTHENTICATED_USER;
             }
-            if(client_key_to_known_keys_.searchNode(client->sender_key_)){
-                LinkedList<uint32_t> *known_users = *client_key_to_known_keys_.getNode(client->sender_key_);
-                if(!known_users->searchNode(client->receiver_key_)){
+            if(client_key_to_known_keys_.searchNode(client->sender_key)){
+                LinkedList<uint32_t> *known_users = *client_key_to_known_keys_.getNode(client->sender_key);
+                if(!known_users->searchNode(client->receiver_key)){
                     return status::INVALID_CLIENT;
                 }
             } else{
                 return status::ERROR;
             }
-            if(!clients_.searchNode(client->receiver_fd_)){
+            if(!clients_.searchNode(client->receiver_fd)){
                 return status::INVALID_CLIENT;
             }
             uint8_t ack_state = sendDeliveredAcknowledgement(client_socket);
@@ -856,22 +856,22 @@ bool Server::cleanClientBuffer(int client_socket){
         return false;
     }
     Client *client = clients_.getNode(client_socket);
-    int dif = client->writing_buffer_ - client->starting_buffer_;
+    int dif = client->writing_buffer - client->starting_buffer;
     if(dif < 0){
         dif *= -1;
     }
     for(int i = 0; i < dif; i++){
-        if(!available_buffers_.insertHead(client->buffer_pointers_[(client->starting_buffer_ + i) % config::BUFFER_SEGMENTS_PER_CLIENT])){
+        if(!available_buffers_.insertHead(client->buffer_pointers[(client->starting_buffer + i) % config::BUFFER_SEGMENTS_PER_CLIENT])){
             return false;
         }
-        client->buffer_pointers_[(client->starting_buffer_ + i) % config::BUFFER_SEGMENTS_PER_CLIENT] = UINT32_MAX;
-        client->buffer_pointers_amount_--;
+        client->buffer_pointers[(client->starting_buffer + i) % config::BUFFER_SEGMENTS_PER_CLIENT] = UINT32_MAX;
+        client->buffer_pointers_count--;
     }
-    client->starting_buffer_ = client->writing_buffer_;
-    client->reading_buffer_ = client->writing_buffer_;
+    client->starting_buffer = client->writing_buffer;
+    client->reading_buffer = client->writing_buffer;
 
-    client->starting_pointer_ = client->reading_pointer_;
-    client->byte_counter_ -= client->payload_length_ + config::HEADER_SIZE;
+    client->starting_pointer = client->reading_pointer;
+    client->byte_counter -= client->payload_length + config::HEADER_SIZE;
     client->resetMessage();
     return true;
 }
@@ -883,16 +883,16 @@ bool Server::advanceClientPointer(int client_socket){
     }
     Client *client = clients_.getNode(client_socket);
     if(!client->advanceReadingPointer()){
-        client->reading_buffer_++;
-        if(client->reading_buffer_ >= config::BUFFER_SEGMENTS_PER_CLIENT){
-            if(client->buffer_pointers_amount_ < config::BUFFER_SEGMENTS_PER_CLIENT){
-                client->reading_buffer_ = 0;
-                client->reading_pointer_ = client->buffer_pointers_[client->reading_buffer_];
+        client->reading_buffer++;
+        if(client->reading_buffer >= config::BUFFER_SEGMENTS_PER_CLIENT){
+            if(client->buffer_pointers_count < config::BUFFER_SEGMENTS_PER_CLIENT){
+                client->reading_buffer = 0;
+                client->reading_pointer = client->buffer_pointers[client->reading_buffer];
             } else{
                 return false;
             }
         } else{
-            client->reading_pointer_ = client->buffer_pointers_[client->reading_buffer_];
+            client->reading_pointer = client->buffer_pointers[client->reading_buffer];
         }
     }
     return true;
@@ -935,13 +935,13 @@ int Server::sendDeliveredAcknowledgement(int client_socket){
 
     int total_bytes_sent = 0;
     int bytes_sent = 0;
-    delivered_ack_message_[2] = client->sender_key_ >> 24;
-    delivered_ack_message_[3] = client->sender_key_ >> 16;
-    delivered_ack_message_[4] = client->sender_key_ >> 8;
-    delivered_ack_message_[5] = client->sender_key_;
+    delivered_ack_message_[2] = client->sender_key >> 24;
+    delivered_ack_message_[3] = client->sender_key >> 16;
+    delivered_ack_message_[4] = client->sender_key >> 8;
+    delivered_ack_message_[5] = client->sender_key;
 
     while(total_bytes_sent < config::HEADER_SIZE){
-        if((bytes_sent = send(client->receiver_fd_, &delivered_ack_message_[total_bytes_sent], config::HEADER_SIZE - total_bytes_sent, 0)) == -1){
+        if((bytes_sent = send(client->receiver_fd, &delivered_ack_message_[total_bytes_sent], config::HEADER_SIZE - total_bytes_sent, 0)) == -1){
             int error = errno;
             if(error == EAGAIN || error == EWOULDBLOCK){
                 return status::RESOURCE_UNAVAILABLE;
@@ -998,7 +998,7 @@ int Server::sendRequestCommunication(int client_socket){
     int bytes_sent = 0;
 
     while(total_bytes_sent < config::HEADER_SIZE + config::AUTH_PAYLOAD_LENGTH){
-        if((bytes_sent = send(client->receiver_fd_, &request_communication_message_[total_bytes_sent], config::HEADER_SIZE + config::HOSTNAME_LENGTH - total_bytes_sent, 0)) == -1){
+        if((bytes_sent = send(client->receiver_fd, &request_communication_message_[total_bytes_sent], config::HEADER_SIZE + config::HOSTNAME_LENGTH - total_bytes_sent, 0)) == -1){
             int error = errno;
             if(error == EAGAIN || error == EWOULDBLOCK){
                 return status::RESOURCE_UNAVAILABLE;
@@ -1023,12 +1023,12 @@ int Server::sendToClient(int client_socket){
     Client *client = clients_.getNode(client_socket);
 
     int print_pointer = config::READER_BUFFER_POINTER;
-    int bytes_to_send = client->payload_length_ + config::HEADER_SIZE;
+    int bytes_to_send = client->payload_length + config::HEADER_SIZE;
     int total_bytes_sent = 0;
 
-    client->reading_pointer_ = client->starting_pointer_;
+    client->reading_pointer = client->starting_pointer;
     for(int i = 0; i <  bytes_to_send; i++){
-        buffer_pool_[print_pointer] = buffer_pool_[client->reading_pointer_];
+        buffer_pool_[print_pointer] = buffer_pool_[client->reading_pointer];
         if(!advanceClientPointer(client_socket)){
             return status::ERROR;
         }
@@ -1037,7 +1037,7 @@ int Server::sendToClient(int client_socket){
     while(total_bytes_sent < bytes_to_send){
         int sent_bytes = 0;
         if((sent_bytes = send(
-            client->receiver_fd_,
+            client->receiver_fd,
             &buffer_pool_[config::READER_BUFFER_POINTER + total_bytes_sent],
             (bytes_to_send - total_bytes_sent),
             0)) == -1)
@@ -1066,10 +1066,10 @@ bool Server::printClientInformation(int client_socket){
         return false;
     }
     std::cout
-    << "Name: " << client->name_ << std::endl
-    << "Key: " << client->sender_key_ << std::endl
-    << "IP: " << client->ip_ << std::endl
-    << "Port: " << client->port_ << std::endl
+    << "Name: " << client->name << std::endl
+    << "Key: " << client->sender_key << std::endl
+    << "IP: " << client->ip << std::endl
+    << "Port: " << client->port << std::endl
     << "Socket: " << client_socket << std::endl
     << std::endl;
     client = nullptr;

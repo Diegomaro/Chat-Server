@@ -1,39 +1,39 @@
 #pragma once
 #include <arpa/inet.h>
-#include <iostream>
+#include <cstdint>
 #include <string.h>
 #include "constants.hpp"
 
 struct Client{
-    public:
-        Client();
-        void resetMessage();
+    Client();
+    void resetMessage();
 
-        uint32_t getRemainingBytesWriting();
+    uint32_t getRemainingBytesWriting();
+    uint32_t getRemainingBytesReading();
 
-        bool advanceReadingPointer();
-        uint32_t getRemainingBytesReading();
+    bool advanceReadingPointer();
 
-        char name_ [config::HOSTNAME_LENGTH];
-        char ip_ [INET6_ADDRSTRLEN];
-        int port_;
+    char name [config::HOSTNAME_LENGTH];
+    char ip [INET6_ADDRSTRLEN];
+    int port{-1};
 
-        uint32_t buffer_pointers_[config::BUFFER_SEGMENTS_PER_CLIENT];
-        uint8_t buffer_pointers_amount_;
-        uint8_t starting_buffer_;
-        uint8_t writing_buffer_;
-        uint8_t reading_buffer_;
+    uint32_t buffer_pointers[config::BUFFER_SEGMENTS_PER_CLIENT];
+    uint8_t buffer_pointers_count{0};
+    uint8_t starting_buffer{0};
+    uint8_t writing_buffer{0};
+    uint8_t reading_buffer{0};
 
-        uint32_t starting_pointer_;
-        uint32_t writing_pointer_;
-        uint32_t reading_pointer_;
+    uint32_t starting_pointer{0};
+    uint32_t writing_pointer{0};
+    uint32_t reading_pointer{0};
 
-        uint16_t byte_counter_; // missing checking what happens when exceeds 65k
-        uint16_t payload_length_;
-        uint8_t type_;
-        uint32_t sender_key_;
-        uint32_t receiver_key_;
-        int receiver_fd_;
+    uint32_t byte_counter{0};
+    uint16_t payload_length{UINT16_MAX};
+    uint8_t type{types::INVALID_TYPE};
+    uint32_t sender_key{UINT32_MAX};
+    uint32_t receiver_key{UINT32_MAX};
 
-        bool logged_in_;
+    int receiver_fd{-1};
+
+    bool logged_in{false};
 };

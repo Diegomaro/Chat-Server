@@ -4,52 +4,34 @@
 #include "../../headers/client.hpp"
 
 Client::Client(){
-    memset(&name_, 0, sizeof(name_));
-    memset(&ip_, 0, sizeof(ip_));
-    port_ = 0;
+    memset(&name, 0, sizeof(name));
+    memset(&ip, 0, sizeof(ip));
 
     for(int i = 0; i < config::BUFFER_SEGMENTS_PER_CLIENT; i++){
-        buffer_pointers_[i] = UINT32_MAX;
+        buffer_pointers[i] = UINT32_MAX;
     }
-    buffer_pointers_amount_ = 0;
-    starting_buffer_ = 0;
-    writing_buffer_ = 0;
-    reading_buffer_ = 0;
-
-    starting_pointer_ = 0;
-    writing_pointer_ = 0;
-    reading_pointer_ = 0;
-
-    byte_counter_ = 0;
-    payload_length_ = UINT16_MAX;
-    type_ = 0;
-    sender_key_ = UINT32_MAX;
-    receiver_key_ = UINT32_MAX;
-    receiver_fd_ = -1;
-
-    logged_in_ = false;
 }
 
 void Client::resetMessage(){
-    payload_length_ = UINT16_MAX;
-    type_ = 0;
-    receiver_key_ = UINT32_MAX;
-    receiver_fd_ = -1;
+    payload_length = UINT16_MAX;
+    type = types::INVALID_TYPE;
+    receiver_key = UINT32_MAX;
+    receiver_fd = -1;
 }
 
 uint32_t Client::getRemainingBytesWriting(){
-    return buffer_pointers_[writing_buffer_] + config::BUFFER_SEGMENT_SIZE - writing_pointer_;
-}
-
-bool Client::advanceReadingPointer(){
-    if(reading_pointer_ + 1 >= (buffer_pointers_[reading_buffer_] + config::BUFFER_SEGMENT_SIZE)){
-        return false;
-    } else{
-        reading_pointer_++;
-        return true;
-    }
+    return buffer_pointers[writing_buffer] + config::BUFFER_SEGMENT_SIZE - writing_pointer;
 }
 
 uint32_t Client::getRemainingBytesReading(){
-    return buffer_pointers_[reading_buffer_] + config::BUFFER_SEGMENT_SIZE - reading_pointer_;
+    return buffer_pointers[reading_buffer] + config::BUFFER_SEGMENT_SIZE - reading_pointer;
+}
+
+bool Client::advanceReadingPointer(){
+    if(reading_pointer + 1 >= (buffer_pointers[reading_buffer] + config::BUFFER_SEGMENT_SIZE)){
+        return false;
+    } else{
+        reading_pointer++;
+        return true;
+    }
 }
