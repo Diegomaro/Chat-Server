@@ -14,31 +14,8 @@
 #include "../../headers/client_processor.hpp"
 
 ClientProcessor::ClientProcessor(){
-    memset(&hints_, 0, sizeof(hints_));
-    hints_.ai_family = AF_UNSPEC;
-    hints_.ai_socktype = SOCK_STREAM;
-
-    client_socket_ = -1;
-    epoll_fd_ = -1;
-
     incoming_buffer_ = new(std::nothrow) uint8_t[config::READING_BUFFER_SIZE];
     outgoing_buffer_ = new(std::nothrow) uint8_t[config::READING_BUFFER_SIZE];
-
-    msg_len_ = 1024;
-
-    starting_pointer_ = 0;
-    writing_pointer_ = 0;
-    reading_pointer_ = 0;
-
-    byte_counter_ = 0;
-    payload_length_ = UINT16_MAX;
-    type_ = 0;
-    sender_key_ = UINT32_MAX;
-    receiver_key_ = UINT32_MAX;
-
-    pending_messages = 0;
-
-    credentials_length_ = 0;
 }
 
 ClientProcessor::~ClientProcessor(){
@@ -53,13 +30,11 @@ ClientProcessor::~ClientProcessor(){
     close(client_socket_);
 }
 
-unsigned long ClientProcessor::stringHash(char *str){
-    unsigned long hash = 5381;
-    int c;
-    while (c = *str++){
-        hash = ((hash << 5) + hash) + c;
+bool ClientProcessor::setupClientService(){
+    if(!setupHeaderTypes() || !setupHashTables() || !setupSocket()){
+        return false;
     }
-    return hash;
+    return true;
 }
 
 bool ClientProcessor::setupHeaderTypes(){
@@ -67,14 +42,11 @@ bool ClientProcessor::setupHeaderTypes(){
         return false;
     }
     ack_message_[0] = UINT8_MAX;
-
     ack_message_[1] = types::ACK;
-
     ack_message_[2] = UINT8_MAX;
     ack_message_[3] = UINT8_MAX;
     ack_message_[4] = UINT8_MAX;
     ack_message_[5] = UINT8_MAX;
-
     ack_message_[6] = 0;
     ack_message_[7] = 0;
 
@@ -82,14 +54,11 @@ bool ClientProcessor::setupHeaderTypes(){
         return false;
     }
     request_communication_[0] = UINT8_MAX;
-
     request_communication_[1] = types::SEND_REQUEST;
-
     request_communication_[2] = UINT8_MAX;
     request_communication_[3] = UINT8_MAX;
     request_communication_[4] = UINT8_MAX;
     request_communication_[5] = UINT8_MAX;
-
     request_communication_[6] = 0;
     request_communication_[7] = config::HOSTNAME_LENGTH;
 
@@ -97,14 +66,11 @@ bool ClientProcessor::setupHeaderTypes(){
         return false;
     }
     respond_communication_[0] = UINT8_MAX;
-
     respond_communication_[1] = types::REJECT_REQUEST;
-
     respond_communication_[2] = UINT8_MAX;
     respond_communication_[3] = UINT8_MAX;
     respond_communication_[4] = UINT8_MAX;
     respond_communication_[5] = UINT8_MAX;
-
     respond_communication_[6] = 0;
     respond_communication_[7] = config::HOSTNAME_LENGTH;
 
@@ -112,21 +78,18 @@ bool ClientProcessor::setupHeaderTypes(){
         return false;
     }
     auth_message_[0] = UINT8_MAX;
-
     auth_message_[1] = UINT8_MAX;
-
     auth_message_[2] = UINT8_MAX;
     auth_message_[3] = UINT8_MAX;
     auth_message_[4] = UINT8_MAX;
     auth_message_[5] = UINT8_MAX;
-
     auth_message_[6] = 0;
     auth_message_[7] = 0;
 
     return true;
 }
 
-bool ClientProcessor::setupHashmap(){
+bool ClientProcessor::setupHashTables(){
     if(!username_to_key_.createTable(config::INITIAL_HASHTABLE_SIZE)){
         return false;
     }
@@ -135,11 +98,16 @@ bool ClientProcessor::setupHashmap(){
 
 bool ClientProcessor::setupSocket(){
     int status;
-    if((status = getaddrinfo("127.0.0.1", config::SERVER_PORT, &hints_, &server_info_)) != 0){
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    struct addrinfo *server_info;
+    if((status = getaddrinfo("127.0.0.1", config::SERVER_PORT, &hints, &server_info)) != 0){
         fprintf(stderr, "gai error: %s\n", gai_strerror(status));
         return false;
     }
-    if((client_socket_ = socket(server_info_->ai_family, server_info_->ai_socktype, server_info_->ai_protocol)) == -1){
+    if((client_socket_ = socket(server_info->ai_family, server_info->ai_socktype, server_info->ai_protocol)) == -1){
         perror("socket failed");
         return false;
     }
@@ -151,18 +119,19 @@ bool ClientProcessor::setupSocket(){
         perror("non blocking failed");
         return false;
     }
-    if((connect(client_socket_, server_info_->ai_addr, server_info_->ai_addrlen)) == -1 && errno != EINPROGRESS){
+    if((connect(client_socket_, server_info->ai_addr, server_info->ai_addrlen)) == -1 && errno != EINPROGRESS){
         perror("connect failed");
         return false;
     }
-    freeaddrinfo(server_info_);
+    freeaddrinfo(server_info);
     if ((epoll_fd_ = epoll_create1(0)) == -1){
         perror("epoll failed");
         return false;
     }
-    ev_.events = EPOLLIN | EPOLLET;
-    ev_.data.fd = client_socket_;
-    epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, client_socket_, &ev_);
+    struct epoll_event ev;
+    ev.events = EPOLLIN | EPOLLET;
+    ev.data.fd = client_socket_;
+    epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, client_socket_, &ev);
     return true;
 }
 
@@ -232,7 +201,7 @@ void ClientProcessor::centralLoop(){
             int ans = 0;
             switch(ans = sendMessage(credentials_length_ + config::HEADER_SIZE, auth_message_)){
                 case status::SUCCESS:{
-                    pending_messages++;  // rework
+                    pending_messages_++;  // rework
                     std::cout << "message sent correctly!" << std::endl;
                 } break;
                 case status::RESOURCE_UNAVAILABLE:{
@@ -248,7 +217,7 @@ void ClientProcessor::centralLoop(){
             int ans = 0;
             switch(ans = sendMessage(config::HEADER_SIZE + config::HOSTNAME_LENGTH, request_communication_)){
                 case status::SUCCESS:{
-                    pending_messages++; // rework
+                    pending_messages_++; // rework
                     std::cout << "message sent correctly!" << std::endl;
                 } break;
                 case status::RESOURCE_UNAVAILABLE:{
@@ -264,7 +233,7 @@ void ClientProcessor::centralLoop(){
             int ans = 0;
             switch(ans = sendMessage(config::HEADER_SIZE + config::HOSTNAME_LENGTH, respond_communication_)){
                 case status::SUCCESS:{
-                    pending_messages++; // rework
+                    pending_messages_++; // rework
                     std::cout << "message sent correctly!" << std::endl;
                 } break;
                 case status::RESOURCE_UNAVAILABLE:{
@@ -282,7 +251,7 @@ void ClientProcessor::centralLoop(){
                 int ans = 0;
                 switch(ans = sendMessage(msg_len_, outgoing_buffer_)){
                     case status::SUCCESS:{
-                        pending_messages++;
+                        pending_messages_++;
                         std::cout << "message sent correctly!" << std::endl;
                     } break;
                     case status::RESOURCE_UNAVAILABLE:{
@@ -494,30 +463,31 @@ int ClientProcessor::actOnMessage(){
                     if(!addUser(sender_key_, temp_username)){
                         return status::ERROR;
                     }
-                    total_outgoing_requests_--;
                 } else if(type_ == types::SEND_REQUEST){
-                    total_incoming_requests_++;
                     UsernameMapping usernameMapping;
-                    usernameMapping.key_ = sender_key_;
+                    usernameMapping.key = sender_key_;
                     for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
-                        usernameMapping.username_[i] = temp_username[i];
+                        usernameMapping.username[i] = temp_username[i];
                     }
                     if(!incoming_requests_.insertTail(usernameMapping)){
                         return status::ERROR;
                     }
                 } else{
-                    total_outgoing_requests_--;
                 }
                 // remove from outgoing requests
             }
         } break;
         case types::ACK:{
             if(sender_key_ == UINT32_MAX){
-                pending_messages--;
+                pending_messages_--;
                 // handle later :)
-                //std::cout << "pending ack: " << pending_messages << std::endl;
+                //std::cout << "pending ack: " << pending_messages_ << std::endl;
             } else{
-                std::cout << "Message to " << sender_key_ << " has been delivered!" << std::endl;
+                char *user = getUserFromKey(sender_key_);
+                if(user == nullptr){
+                    return status::INVALID_CLIENT;
+                }
+                std::cout << "Message to " << user << " has been delivered!" << std::endl;
             }
         } break;
         default:{
@@ -656,7 +626,7 @@ bool ClientProcessor::welcomeInputLoop(){
 }
 
 // Validates if a credential contains valid characters and is of allowed size.
-bool ClientProcessor::validateCredential(std::string &credential, uint8_t min_length, uint8_t max_length){
+bool ClientProcessor::validateCredential(const std::string &credential, uint8_t min_length, uint8_t max_length){
     if(credential.size() < min_length || credential.size() > max_length){
         std::cout << "Credential is too long or too short!"  << std::endl;
         return false;
@@ -688,7 +658,7 @@ bool ClientProcessor::messageInputLoop(){
         << "2. Set destinatory. (" << receiving_username_ << ")" << std::endl
         << "3. Send message." << std::endl
         << "4. Send request." << std::endl
-        << "5. Manage requests. (" << static_cast<uint>(total_incoming_requests_) << ")" << std::endl
+        << "5. Manage requests. (" << static_cast<uint>(incoming_requests_.getSize()) << ")" << std::endl
         << "6. Reload." << std::endl
         << "7. Exit." << std::endl
         << ":: ";
@@ -710,7 +680,7 @@ bool ClientProcessor::messageInputLoop(){
             }
             } break;
             case 2:{
-                result = setDestinatory();
+                result = setReceiver();
                 switch(result){
                     case status::SUCCESS:{
                         std::cout << "Receiver key set correctly!" << std::endl;
@@ -756,7 +726,7 @@ bool ClientProcessor::messageInputLoop(){
                 incoming_requests_.resetNodeIndex();
                 int ctr = 1;
                 while(incoming_requests_.hasNode()){
-                    std::cout << ctr << ": " << incoming_requests_.getNode().username_ << std::endl;
+                    std::cout << ctr << ": " << incoming_requests_.getNode().username << std::endl;
                     ctr++;
                     incoming_requests_.advanceNode();
                 }
@@ -777,21 +747,21 @@ bool ClientProcessor::messageInputLoop(){
                     incoming_requests_.advanceNode();
                 }
                 std::cout << "Select one option." << std::endl
-                << "Request from : " << incoming_requests_.getNode().username_ << std::endl
+                << "Request from : " << incoming_requests_.getNode().username << std::endl
                 << "1. Accept" << std::endl
                 << "2. Reject" << std::endl
                 << "3. Exit" << std::endl;
                 ans = 0;
                 std::cin >> ans;
                 if(ans == 1 || ans == 2){
-                    char *ref_username = incoming_requests_.getNode().username_;
+                    char *ref_username = incoming_requests_.getNode().username;
                     UsernameMapping usernameMapping;
-                    usernameMapping.key_ = incoming_requests_.getNode().key_;
+                    usernameMapping.key = incoming_requests_.getNode().key;
                     for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
-                        usernameMapping.username_[i] = ref_username[i];
+                        usernameMapping.username[i] = ref_username[i];
                     }
                     if(ans == 1){
-                        if(!username_to_key_.insertNode(stringHash(incoming_requests_.getNode().username_), usernameMapping)){
+                        if(!username_to_key_.insertNode(stringHash(incoming_requests_.getNode().username), usernameMapping)){
                             return false;
                         }
                         respond_communication_[1] = types::ACCEPT_REQUEST;
@@ -802,10 +772,9 @@ bool ClientProcessor::messageInputLoop(){
                         return false;
                     }
                     for(int i = 0; i < 4; i++){
-                        respond_communication_[i + 2] = usernameMapping.key_ << ((3 - i) * 8);
+                        respond_communication_[i + 2] = usernameMapping.key << ((3 - i) * 8);
                     }
                     respond_request_ = true;
-                    total_incoming_requests_--;
                 }
             } break;
             case 6:{
@@ -859,7 +828,7 @@ int ClientProcessor::setMessage(){
 Sets destinatory from a list of known users.
 REturns ERROR, NOTHING_TO_DO, INVALID_CLIENT, SUCCESS.
 */
-int ClientProcessor::setDestinatory(){
+int ClientProcessor::setReceiver(){
     if(!outgoing_buffer_){
         return status::ERROR;
     }
@@ -873,7 +842,7 @@ int ClientProcessor::setDestinatory(){
     username_to_key_.resetNodeIndex();
     while(username_to_key_.hasNodes()){
         if(username_to_key_.hasNode()){
-            std::cout  << ctr++ << ": " << username_to_key_.getNode()->data_.username_ << std::endl;
+            std::cout  << ctr++ << ": " << username_to_key_.getNode()->data_.username << std::endl;
         }
         username_to_key_.advanceNode();
     }
@@ -895,9 +864,20 @@ int ClientProcessor::setDestinatory(){
     return status::SUCCESS;
 }
 
+// Add a user to the "list" of known users.
+bool ClientProcessor::addUser(uint32_t key, const std::string &username){
+    UsernameMapping user;
+    user.key = key;
+    std::memcpy(user.username, username.data(), config::HOSTNAME_LENGTH);
+    unsigned long hash_key = stringHash(user.username);
+    if(!username_to_key_.insertNode(hash_key, user)){
+        return false;
+    }
+    return true;
+}
 
 // Gets a key corresponding to a specific user. Returns UINT32_MAX if the user does not exist.
-uint32_t ClientProcessor::getUserKey(std::string &temp_username){
+uint32_t ClientProcessor::getUserKey(const std::string &temp_username){
     char username [config::HOSTNAME_LENGTH];
     std::strcpy(username, temp_username.c_str());
     unsigned long hash_key = stringHash(username);
@@ -909,13 +889,13 @@ uint32_t ClientProcessor::getUserKey(std::string &temp_username){
         if(username_to_key_.hasNode()){
             bool equal_usernames = true;
             for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
-                if(username_to_key_.getNode()->data_.username_[i] != temp_username[i]){
+                if(username_to_key_.getNode()->data_.username[i] != temp_username[i]){
                     equal_usernames = false;
                     break;
                 }
             }
             if(equal_usernames){
-                return username_to_key_.getNode()->data_.key_;
+                return username_to_key_.getNode()->data_.key;
             }
         }
         username_to_key_.advanceNode();
@@ -928,8 +908,8 @@ char* ClientProcessor::getUserFromKey(uint32_t key){
     username_to_key_.resetNodeIndex();
     while(username_to_key_.hasNodes()){
         if(username_to_key_.hasNode()){
-            if(username_to_key_.getNode()->data_.key_ == key){
-                return username_to_key_.getNode()->data_.username_;
+            if(username_to_key_.getNode()->data_.key == key){
+                return username_to_key_.getNode()->data_.username;
             }
         }
         username_to_key_.advanceNode();
@@ -937,14 +917,11 @@ char* ClientProcessor::getUserFromKey(uint32_t key){
     return nullptr;
 }
 
-// Add a user to the "list" of known users.
-bool ClientProcessor::addUser(uint32_t key, const std::string &username){
-    UsernameMapping user;
-    user.key_ = key;
-    std::memcpy(user.username_, username.data(), config::HOSTNAME_LENGTH);
-    unsigned long hash_key = stringHash(user.username_);
-    if(!username_to_key_.insertNode(hash_key, user)){
-        return false;
+unsigned long ClientProcessor::stringHash(const char *str){
+    unsigned long hash = 5381;
+    int c;
+    while (c = *str++){
+        hash = ((hash << 5) + hash) + c;
     }
-    return true;
+    return hash;
 }

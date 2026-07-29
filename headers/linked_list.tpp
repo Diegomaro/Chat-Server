@@ -2,15 +2,10 @@
 #include "linked_list.hpp"
 
 template <typename T>
-LinkedList<T>::Node::Node() {
-	next_ = nullptr;
-}
+LinkedList<T>::Node::Node() {}
+
 template <typename T>
-LinkedList<T>::LinkedList() {
-	head_ = nullptr;
-	tail_ = nullptr;
-	current_node_ = nullptr;
-}
+LinkedList<T>::LinkedList() {}
 
 template <typename T>
 LinkedList<T>::~LinkedList() {
@@ -31,6 +26,7 @@ bool LinkedList<T>::insertHead(T data) {
 	if(!head_->next_){
 		tail_ = head_;
 	}
+	size_++;
 	return true;
 }
 
@@ -47,6 +43,7 @@ bool LinkedList<T>::insertTail(T data){
 	newNode->data_ = data;
 	tail_->next_ = newNode;
 	tail_ = newNode;
+	size_++;
     return true;
 }
 
@@ -60,6 +57,7 @@ bool LinkedList<T>::deleteHead(){
 		head_ = nullptr;
 		tail_ = nullptr;
 		current_node_ = nullptr;
+		size_--;
 		return true;
 	}
 	Node* temp = head_->next_;
@@ -68,6 +66,7 @@ bool LinkedList<T>::deleteHead(){
 	}
 	delete head_;
 	head_ = temp;
+	size_--;
 	return true;
 }
 
@@ -81,6 +80,7 @@ bool LinkedList<T>::deleteTail(){
 		head_ = nullptr;
 		tail_ = nullptr;
 		current_node_ = nullptr;
+		size_--;
 		return true;
 	}
 
@@ -94,6 +94,7 @@ bool LinkedList<T>::deleteTail(){
 	delete tail_;
 	tail_ = temp;
 	tail_->next_ = nullptr;
+	size_--;
 	return true;
 }
 
@@ -107,11 +108,13 @@ bool LinkedList<T>::deleteNode(T data){
 		head_ = nullptr;
 		tail_ = nullptr;
 		current_node_ = nullptr;
+		size_--;
 		return true;
 	}
 	Node* tmp = head_;
 	if(head_->data_ == data){
 		return deleteHead();
+		size_--;
 		return true;
 	}
 	while(tmp->next_ != nullptr){
@@ -125,6 +128,7 @@ bool LinkedList<T>::deleteNode(T data){
 			if(anchorNode == nullptr){
 				tail_ = tmp;
 			}
+			size_--;
 			return true;
 		}
 		tmp = tmp->next_;
@@ -170,7 +174,6 @@ bool LinkedList<T>::advanceNode(){
 	return true;
 }
 
-
 template <typename T>
 T &LinkedList<T>::getNode(){
 	Node* tmp = current_node_;
@@ -204,6 +207,11 @@ bool LinkedList<T>::isEmpty(){
 		return false;
 	}
 	return true;
+}
+
+template <typename T>
+uint32_t LinkedList<T>::getSize(){
+	return size_;
 }
 
 template <typename T>

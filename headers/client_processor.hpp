@@ -15,96 +15,100 @@ class ClientProcessor{
         ClientProcessor();
         ~ClientProcessor();
 
-        struct UsernameMapping{
-            char username_ [config::HOSTNAME_LENGTH];
-            uint32_t key_;
-            bool operator==(const UsernameMapping& UM) const {
-               return key_ == UM.key_;
-            }
-        };
-        unsigned long stringHash(char *str);
-
         //setup
-        bool setupHeaderTypes();
-        bool setupHashmap();
-        bool setupSocket();
-
+        bool setupClientService();
+        //central
         void centralLoop();
         void inputLoop();
     private:
+        struct UsernameMapping{
+            char username [config::HOSTNAME_LENGTH];
+            uint32_t key;
+            bool operator==(const UsernameMapping& other) const {
+               return key == other.key;
+            }
+        };
+
+        // setup
+        bool setupHeaderTypes();
+        bool setupHashTables();
+        bool setupSocket();
+
         // central loop
+        // outgoing data
         int sendMessage(int bytes_to_send, uint8_t *buffer);
 
+        // incoming data
         int receiveFromServer();
         int checkMessage();
         int actOnMessage();
-        void advanceReadingPointer();
-        bool printMessage();
+
+        // buffer managament
         void cleanIncomingBuffer();
+        void advanceReadingPointer();
+
+        // printing
+        bool printMessage();
 
         //input loop
         bool welcomeInputLoop();
-        bool validateCredential(std::string &credential, uint8_t min_length, uint8_t max_length);
-
         bool messageInputLoop();
+
+        // message input loop
         int setMessage();
-        int setDestinatory();
-        int manageRequests();
+        int setReceiver();
+
+        // helper methods
+        bool validateCredential(const std::string &credential, uint8_t min_length, uint8_t max_length);
 
         bool addUser(uint32_t key, const std::string &username);
-        uint32_t getUserKey(std::string &temp_username);
+        uint32_t getUserKey(const std::string &temp_username);
         char *getUserFromKey(uint32_t key);
 
-        struct addrinfo hints_;
-        struct addrinfo *server_info_;
+        unsigned long stringHash(const char *str);
 
-        int client_socket_;
-        int epoll_fd_;
+        // attributes
+        HashTable<UsernameMapping> username_to_key_;
+        LinkedList<UsernameMapping> incoming_requests_;
+        LinkedList<UsernameMapping> outgoing_requests_; // implement later
 
-        uint8_t *incoming_buffer_;
-        uint8_t *outgoing_buffer_;
-
-        std::string message_;
-        int msg_len_;
-
-        struct epoll_event ev_;
-        struct epoll_event events_[10];
-
-        uint32_t starting_pointer_;
-        uint32_t writing_pointer_;
-        uint32_t reading_pointer_;
-
-        uint16_t byte_counter_; // missing checking what happens when exceeds 65k
-        uint16_t payload_length_;
-        uint8_t type_;
-        uint32_t sender_key_;
-        uint32_t receiver_key_;
+        uint8_t *incoming_buffer_{nullptr};
+        uint8_t *outgoing_buffer_{nullptr};
 
         std::mutex read_mutex_;
-        std::atomic<bool> program_running_{true};
+        std::string message_;
+        std::string username_;
+        std::string password_;
+        std::string receiving_username_;
 
+        int client_socket_{-1};
+        int epoll_fd_{-1};
+        int msg_len_{-1};
+
+        uint32_t pending_messages_{0};
+        uint8_t credentials_length_{0};
+
+        uint32_t starting_pointer_{0};
+        uint32_t writing_pointer_{0};
+        uint32_t reading_pointer_{0};
+
+        uint16_t byte_counter_{0}; // missing checking what happens when exceeds 65k
+        uint16_t payload_length_{UINT16_MAX};
+        uint8_t type_{0};
+        uint32_t sender_key_{UINT32_MAX};
+        uint32_t receiver_key_{UINT32_MAX};
+
+        std::atomic<bool> program_running_{true};
+        std::atomic<bool> logged_in_{false};
         std::atomic<bool> send_message_{false};
         std::atomic<bool> send_request_{false};
         std::atomic<bool> respond_request_{false};
         std::atomic<bool> send_register_{false};
-        std::atomic<bool> logged_in_{false};
 
-        uint32_t pending_messages;
+        struct epoll_event events_[config::MAX_EVENTS];
+
         uint8_t auth_message_[config::HEADER_SIZE + config::HOSTNAME_LENGTH + config::MAX_PASSWORD_LENGTH];
         uint8_t ack_message_[config::HEADER_SIZE];
         uint8_t request_communication_[config::HEADER_SIZE + config::HOSTNAME_LENGTH];
         uint8_t respond_communication_[config::HEADER_SIZE + config::HOSTNAME_LENGTH];
-
-        std::atomic<uint32_t> total_incoming_requests_{0}; // load from file later
-        LinkedList<UsernameMapping> incoming_requests_;
-
-        std::atomic<uint32_t> total_outgoing_requests_{0}; // load from file later
-        LinkedList<UsernameMapping> outgoing_requests_;
-
-        std::string username_;
-        std::string password_;
-        uint8_t credentials_length_;
-
-        HashTable<UsernameMapping> username_to_key_;
-        std::string receiving_username_;
 };

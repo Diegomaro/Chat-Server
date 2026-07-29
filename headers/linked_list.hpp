@@ -6,7 +6,7 @@ public:
 	class Node {
 		public:
 			T data_;
-			Node *next_;
+			Node *next_{nullptr};
 			Node();
 	};
 
@@ -25,10 +25,12 @@ public:
 	T &getHead();
 	bool printAll();
 	bool isEmpty();
+	uint32_t getSize();
 	bool clear();
 private:
-	Node *current_node_;
-	Node *head_;
-	Node *tail_;
+	Node *current_node_{nullptr};
+	Node *head_{nullptr};
+	Node *tail_{nullptr};
+	uint32_t size_{0};
 };
 #include "linked_list.tpp"
