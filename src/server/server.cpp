@@ -54,16 +54,10 @@ Server::~Server(){
 }
 
 bool Server::setupServer(){
-    if(!setupHashTables()){
-        return false;
-    }
-    if(!setupBuffer()){
-        return false;
-    }
-    if(!setupHeaderTypes()){
-        return false;
-    }
-    if(!setupListenerSocket()){
+    if(!setupHashTables()
+    || !setupBuffer()
+    || !setupHeaderTypes()
+    || !setupListenerSocket()){
         return false;
     }
     return true;
@@ -467,8 +461,8 @@ int Server::checkMessage(int client_socket){
     if(!client){
         return status::ERROR;
     }
-    if(client->byte_counter < 8){
-        return status::INVALID_MESSAGE;
+    if(client->byte_counter < config::HEADER_SIZE){
+        return status::INCOMPLETE_MESSAGE;
     }
     // HEAD_BITS
     if((buffer_pool_[client->reading_pointer] ^ 0xFF) != 0){
@@ -578,7 +572,12 @@ int Server::actOnMessage(int client_socket){
                 // later it should be changed to store all client keys, regardless of whether online or not.
                 // If client is not available it should be stored in some file. (much later)
             }
-            uint8_t ack_state = sendProcessedAcknowledgement(client_socket);
+            uint8_t ack_state = sendStatusMessage(
+                client_socket,
+                client_socket,
+                processed_ack_message_,
+                config::HEADER_SIZE
+            );
             uint8_t send_state = sendToClient(client_socket);
 
             switch(ack_state){
@@ -625,15 +624,28 @@ int Server::actOnMessage(int client_socket){
                 || (username[i] > 90 && username[i] < 95)
                 || (username[i] > 95 && username[i] < 97)
                 || username[i] > 122){
-                    return sendAuthentication(client_socket, auth::INVALID_CREDENTIAL);
+                    authentication_message_[8] = auth::INVALID_CREDENTIAL;
+                    return sendStatusMessage(
+                        client_socket,
+                        client_socket,
+                        authentication_message_,
+                        config::HEADER_SIZE + config::AUTH_PAYLOAD_LENGTH
+                    );
                 }
+                usr_ctr += username[i] != 0 ? 1 : 0;
                 usr_ctr++;
                 if(!advanceClientPointer(client_socket)){
                     return status::INVALID_MESSAGE;
                 }
             }
             if(usr_ctr < 1){
-                return sendAuthentication(client_socket, auth::INVALID_CREDENTIAL);
+                authentication_message_[8] = auth::INVALID_CREDENTIAL;
+                return sendStatusMessage(
+                    client_socket,
+                    client_socket,
+                    authentication_message_,
+                    config::HEADER_SIZE + config::AUTH_PAYLOAD_LENGTH
+                );
             }
             uint8_t password [client->payload_length - config::HOSTNAME_LENGTH];
             uint32_t psw_ctr = 0;
@@ -644,7 +656,13 @@ int Server::actOnMessage(int client_socket){
                 || (password[i] > 90 && password[i] < 95)
                 || (password[i] > 95 && password[i] < 97)
                 || password[i] > 122){
-                    return sendAuthentication(client_socket, auth::INVALID_CREDENTIAL);
+                    authentication_message_[8] = auth::INVALID_CREDENTIAL;
+                    return sendStatusMessage(
+                        client_socket,
+                        client_socket,
+                        authentication_message_,
+                        config::HEADER_SIZE + config::AUTH_PAYLOAD_LENGTH
+                    );
                 }
                 psw_ctr++;
                 if(!advanceClientPointer(client_socket)){
@@ -653,7 +671,13 @@ int Server::actOnMessage(int client_socket){
             }
 
             if(psw_ctr < config::MIN_PASSWORD_LENGTH || psw_ctr > config::MAX_PASSWORD_LENGTH){
-                return sendAuthentication(client_socket, auth::INVALID_CREDENTIAL);
+                authentication_message_[8] = auth::INVALID_CREDENTIAL;
+                return sendStatusMessage(
+                    client_socket,
+                    client_socket,
+                    authentication_message_,
+                    config::HEADER_SIZE + config::AUTH_PAYLOAD_LENGTH
+                );
             }
 
             // unique username
@@ -670,7 +694,13 @@ int Server::actOnMessage(int client_socket){
                             }
                         }
                         if(equal_usernames){
-                            return sendAuthentication(client_socket, auth::NOT_UNIQUE);
+                            authentication_message_[8] = auth::NOT_UNIQUE;
+                            return sendStatusMessage(
+                                client_socket,
+                                client_socket,
+                                authentication_message_,
+                                config::HEADER_SIZE + config::AUTH_PAYLOAD_LENGTH
+                            );
                         }
                     }
                     username_to_client_key_.advanceNode();
@@ -705,7 +735,13 @@ int Server::actOnMessage(int client_socket){
             if(!printClientInformation(client_socket)){
                 return status::ERROR;
             }
-            return sendAuthentication(client_socket, auth::VALID);
+            authentication_message_[8] = auth::VALID;
+            return sendStatusMessage(
+                client_socket,
+                client_socket,
+                authentication_message_,
+                config::HEADER_SIZE + config::AUTH_PAYLOAD_LENGTH
+            );
         } break;
         case types::LOGIN:{
             // implement eventually
@@ -767,7 +803,12 @@ int Server::actOnMessage(int client_socket){
                         for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
                             request_communication_message_[i + config::HEADER_SIZE] = client->name[i];
                         }
-                        return sendRequestCommunication(client_socket);
+                        return sendStatusMessage(
+                            client_socket,
+                            client->receiver_fd,
+                            request_communication_message_,
+                            config::HEADER_SIZE + config::HOSTNAME_LENGTH
+                        );
                     }
                 }
                 username_to_client_key_.advanceNode();
@@ -830,7 +871,16 @@ int Server::actOnMessage(int client_socket){
             if(!clients_.searchNode(client->receiver_fd)){
                 return status::INVALID_CLIENT;
             }
-            uint8_t ack_state = sendDeliveredAcknowledgement(client_socket);
+            delivered_ack_message_[2] = client->sender_key >> 24;
+            delivered_ack_message_[3] = client->sender_key >> 16;
+            delivered_ack_message_[4] = client->sender_key >> 8;
+            delivered_ack_message_[5] = client->sender_key;
+            uint8_t ack_state = sendStatusMessage(
+                client_socket,
+                client->receiver_fd,
+                delivered_ack_message_,
+                config::HEADER_SIZE
+            );
             switch(ack_state){
                 case status::RESOURCE_UNAVAILABLE:{
                     // should not return, rather be stored
@@ -899,96 +949,10 @@ bool Server::advanceClientPointer(int client_socket){
 }
 
 /*
-Sends acknowledgement to client when the entire message has been processed and verified.
+Sends different status messages to clients.
 Returns INVALID_CLIENT, ERROR, RESOURCE_UNAVAILABLE, SUCCESS.
 */
-int Server::sendProcessedAcknowledgement(int client_socket){
-    if(client_socket == -1){
-        return status::INVALID_CLIENT;
-    }
-    int total_bytes_sent = 0;
-    int bytes_sent = 0;
-    while(total_bytes_sent < config::HEADER_SIZE){
-        if((bytes_sent = send(client_socket, &processed_ack_message_[total_bytes_sent], config::HEADER_SIZE - total_bytes_sent, 0)) == -1){
-            int error = errno;
-            if(error == EAGAIN || error == EWOULDBLOCK){
-                return status::RESOURCE_UNAVAILABLE;
-            } else{
-                perror("Send of acknowledgement failed.");
-                return status::ERROR;
-            }
-        }
-        total_bytes_sent += bytes_sent;
-    }
-    return status::SUCCESS;
-}
-
-/*
-Sends acknowledgement to client when the destinatory client has received the entire message.
-Returns INVALID_CLIENT, ERROR, RESOURCE_UNAVAILABLE, SUCCESS.
-*/
-int Server::sendDeliveredAcknowledgement(int client_socket){
-    if(client_socket == -1){
-        return status::INVALID_CLIENT;
-    }
-    Client *client = clients_.getNode(client_socket);
-
-    int total_bytes_sent = 0;
-    int bytes_sent = 0;
-    delivered_ack_message_[2] = client->sender_key >> 24;
-    delivered_ack_message_[3] = client->sender_key >> 16;
-    delivered_ack_message_[4] = client->sender_key >> 8;
-    delivered_ack_message_[5] = client->sender_key;
-
-    while(total_bytes_sent < config::HEADER_SIZE){
-        if((bytes_sent = send(client->receiver_fd, &delivered_ack_message_[total_bytes_sent], config::HEADER_SIZE - total_bytes_sent, 0)) == -1){
-            int error = errno;
-            if(error == EAGAIN || error == EWOULDBLOCK){
-                return status::RESOURCE_UNAVAILABLE;
-            } else{
-                perror("Send of acknowledgement failed.");
-                return status::ERROR;
-            }
-        }
-        total_bytes_sent += bytes_sent;
-    }
-    return status::SUCCESS;
-}
-
-/*
-Sends authentication from receiving client to sending client.
-Returns INVALID_CLIENT, ERROR, RESOURCE_UNAVAILABLE, SUCCESS.
-*/
-int Server::sendAuthentication(int client_socket, uint8_t auth){
-    if(client_socket == -1){
-        return status::INVALID_CLIENT;
-    }
-    Client *client = clients_.getNode(client_socket);
-
-    int total_bytes_sent = 0;
-    int bytes_sent = 0;
-    authentication_message_[8] = auth;
-
-    while(total_bytes_sent < config::HEADER_SIZE + config::AUTH_PAYLOAD_LENGTH){
-        if((bytes_sent = send(client_socket, &authentication_message_[total_bytes_sent], config::HEADER_SIZE + config::AUTH_PAYLOAD_LENGTH - total_bytes_sent, 0)) == -1){
-            int error = errno;
-            if(error == EAGAIN || error == EWOULDBLOCK){
-                return status::RESOURCE_UNAVAILABLE;
-            } else{
-                perror("Send of authentication failed.");
-                return status::ERROR;
-            }
-        }
-        total_bytes_sent += bytes_sent;
-    }
-    return status::SUCCESS;
-}
-
-/*
-Sends request to client.
-Returns INVALID_CLIENT, ERROR, RESOURCE_UNAVAILABLE, SUCCESS.
-*/
-int Server::sendRequestCommunication(int client_socket){
+int Server::sendStatusMessage(int client_socket, int receiver_fd, uint8_t *buffer, int bytes_to_send){
     if(client_socket == -1){
         return status::INVALID_CLIENT;
     }
@@ -997,8 +961,12 @@ int Server::sendRequestCommunication(int client_socket){
     int total_bytes_sent = 0;
     int bytes_sent = 0;
 
-    while(total_bytes_sent < config::HEADER_SIZE + config::AUTH_PAYLOAD_LENGTH){
-        if((bytes_sent = send(client->receiver_fd, &request_communication_message_[total_bytes_sent], config::HEADER_SIZE + config::HOSTNAME_LENGTH - total_bytes_sent, 0)) == -1){
+    while(total_bytes_sent < bytes_to_send){
+        if((bytes_sent = send(
+            receiver_fd,
+            &buffer[total_bytes_sent],
+            bytes_to_send - total_bytes_sent,
+            0)) == -1){
             int error = errno;
             if(error == EAGAIN || error == EWOULDBLOCK){
                 return status::RESOURCE_UNAVAILABLE;

@@ -31,7 +31,16 @@ ClientProcessor::~ClientProcessor(){
 }
 
 bool ClientProcessor::setupClientService(){
-    if(!setupHeaderTypes() || !setupHashTables() || !setupSocket()){
+    if(!setupHashTables()
+    || !setupHeaderTypes()
+    || !setupSocket()){
+        return false;
+    }
+    return true;
+}
+
+bool ClientProcessor::setupHashTables(){
+    if(!username_to_key_.createTable(config::INITIAL_HASHTABLE_SIZE)){
         return false;
     }
     return true;
@@ -86,13 +95,6 @@ bool ClientProcessor::setupHeaderTypes(){
     auth_message_[6] = 0;
     auth_message_[7] = 0;
 
-    return true;
-}
-
-bool ClientProcessor::setupHashTables(){
-    if(!username_to_key_.createTable(config::INITIAL_HASHTABLE_SIZE)){
-        return false;
-    }
     return true;
 }
 
@@ -347,7 +349,7 @@ Returns INCOMPLETE_MESSAGE, INVALID_MESSAGE, SUCCESS.
 */
 int ClientProcessor::checkMessage(){
     //HEADER LENGTH
-    if(8 > byte_counter_){
+    if(byte_counter_ < config::HEADER_SIZE){
         return status::INCOMPLETE_MESSAGE;
     }
     reading_pointer_ = starting_pointer_;
@@ -505,7 +507,6 @@ void ClientProcessor::advanceReadingPointer(){
         reading_pointer_++;
     }
 }
-
 
 // Prints message received from other clients, the sender and receiver are printed as well.
 bool ClientProcessor::printMessage(){

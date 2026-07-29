@@ -30,8 +30,8 @@ class ClientProcessor{
         };
 
         // setup
-        bool setupHeaderTypes();
         bool setupHashTables();
+        bool setupHeaderTypes();
         bool setupSocket();
 
         // central loop

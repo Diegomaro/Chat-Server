@@ -47,6 +47,7 @@ class Server{
         int sendDeliveredAcknowledgement(int client_socket);
         int sendAuthentication(int client_socket, uint8_t auth);
         int sendRequestCommunication(int client_socket);
+        int sendStatusMessage(int client_socket, int receiver_fd, uint8_t *buffer, int bytes_to_send);
         int sendToClient(int client_socket);
 
         // print data
