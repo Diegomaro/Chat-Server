@@ -27,11 +27,14 @@ uint32_t Client::getRemainingBytesReading(){
     return buffer_pointers[reading_buffer] + config::BUFFER_SEGMENT_SIZE - reading_pointer;
 }
 
-bool Client::advanceReadingPointer(){
-    if(reading_pointer + 1 >= (buffer_pointers[reading_buffer] + config::BUFFER_SEGMENT_SIZE)){
-        return false;
-    } else{
+void Client::advanceReadingPointer(){
+    if(reading_pointer + 1 < (buffer_pointers[reading_buffer] + config::BUFFER_SEGMENT_SIZE)){
         reading_pointer++;
-        return true;
+    } else{
+        reading_buffer++;
+        if(reading_buffer >= config::BUFFER_SEGMENTS_PER_CLIENT){
+            reading_buffer = 0;
+        }
+        reading_pointer = buffer_pointers[reading_buffer];
     }
 }

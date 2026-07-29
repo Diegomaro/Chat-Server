@@ -11,7 +11,7 @@ struct Client{
     uint32_t getRemainingBytesWriting();
     uint32_t getRemainingBytesReading();
 
-    bool advanceReadingPointer();
+    void advanceReadingPointer();
 
     char name [config::HOSTNAME_LENGTH];
     char ip [INET6_ADDRSTRLEN];
