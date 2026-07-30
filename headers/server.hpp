@@ -40,13 +40,8 @@ class Server{
 
         // client
         bool cleanClientBuffer(int client_socket);
-        bool advanceClientPointer(int client_socket);
 
         // sending data
-        int sendProcessedAcknowledgement(int client_socket);
-        int sendDeliveredAcknowledgement(int client_socket);
-        int sendAuthentication(int client_socket, uint8_t auth);
-        int sendRequestCommunication(int client_socket);
         int sendStatusMessage(int client_socket, int receiver_fd, uint8_t *buffer, int bytes_to_send);
         int sendToClient(int client_socket);
 
@@ -62,6 +57,7 @@ class Server{
 
         uint8_t *buffer_pool_{nullptr};
         uint8_t *receiver_buffer_{nullptr};
+        uint8_t *sending_buffer_{nullptr};
         LinkedList<uint32_t> available_buffers_;
 
         int epoll_fd_{-1};

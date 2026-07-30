@@ -31,7 +31,7 @@ cd Chat-Server
 ```
 2. Build the project:
 ```sh
-. compile.sh
+./compile.sh
 ```
 
 ### Usage

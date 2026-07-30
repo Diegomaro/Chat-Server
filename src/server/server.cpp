@@ -51,6 +51,10 @@ Server::~Server(){
         delete [] receiver_buffer_;
         receiver_buffer_ = nullptr;
     }
+    if(sending_buffer_){
+        delete [] sending_buffer_;
+        sending_buffer_ = nullptr;
+    }
 }
 
 bool Server::setupServer(){
@@ -63,7 +67,6 @@ bool Server::setupServer(){
     return true;
 }
 
-// Central loop that handles message receiving and sending.
 void Server::centralLoop(){
     while(true){
         int ready_polls = 0;
@@ -165,7 +168,7 @@ bool Server::setupHashTables(){
 }
 
 bool Server::setupBuffer(){
-    if(buffer_pool_ || receiver_buffer_){
+    if(buffer_pool_ || receiver_buffer_ || sending_buffer_){
         return false;
     }
     buffer_pool_ = new(std::nothrow) uint8_t [config::BUFFER_SIZE];
@@ -176,9 +179,12 @@ bool Server::setupBuffer(){
     if(!receiver_buffer_){
         return false;
     }
-
+    sending_buffer_ = new(std::nothrow) uint8_t [config::READING_BUFFER_SIZE];
+    if(!sending_buffer_){
+        return false;
+    }
     uint32_t current_address = 0;
-    for(int i = 0; i < config::AVAILABLE_BUFFER_SEGMENTS; i++){
+    for(int i = 0; i < config::TOTAL_BUFFER_SEGMENTS; i++){
         if(!available_buffers_.insertTail(current_address)){
             return false;
         }
@@ -617,9 +623,7 @@ int Server::actOnMessage(int client_socket){
                 }
                 usr_ctr += username[i] != 0 ? 1 : 0;
                 usr_ctr++;
-                if(!advanceClientPointer(client_socket)){
-                    return status::INVALID_MESSAGE;
-                }
+                client->advanceReadingPointer();
             }
             if(usr_ctr < 1){
                 authentication_message_[8] = auth::INVALID_CREDENTIAL;
@@ -648,9 +652,7 @@ int Server::actOnMessage(int client_socket){
                     );
                 }
                 psw_ctr++;
-                if(!advanceClientPointer(client_socket)){
-                    return status::INVALID_MESSAGE;
-                }
+                client->advanceReadingPointer();
             }
 
             if(psw_ctr < config::MIN_PASSWORD_LENGTH || psw_ctr > config::MAX_PASSWORD_LENGTH){
@@ -749,9 +751,7 @@ int Server::actOnMessage(int client_socket){
                     return status::INVALID_MESSAGE;
                 }
                 usr_ctr++;
-                if(!advanceClientPointer(client_socket)){
-                    return status::INVALID_MESSAGE;
-                }
+                client->advanceReadingPointer();
             }
             if(usr_ctr < 1){
                 return status::INVALID_CLIENT;
@@ -909,16 +909,6 @@ bool Server::cleanClientBuffer(int client_socket){
     return true;
 }
 
-// Advances client reading pointer, if the border of a buffer is reached, the pointer advances to the next buffer segment. Returns false if there are no more buffer segments to occupy.
-bool Server::advanceClientPointer(int client_socket){
-    if(client_socket == -1){
-        return false;
-    }
-    Client *client = clients_.getNode(client_socket);
-    client->advanceReadingPointer();
-    return true;
-}
-
 /*
 Sends different status messages to clients.
 Returns INVALID_CLIENT, ERROR, RESOURCE_UNAVAILABLE, SUCCESS.
@@ -961,21 +951,21 @@ int Server::sendToClient(int client_socket){
     }
     Client *client = clients_.getNode(client_socket);
 
-    int print_pointer = config::READER_BUFFER_POINTER;
+    int sending_pointer = 0;
     int bytes_to_send = client->payload_length + config::HEADER_SIZE;
     int total_bytes_sent = 0;
 
     client->reading_pointer = client->starting_pointer;
     for(int i = 0; i <  bytes_to_send; i++){
-        buffer_pool_[print_pointer] = buffer_pool_[client->reading_pointer];
+        sending_buffer_[sending_pointer] = buffer_pool_[client->reading_pointer];
         client->advanceReadingPointer();
-        print_pointer++;
+        sending_pointer++;
     }
     while(total_bytes_sent < bytes_to_send){
         int sent_bytes = 0;
         if((sent_bytes = send(
             client->receiver_fd,
-            &buffer_pool_[config::READER_BUFFER_POINTER + total_bytes_sent],
+            &sending_buffer_[total_bytes_sent],
             (bytes_to_send - total_bytes_sent),
             0)) == -1)
         {
@@ -993,7 +983,7 @@ int Server::sendToClient(int client_socket){
     return status::SUCCESS;
 }
 
-// Prints the IP, Port and Socket of a new client.
+// Prints the Name, Key, IP, Port and Socket of a new client.
 bool Server::printClientInformation(int client_socket){
     if(client_socket == -1){
         return false;

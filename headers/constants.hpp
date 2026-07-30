@@ -17,15 +17,11 @@ namespace config{
     inline constexpr const uint8_t CLIENT_KEY_LENGTH = 4;
     inline constexpr const uint8_t AUTH_PAYLOAD_LENGTH = 1;
 
-
-    inline constexpr const uint32_t TOTAL_BUFFER_SEGMENTS =  TOTAL_HOSTS_SPACES * BUFFER_SEGMENTS_PER_CLIENT; //262144
+    inline constexpr const uint32_t TOTAL_BUFFER_SEGMENTS =  TOTAL_HOSTS_SPACES * BUFFER_SEGMENTS_PER_CLIENT;
     inline constexpr const uint32_t BUFFER_SIZE = TOTAL_BUFFER_SEGMENTS * BUFFER_SEGMENT_SIZE;
-    inline constexpr const uint32_t AVAILABLE_BUFFER_SEGMENTS = TOTAL_BUFFER_SEGMENTS - BUFFER_SEGMENTS_PER_CLIENT;
-    // From 8 to 262016, 1 client space is reserved for sending out messages.
     inline constexpr const uint32_t READING_BUFFER_SIZE = BUFFER_SEGMENTS_PER_CLIENT * BUFFER_SEGMENT_SIZE;
     inline constexpr const uint32_t MAX_MESSAGE_SIZE = READING_BUFFER_SIZE - BUFFER_SEGMENT_SIZE - HEADER_SIZE;
     inline constexpr const uint32_t BUFFER_READING_SIZE = BUFFER_SEGMENT_SIZE * 16;
-    inline constexpr const uint32_t READER_BUFFER_POINTER = BUFFER_SIZE - READING_BUFFER_SIZE;
 }
 
 namespace status{
