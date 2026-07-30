@@ -2,7 +2,6 @@
 #include <unistd.h>
 
 #include <stdio.h>
-#include <string.h>
 #include <cstring>
 
 #include <iostream>
@@ -348,7 +347,27 @@ Checks if the entire message header + payload have been received.
 Returns INCOMPLETE_MESSAGE, INVALID_MESSAGE, SUCCESS.
 */
 int ClientProcessor::checkMessage(){
-    //HEADER LENGTH
+    if(!valid_header_){
+        int header_state = checkHeader();
+        if(header_state != status::SUCCESS){
+            return header_state;
+        }
+    }
+    // PAYLOAD
+    if(byte_counter_ < payload_length_ + config::HEADER_SIZE){
+        return status::INCOMPLETE_MESSAGE;
+    }
+    return status::SUCCESS;
+}
+
+/*
+Checks if the entire message header have been received.
+Returns INCOMPLETE_MESSAGE, INVALID_MESSAGE, SUCCESS.
+*/
+int ClientProcessor::checkHeader(){
+    if(valid_header_){
+        return status::SUCCESS;
+    }
     if(byte_counter_ < config::HEADER_SIZE){
         return status::INCOMPLETE_MESSAGE;
     }
@@ -359,7 +378,7 @@ int ClientProcessor::checkMessage(){
     }
     advanceReadingPointer();
     // TYPE
-    if(type_ == 0){
+    if(type_ == types::INVALID_TYPE){
         type_ = incoming_buffer_[reading_pointer_];
     }
     advanceReadingPointer();
@@ -385,10 +404,7 @@ int ClientProcessor::checkMessage(){
         advanceReadingPointer();
     }
     advanceReadingPointer();
-    // PAYLOAD
-    if(byte_counter_ < payload_length_ + config::HEADER_SIZE){
-        return status::INCOMPLETE_MESSAGE;
-    }
+    valid_header_ = true;
     return status::SUCCESS;
 }
 
@@ -404,10 +420,9 @@ int ClientProcessor::actOnMessage(){
             if(!printMessage()){ // should not just print, handle later
                 return status::ERROR;
             }
-            ack_message_[2] = sender_key_ >> 24;
-            ack_message_[3] = sender_key_ >> 16;
-            ack_message_[4] = sender_key_ >> 8;
-            ack_message_[5] = sender_key_;
+            for(int i = 0; i < config::CLIENT_KEY_LENGTH; i++){
+                ack_message_[i + 2] = sender_key_ >> ((config::CLIENT_KEY_LENGTH - i - 1) * 8);
+            }
             uint8_t ack_state = sendMessage(config::HEADER_SIZE, ack_message_);
             switch(ack_state){
                 case status::RESOURCE_UNAVAILABLE:{
@@ -474,7 +489,6 @@ int ClientProcessor::actOnMessage(){
                     if(!incoming_requests_.insertTail(usernameMapping)){
                         return status::ERROR;
                     }
-                } else{
                 }
                 // remove from outgoing requests
             }
@@ -532,10 +546,11 @@ bool ClientProcessor::printMessage(){
 
 // Resets values to prepare to receive new messages.
 void ClientProcessor::cleanIncomingBuffer(){
+    valid_header_ = false;
     starting_pointer_ = reading_pointer_;
     byte_counter_ -= (payload_length_ + config::HEADER_SIZE);
-    type_ = 0;
     payload_length_ = UINT16_MAX;
+    type_ =types::INVALID_TYPE;
     sender_key_ = UINT32_MAX;
 }
 
@@ -552,15 +567,16 @@ void ClientProcessor::inputLoop(){
 // Handles login and register of users.
 bool ClientProcessor::welcomeInputLoop(){
     bool welcome_program_running_ = true;
-    int welcome_ans = 0;
+    int ans = -1;
     while(welcome_program_running_){
-        std::cout << "Welcome Menu." << std::endl
-        << "1. Login. (implement later)" << std::endl
-        << "2. Register." << std::endl
-        << "3. Enter Main Menu." << std::endl
-        << "4. Exit." << std::endl;
-        std::cin >> welcome_ans;
-        switch(welcome_ans){
+        std::cout
+            << "Welcome Menu." << std::endl
+            << "1. Login. (implement later)" << std::endl
+            << "2. Register." << std::endl
+            << "3. Enter Main Menu." << std::endl
+            << "4. Exit." << std::endl;
+        ans = validateInputIsNumeric();
+        switch(ans){
             case 1:{
             } break;
             case 2:{
@@ -569,7 +585,7 @@ bool ClientProcessor::welcomeInputLoop(){
                 << std::endl << "The maximum size is "
                 << static_cast<uint>(config::HOSTNAME_LENGTH) << " characters."
                 << std::endl << "Username: ";
-                std::getline(std::cin >> std::ws, tmp_username);
+                std::getline(std::cin, tmp_username);
                 if(!validateCredential(tmp_username, 1, config::HOSTNAME_LENGTH)){
                     std::cout << "Try a different username!"  << std::endl;
                     break;
@@ -581,7 +597,7 @@ bool ClientProcessor::welcomeInputLoop(){
                 << std::endl << "The maximum size is "
                 << static_cast<uint>(config::MAX_PASSWORD_LENGTH) << " characters."
                 << std::endl << "Password: ";
-                std::getline(std::cin >> std::ws, tmp_password);
+                std::getline(std::cin, tmp_password);
                 if(!validateCredential(tmp_password, config::MIN_PASSWORD_LENGTH, config::MAX_PASSWORD_LENGTH)){
                     break;
                 }
@@ -652,18 +668,17 @@ bool ClientProcessor::validateCredential(const std::string &credential, uint8_t 
 
 // Message loop to handle user messaging.
 bool ClientProcessor::messageInputLoop(){
-    int main_ans = 0;
+    int main_ans = -1;
     while(program_running_){
         std::cout << "Main Menu." << std::endl
-        << "1. Set message." << std::endl
-        << "2. Set destinatory. (" << receiving_username_ << ")" << std::endl
-        << "3. Send message." << std::endl
-        << "4. Send request." << std::endl
-        << "5. Manage requests. (" << static_cast<uint>(incoming_requests_.getSize()) << ")" << std::endl
-        << "6. Reload." << std::endl
-        << "7. Exit." << std::endl
-        << ":: ";
-        std::cin >> main_ans;
+            << "1. Set message." << std::endl
+            << "2. Set destinatory. (" << receiving_username_ << ")" << std::endl
+            << "3. Send message." << std::endl
+            << "4. Send request." << std::endl
+            << "5. Manage requests. (" << static_cast<uint>(incoming_requests_.getSize()) << ")" << std::endl
+            << "6. Reload." << std::endl
+            << "7. Exit." << std::endl;
+        main_ans = validateInputIsNumeric();
         int result = 0;
         switch(main_ans){
             case 1:{
@@ -704,7 +719,7 @@ bool ClientProcessor::messageInputLoop(){
             case 4:{
                 std::string temp_username(config::HOSTNAME_LENGTH, '\0');
                 std::cout << "Input the username of the user you want to establish a communication with: ";
-                std::getline(std::cin >> std::ws, temp_username);
+                std::getline(std::cin, temp_username);
                 if(validateCredential(temp_username, 1, config::HOSTNAME_LENGTH)){
                     for(int i = 0; i < temp_username.length(); i++){
                         request_communication_[i + config::HEADER_SIZE] = temp_username[i];
@@ -727,12 +742,10 @@ bool ClientProcessor::messageInputLoop(){
                 incoming_requests_.resetNodeIndex();
                 int ctr = 1;
                 while(incoming_requests_.hasNode()){
-                    std::cout << ctr << ": " << incoming_requests_.getNode().username << std::endl;
-                    ctr++;
+                    std::cout << ctr++ << ": " << incoming_requests_.getNode().username << std::endl;
                     incoming_requests_.advanceNode();
                 }
-                int ans = 0;
-                std::cin >> ans;
+                int ans = validateInputIsNumeric();
                 if(ans == 0){
                     break;
                 }
@@ -752,8 +765,7 @@ bool ClientProcessor::messageInputLoop(){
                 << "1. Accept" << std::endl
                 << "2. Reject" << std::endl
                 << "3. Exit" << std::endl;
-                ans = 0;
-                std::cin >> ans;
+                ans = validateInputIsNumeric();
                 if(ans == 1 || ans == 2){
                     char *ref_username = incoming_requests_.getNode().username;
                     UsernameMapping usernameMapping;
@@ -801,7 +813,7 @@ int ClientProcessor::setMessage(){
         return status::ERROR;
     }
     std::cout << "Message: ";
-    std::getline(std::cin >> std::ws, message_);
+    std::getline(std::cin, message_);
 
     if(message_.length() == 0 || message_.length() > config::MAX_MESSAGE_SIZE){
         return status::INVALID_MESSAGE;
@@ -849,7 +861,7 @@ int ClientProcessor::setReceiver(){
     }
 
     std::string temp_username(config::HOSTNAME_LENGTH, '\0');
-    std::cin >> temp_username;
+    std::getline(std::cin, temp_username);
     uint32_t temp_key;
     if((temp_key = getUserKey(temp_username)) == UINT32_MAX){
         std::cout << "Invalid username!" << std::endl;
@@ -916,6 +928,37 @@ char* ClientProcessor::getUserFromKey(uint32_t key){
         username_to_key_.advanceNode();
     }
     return nullptr;
+}
+
+int ClientProcessor::validateInputIsNumeric(){
+    std::string ans;
+    int parsed_ans = -1;
+    while(parsed_ans == -1){
+        if(integerCheck(ans)){
+            if(ans.length() < config::MAX_LENGTH_OF_INT_CHOICE){
+                parsed_ans = std::stoi(ans);
+            } else{
+            std::cout << "Invalid input, please enter a number from the selection." << std::endl;
+            }
+        } else{
+            std::cout << "Invalid input, please enter a number." << std::endl;
+        }
+    }
+    return parsed_ans;
+}
+
+bool ClientProcessor::integerCheck(const std::string &string){
+    for(int i = 0; i < (int)string.size(); i++){
+        if(string[i] == '0' || string[i] == '1' ||
+            string[i] == '2' || string[i] == '3' ||
+            string[i] == '4' || string[i] == '5' ||
+            string[i] == '6' || string[i] == '7' ||
+            string[i] == '8' || string[i] == '9'){
+        } else {
+            return false;
+        }
+    }
+    return true;
 }
 
 unsigned long ClientProcessor::stringHash(const char *str){

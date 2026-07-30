@@ -41,6 +41,7 @@ class ClientProcessor{
         // incoming data
         int receiveFromServer();
         int checkMessage();
+        int checkHeader();
         int actOnMessage();
 
         // buffer managament
@@ -65,6 +66,8 @@ class ClientProcessor{
         uint32_t getUserKey(const std::string &temp_username);
         char *getUserFromKey(uint32_t key);
 
+        int validateInputIsNumeric();
+        bool integerCheck(const std::string &string);
         unsigned long stringHash(const char *str);
 
         // attributes
@@ -92,6 +95,7 @@ class ClientProcessor{
         uint32_t writing_pointer_{0};
         uint32_t reading_pointer_{0};
 
+        bool valid_header_{false};
         uint16_t byte_counter_{0}; // missing checking what happens when exceeds 65k
         uint16_t payload_length_{UINT16_MAX};
         uint8_t type_{0};

@@ -4,6 +4,7 @@ namespace config{
     inline constexpr const int MAX_EVENTS = 256;
     inline constexpr const int BACKLOG = 10;
     inline constexpr const int INITIAL_HASHTABLE_SIZE = 16;
+    inline constexpr const int MAX_LENGTH_OF_INT_CHOICE = 5;
 
     inline constexpr const uint32_t TOTAL_HOSTS_SPACES = 2048;
     inline constexpr const uint32_t MAX_HOSTS = TOTAL_HOSTS_SPACES - 1;
