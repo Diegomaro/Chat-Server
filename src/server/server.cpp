@@ -621,7 +621,6 @@ int Server::actOnMessage(int client_socket){
                     );
                 }
                 usr_ctr += username[i] != 0 ? 1 : 0;
-                usr_ctr++;
                 client->advanceReadingPointer();
             }
             if(usr_ctr < 1){

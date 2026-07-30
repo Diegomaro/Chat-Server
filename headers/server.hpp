@@ -18,8 +18,8 @@ class Server{
         void centralLoop();
     private:
         struct UsernameMapping{
-            char username[config::HOSTNAME_LENGTH];
-            uint32_t key;
+            char username[config::HOSTNAME_LENGTH + 1] = {0};
+            uint32_t key{UINT32_MAX};
         };
 
         // setup

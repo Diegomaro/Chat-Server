@@ -22,8 +22,8 @@ class ClientProcessor{
         void inputLoop();
     private:
         struct UsernameMapping{
-            char username [config::HOSTNAME_LENGTH];
-            uint32_t key;
+            char username [config::HOSTNAME_LENGTH + 1] = {0};
+            uint32_t key{UINT32_MAX};
             bool operator==(const UsernameMapping& other) const {
                return key == other.key;
             }

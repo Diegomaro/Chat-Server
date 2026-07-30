@@ -462,7 +462,7 @@ int ClientProcessor::actOnMessage(){
             if(payload_length_ != config::HOSTNAME_LENGTH){
                 return status::INVALID_MESSAGE;
             }
-            std::string temp_username(config::HOSTNAME_LENGTH, '\0');
+            std::string temp_username(config::HOSTNAME_LENGTH, 0);
             for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
                 temp_username[i] = incoming_buffer_[reading_pointer_];
                 advanceReadingPointer();
@@ -862,6 +862,10 @@ int ClientProcessor::setReceiver(){
 
     std::string temp_username(config::HOSTNAME_LENGTH, '\0');
     std::getline(std::cin, temp_username);
+    while(temp_username.length() == 0 || temp_username.length() > 16){
+        std::cout << "Please input a valid username. It cannot be longer than 16 characters." << std::endl;
+        std::getline(std::cin, temp_username);
+    }
     uint32_t temp_key;
     if((temp_key = getUserKey(temp_username)) == UINT32_MAX){
         std::cout << "Invalid username!" << std::endl;
@@ -891,7 +895,7 @@ bool ClientProcessor::addUser(uint32_t key, const std::string &username){
 
 // Gets a key corresponding to a specific user. Returns UINT32_MAX if the user does not exist.
 uint32_t ClientProcessor::getUserKey(const std::string &temp_username){
-    char username [config::HOSTNAME_LENGTH];
+    char username [config::HOSTNAME_LENGTH + 1] = {0};
     std::strcpy(username, temp_username.c_str());
     unsigned long hash_key = stringHash(username);
     if(!username_to_key_.searchNode(hash_key)){
