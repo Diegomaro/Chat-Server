@@ -1,5 +1,15 @@
 Improvements to protocol
 
+Improved Message Protocol (20 bytes)
+
+HEAD_BITS  TYPE     RECEIVER_KEY    MESSAGE_ID      TIMESTAMP       PAYLOAD_LENGTH
+1 byte     1 byte   4 bytes         8 bytes         4 bytes         2 bytes
+
+
+Considerations about ACK:
+What happens when acknowledgements are not received.
+Which type of messages send acknowledgements.
+
 Why are messages IDs needed?
 Message IDs are needed when dealing with undelivered messages.
 The server will be able to tell a user that their message was not able to be delivered.
@@ -13,12 +23,10 @@ SO while TCP promises integrity, order, etc, it does not promise connectivity (f
 Message IDs are only really needed if connectivity is not stable.
 
 Message IDs:
-
 An ID is conformed of 2 things:
-
-8 bytes total
-- 4 of host
-- 4 sequential counter.
+- 4 bytes of host
+- 4 bytes of sequential counter.
+8 bytes total.
 
 So each host, can have 4294967296 messages.
 
@@ -33,3 +41,10 @@ Later me will handle all of the needed architecture for message IDs.
 
 Time:
 Time is important to consider, as it gives valuable information to clients.
+- 12 bits year
+- 4 bits month
+- 5 bits day
+- 5 bits hours
+ -6 bits minutes
+
+32 bits total = 4 bytes

@@ -88,7 +88,7 @@ class ClientProcessor{
         int epoll_fd_{-1};
         int msg_len_{-1};
 
-        uint32_t pending_messages_{0};
+        //uint32_t pending_messages_{0};
         uint8_t credentials_length_{0};
 
         uint32_t starting_pointer_{0};

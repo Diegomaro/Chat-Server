@@ -202,7 +202,6 @@ void ClientProcessor::centralLoop(){
             int ans = 0;
             switch(ans = sendMessage(credentials_length_ + config::HEADER_SIZE, auth_message_)){
                 case status::SUCCESS:{
-                    pending_messages_++;  // rework
                 } break;
                 case status::RESOURCE_UNAVAILABLE:{
                     std::cout << "Could not sent message!" << std::endl;
@@ -218,7 +217,6 @@ void ClientProcessor::centralLoop(){
             switch(ans = sendMessage(config::HEADER_SIZE + config::HOSTNAME_LENGTH, request_communication_)){
                 case status::SUCCESS:{
                     std::cout << "Request sent correctly!" << std::endl;
-                    pending_messages_++; // rework
                 } break;
                 case status::RESOURCE_UNAVAILABLE:{
                     std::cout << "Could not sent message!" << std::endl;
@@ -233,7 +231,6 @@ void ClientProcessor::centralLoop(){
             int ans = 0;
             switch(ans = sendMessage(config::HEADER_SIZE + config::HOSTNAME_LENGTH, respond_communication_)){
                 case status::SUCCESS:{
-                    pending_messages_++; // rework
                 } break;
                 case status::RESOURCE_UNAVAILABLE:{
                     std::cout << "Could not sent message!" << std::endl;
@@ -250,7 +247,6 @@ void ClientProcessor::centralLoop(){
                 int ans = 0;
                 switch(ans = sendMessage(msg_len_, outgoing_buffer_)){
                     case status::SUCCESS:{
-                        pending_messages_++;
                     } break;
                     case status::RESOURCE_UNAVAILABLE:{
                         std::cout << "Could not sent message!" << std::endl;
@@ -491,11 +487,7 @@ int ClientProcessor::actOnMessage(){
             }
         } break;
         case types::ACK:{
-            if(sender_key_ == UINT32_MAX){
-                pending_messages_--;
-                // handle later :)
-                //std::cout << "pending ack: " << pending_messages_ << std::endl;
-            } else{
+            if(sender_key_ != UINT32_MAX){
                 char *user = getUserFromKey(sender_key_);
                 if(user == nullptr){
                     return status::INVALID_CLIENT;
