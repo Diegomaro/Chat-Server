@@ -70,6 +70,7 @@ In other terminals, start one or more clients:
 2. [ ] Store credentials locally and on server storage (username + hash of password).
 3. [ ] Store data in local files. Server stores messages until they have been received and acknowledged by receiving party.
 4. [ ] Export chat conversations to a file and load on request.
+5. [ ] Configuration file.
 5. [ ] Event logging.
 6. [ ] Unit testing.
 
@@ -86,27 +87,31 @@ In other terminals, start one or more clients:
 ### Milestone 5
 1. [ ] Rate limiting per client.
 2. [ ] Session token with expiration.
-3. [ ] Encryption in transit.
-4. [ ] Encryption at rest and key storage.
-5. [ ] Group creation.
 
-### Milestone 6
+## Milestone 6
+1. [ ] Encryption in transit.
+2. [ ] Encryption at rest and key storage.
+
+### Milestone 7
 1. [ ] Fuzz testing.
 2. [ ] Integration testing.
 3. [ ] Resilience testing.
 
-### Milestone 7
+### Milestone 8
 1. [ ] Windows compatibility.
 2. [ ] Stress testing.
 
-### Milestone 8
+### Milestone 9
 1. [ ] System status reporting.
 2. [ ] Admin accounts.
 
-### Milestone 9
+### Milestone 10
 1. [ ] File sending.
-2. [ ] Split terminal window into message printing and user input.
-3. [ ] GUI of application.
+2. [ ] Group creation.
+
+### Milestone 11
+1. [ ] Split terminal window into message printing and user input.
+2. [ ] GUI of application.
 
 ## Resources
  * [Beej’s Guide to Network Programming](https://beej.us/guide/bgnet/)
