@@ -934,6 +934,7 @@ int ClientProcessor::validateInputIsNumeric(){
     std::string ans;
     int parsed_ans = -1;
     while(parsed_ans == -1){
+        std::getline(std::cin, ans);
         if(integerCheck(ans)){
             if(ans.length() < config::MAX_LENGTH_OF_INT_CHOICE){
                 parsed_ans = std::stoi(ans);
