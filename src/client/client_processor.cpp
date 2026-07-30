@@ -203,7 +203,6 @@ void ClientProcessor::centralLoop(){
             switch(ans = sendMessage(credentials_length_ + config::HEADER_SIZE, auth_message_)){
                 case status::SUCCESS:{
                     pending_messages_++;  // rework
-                    std::cout << "message sent correctly!" << std::endl;
                 } break;
                 case status::RESOURCE_UNAVAILABLE:{
                     std::cout << "Could not sent message!" << std::endl;
@@ -218,8 +217,8 @@ void ClientProcessor::centralLoop(){
             int ans = 0;
             switch(ans = sendMessage(config::HEADER_SIZE + config::HOSTNAME_LENGTH, request_communication_)){
                 case status::SUCCESS:{
+                    std::cout << "Request sent correctly!" << std::endl;
                     pending_messages_++; // rework
-                    std::cout << "message sent correctly!" << std::endl;
                 } break;
                 case status::RESOURCE_UNAVAILABLE:{
                     std::cout << "Could not sent message!" << std::endl;
@@ -235,7 +234,6 @@ void ClientProcessor::centralLoop(){
             switch(ans = sendMessage(config::HEADER_SIZE + config::HOSTNAME_LENGTH, respond_communication_)){
                 case status::SUCCESS:{
                     pending_messages_++; // rework
-                    std::cout << "message sent correctly!" << std::endl;
                 } break;
                 case status::RESOURCE_UNAVAILABLE:{
                     std::cout << "Could not sent message!" << std::endl;
@@ -253,7 +251,6 @@ void ClientProcessor::centralLoop(){
                 switch(ans = sendMessage(msg_len_, outgoing_buffer_)){
                     case status::SUCCESS:{
                         pending_messages_++;
-                        std::cout << "message sent correctly!" << std::endl;
                     } break;
                     case status::RESOURCE_UNAVAILABLE:{
                         std::cout << "Could not sent message!" << std::endl;
@@ -570,11 +567,14 @@ bool ClientProcessor::welcomeInputLoop(){
     int ans = -1;
     while(welcome_program_running_){
         std::cout
+            << "========================================" << std::endl
             << "Welcome Menu." << std::endl
-            << "1. Login. (implement later)" << std::endl
-            << "2. Register." << std::endl
-            << "3. Enter Main Menu." << std::endl
-            << "4. Exit." << std::endl;
+            << "========================================" << std::endl
+            << "1) Login. (implement later)" << std::endl
+            << "2) Register." << std::endl
+            << "3) Enter Main Menu." << std::endl
+            << "4) Exit." << std::endl
+            << "> ";
         ans = validateInputIsNumeric();
         switch(ans){
             case 1:{
@@ -670,14 +670,29 @@ bool ClientProcessor::validateCredential(const std::string &credential, uint8_t 
 bool ClientProcessor::messageInputLoop(){
     int main_ans = -1;
     while(program_running_){
-        std::cout << "Main Menu." << std::endl
-            << "1. Set message." << std::endl
-            << "2. Set recipient. (" << receiving_username_ << ")" << std::endl
-            << "3. Send message." << std::endl
-            << "4. Send request." << std::endl
-            << "5. Manage requests. (" << static_cast<uint>(incoming_requests_.getSize()) << ")" << std::endl
-            << "6. Reload." << std::endl
-            << "7. Exit." << std::endl;
+        if(main_ans == 2 || main_ans == 3 || main_ans == 4 || main_ans == 5){
+            std::cout << "> ";
+        } else{
+            std::cout
+                << "========================================" << std::endl
+                << "Main Menu." << std::endl
+                << "User     : " << username_ << std::endl
+                << "Receiver : " << receiving_username_ << std::endl;
+            if(message_.length() > 20){
+                std::cout << "Draft    : " << message_.substr(0, 20) << "..." << std::endl;
+            } else{
+                std::cout << "Draft    : " << message_ << std::endl;
+            }
+                std::cout << "========================================" << std::endl
+                << "1) Set message" << std::endl
+                << "2) Choose recipient" << std::endl
+                << "3) Send message" << std::endl
+                << "4) Send request" << std::endl
+                << "5) Requests (" << static_cast<uint>(incoming_requests_.getSize()) << ")" << std::endl
+                << "6) Reload" << std::endl
+                << "7) Exit" << std::endl
+                << "> ";
+        }
         main_ans = validateInputIsNumeric();
         int result = 0;
         switch(main_ans){
@@ -685,7 +700,7 @@ bool ClientProcessor::messageInputLoop(){
             result = setMessage();
             switch(result){
                 case status::SUCCESS:{
-                    std::cout << "Message set correctly!" << std::endl;
+                    std::cout << "Message updated!" << std::endl;
                 } break;
                 case status::INVALID_MESSAGE:{
                     std::cout << "Invalid message, please try again!" << std::endl;
@@ -699,7 +714,6 @@ bool ClientProcessor::messageInputLoop(){
                 result = setReceiver();
                 switch(result){
                     case status::SUCCESS:{
-                        std::cout << "Receiver key set correctly!" << std::endl;
                     } break;
                     case status::INVALID_MESSAGE:{
                         std::cout << "Invalid client, please try again!" << std::endl;
@@ -816,6 +830,7 @@ int ClientProcessor::setMessage(){
     std::getline(std::cin, message_);
 
     if(message_.length() == 0 || message_.length() > config::MAX_MESSAGE_SIZE){
+        message_.clear();
         return status::INVALID_MESSAGE;
     }
 
@@ -850,7 +865,7 @@ int ClientProcessor::setReceiver(){
         std::cout << "No known users, request a user to establish a connection first!" << std::endl;
         return status::NOTHING_TO_DO;
     }
-    std::cout << "Please input the destinatory username. " << std::endl
+    std::cout << "Please input the receiver username. " << std::endl
     << "Known users: " << std::endl;
     username_to_key_.resetNodeIndex();
     while(username_to_key_.hasNodes()){
