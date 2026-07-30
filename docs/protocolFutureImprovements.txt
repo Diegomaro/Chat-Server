@@ -1,0 +1,41 @@
+Improvements to protocol
+
+ACK?
+Currently the ack don't use a sender, they are delivered directly from the server.
+DELIVERED ACKS will not be sent in order, some clients will respond faster and others slower.
+Which means clients would not be able to match an ack with a sender.
+Adding a sender to DELIVERED ACK fixes half the problem.
+
+Why are messages IDs needed?
+Message IDs are needed when dealing with undelivered messages.
+The server will be able to tell a user that their message was not able to be delivered.
+Regardless of the order that they came in.
+This will also be helpful for resending, clients could ask other clients if they received a specific message.
+If not, send it again.
+
+Why didn't I consider them before?
+I thought of TCP as asurring delivery, but I had forgotten that this is a networking program, not just communication inside my computer.
+SO while TCP promises integrity, order, etc, it does not promise connectivity (for obvious reasons).
+Message IDs are only really needed if connectivity is not stable.
+
+Message IDs:
+
+An ID is conformed of 2 things:
+
+8 bytes total
+- 4 of host
+- 4 sequential counter.
+
+So each host, can have 4294967296 messages.
+
+The thing is, what to do when this number is reached...
+Option 1: Allow half of them to be used. Check what is the oldest not delivered message, whole logic of deleting old messages if its been too long. Server has the responsability to process.
+
+* So what happens if server never tells a client that the message was processed but not delivered?
+
+This includes considering server shutdown and inactive users.
+
+Later me will handle all of the needed architecture for message IDs.
+
+Time:
+Time is important to consider, as it gives valuable information to clients.
