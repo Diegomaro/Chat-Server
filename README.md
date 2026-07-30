@@ -62,43 +62,51 @@ In other terminals, start one or more clients:
 6. [x] Send confirmation of received messages by clients to original client.
 7. [x] Give each client a unique username and password defined when first accessing the program.
 8. [x] Make conversations work based on requests from client to client.
-9. [ ] User input validation.
-10. [ ] Allow clients to login instead of registering.
+9. [x] User input validation.
+10. [ ] Handle invalid requests and malformed messages.
 
 ### Milestone 2
-1. [ ] Store credentials locally and on server storage (username + hash of password).
-2. [ ] Store data in local files. Server stores messages until they have been received and acknowledged by receiving party.
-3. [ ] Export chat conversations to a file.
-4. [ ] Load conversations on request.
-5. [ ] Graceful shutdown and server system restore.
-6. [ ] Prioritized message retransmission.
-7. [ ] Rate limiting per client.
-8. [ ] Unit testing.
-9. [ ] Event logging.
+1. [ ] Allow clients to login instead of registering.
+2. [ ] Store credentials locally and on server storage (username + hash of password).
+3. [ ] Store data in local files. Server stores messages until they have been received and acknowledged by receiving party.
+4. [ ] Export chat conversations to a file and load on request.
+5. [ ] Event logging.
+6. [ ] Unit testing.
 
 ### Milestone 3
-1. [ ] Encryption in transit.
-2. [ ] Encryption at rest and key storage.
-3. [ ] Session token with expiration.
-4. [ ] Group creation.
-5. [ ] Send files between clients.
-6. [ ] Split terminal window into message printing and user input.
+1. [ ] ID system of messages.
+2. [ ] Priority message queue.
 
 ### Milestone 4
+1. [ ] Graceful shutdown and server system restore.
+2. [ ] Detect client disconnections.
+3. [ ] Client reconnect.
+4. [ ] Retransmission of undelivered messages.
+
+### Milestone 5
+1. [ ] Rate limiting per client.
+2. [ ] Session token with expiration.
+3. [ ] Encryption in transit.
+4. [ ] Encryption at rest and key storage.
+5. [ ] Group creation.
+
+### Milestone 6
 1. [ ] Fuzz testing.
 2. [ ] Integration testing.
 3. [ ] Resilience testing.
 
-### Milestone 5
+### Milestone 7
+1. [ ] Windows compatibility.
+2. [ ] Stress testing.
+
+### Milestone 8
 1. [ ] System status reporting.
 2. [ ] Admin accounts.
 
-### Milestone 6
-1. [ ] Stress testing.
-2. [ ] Windows compatibility.
-
-### Milestone 7
-1. [ ] GUI of application.
+### Milestone 9
+1. [ ] File sending.
+2. [ ] Split terminal window into message printing and user input.
+3. [ ] GUI of application.
 
 ## Resources
  * [Beej’s Guide to Network Programming](https://beej.us/guide/bgnet/)
