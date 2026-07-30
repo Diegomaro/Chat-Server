@@ -193,7 +193,7 @@ bool Server::setupBuffer(){
 }
 
 bool Server::setupHeaderTypes(){
-    if(!processed_ack_message_ || !delivered_ack_message_){
+    if(!processed_ack_message_ || !delivered_ack_message_ || !authentication_message_ || !request_communication_message_){
         return false;
     }
     processed_ack_message_[0] = UINT8_MAX;

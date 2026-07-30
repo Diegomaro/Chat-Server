@@ -1,11 +1,5 @@
 Improvements to protocol
 
-ACK?
-Currently the ack don't use a sender, they are delivered directly from the server.
-DELIVERED ACKS will not be sent in order, some clients will respond faster and others slower.
-Which means clients would not be able to match an ack with a sender.
-Adding a sender to DELIVERED ACK fixes half the problem.
-
 Why are messages IDs needed?
 Message IDs are needed when dealing with undelivered messages.
 The server will be able to tell a user that their message was not able to be delivered.

@@ -672,7 +672,7 @@ bool ClientProcessor::messageInputLoop(){
     while(program_running_){
         std::cout << "Main Menu." << std::endl
             << "1. Set message." << std::endl
-            << "2. Set destinatory. (" << receiving_username_ << ")" << std::endl
+            << "2. Set recipient. (" << receiving_username_ << ")" << std::endl
             << "3. Send message." << std::endl
             << "4. Send request." << std::endl
             << "5. Manage requests. (" << static_cast<uint>(incoming_requests_.getSize()) << ")" << std::endl
