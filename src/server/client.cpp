@@ -13,6 +13,7 @@ Client::Client(){
 }
 
 void Client::resetMessage(){
+    valid_header_ = false;
     payload_length = UINT16_MAX;
     type = types::INVALID_TYPE;
     receiver_key = UINT32_MAX;

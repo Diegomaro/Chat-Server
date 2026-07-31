@@ -85,9 +85,11 @@ void Server::centralLoop(){
                             accept_loop = false;
                         } break;
                         case status::ERROR:{
+                            //
                             return;
                         } break;
                         case status::EXCEEDED_CLIENT_MAX:{
+                            //
                             return;
                         } break;
                     }
@@ -100,9 +102,13 @@ void Server::centralLoop(){
                     switch(rcvf_state){
                         case status::SUCCESS:{
                             int check_state = checkMessage(sender_socket);
+                            //work here
                             switch(check_state){
                                 case status::SUCCESS:{
-                                    actOnMessage(sender_socket);
+                                    int act_state = actOnMessage(sender_socket);
+                                    switch(act_state){
+                                        //
+                                    }
                                      if(!cleanClientBuffer(sender_socket)){
                                        return;
                                     }
@@ -353,9 +359,6 @@ bool Server::addClient(const sockaddr_storage& client_sockaddr){
 
 // Closes a client connection. Returns occupied buffer segments to the buffer pool.
 bool Server::closeConnection(int client_socket){
-    if(client_socket == -1){
-        return false;
-    }
     if(close(client_socket) == -1){
         perror("clossing failed");
         return false;
@@ -394,9 +397,6 @@ Copies an incoming message (possibly fragmented) to the corresponding client buf
 Returns INVALID_CLIENT, ERROR, NOTHING_TO_READ, CLOSED_CONVERSATION, EXCEEDED_CLIENT_BUFFER_SIZE, INSUFFICIENT_BUFFER_SPACE, SUCCESS.
 */
 int Server::receiveFromClient(int client_socket){
-    if(client_socket == -1){
-        return status::INVALID_CLIENT;
-    }
     Client *client = clients_.getNode(client_socket);
     if(client == nullptr){
         return status::ERROR;
@@ -454,18 +454,37 @@ int Server::receiveFromClient(int client_socket){
 }
 
 /*
-Verifies that a message has a valid header and replaces target key with sender key.
+Checks if the entire message header + payload have been received.
 returns INVALID_CLIENT, ERROR, INVALID_MESSAGE, INCOMPLETE_MESSAGE, SUCCESS.
 */
 int Server::checkMessage(int client_socket){
-    if(client_socket == -1){
-        return status::INVALID_CLIENT;
-    }
     Client *client = clients_.getNode(client_socket);
-    client->reading_pointer = client->starting_pointer;
     if(client == nullptr){
         return status::ERROR;
     }
+    if(!client->valid_header_){
+        int header_state = checkHeader(client_socket);
+        if(header_state != status::SUCCESS){
+            return header_state;
+        }
+    }
+
+    if(client->byte_counter < client->payload_length + config::HEADER_SIZE){
+        return status::INCOMPLETE_MESSAGE;
+    }
+    return status::SUCCESS;
+}
+
+/*
+Verifies that a message has a valid header and replaces target key with sender key.
+returns INVALID_CLIENT, ERROR, INVALID_MESSAGE, INCOMPLETE_MESSAGE, SUCCESS.
+*/
+int Server::checkHeader(int client_socket){
+    Client *client = clients_.getNode(client_socket);
+    if(client == nullptr){
+        return status::ERROR;
+    }
+    client->reading_pointer = client->starting_pointer;
     if(client->byte_counter < config::HEADER_SIZE){
         return status::INCOMPLETE_MESSAGE;
     }
@@ -522,9 +541,7 @@ int Server::checkMessage(int client_socket){
         client->advanceReadingPointer();
     }
     client->advanceReadingPointer();
-    if(client->byte_counter < client->payload_length + config::HEADER_SIZE){
-        return status::INCOMPLETE_MESSAGE;
-    }
+    client->valid_header_ = true;
     return status::SUCCESS;
 }
 
@@ -533,10 +550,10 @@ Performs different tasks depending on the type of message received.
 returns ERROR, INVALID_MESSAGE, UNAUTHENTICATED_USER, RESOURCE_UNAVAILABLE, INVALID_CLIENT, INCOMPLETE_MESSAGE, SUCCESS.
 */
 int Server::actOnMessage(int client_socket){
-    if(client_socket == -1){
+    Client* client = clients_.getNode(client_socket);
+    if(client == nullptr){
         return status::INVALID_CLIENT;
     }
-    Client* client = clients_.getNode(client_socket);
     switch(client->type){
         case types::USER:{
             if(!client->logged_in){
@@ -883,10 +900,10 @@ int Server::actOnMessage(int client_socket){
 
 // Resets client buffer segments indicators to process new messages.
 bool Server::cleanClientBuffer(int client_socket){
-    if(client_socket == -1){
-        return false;
-    }
     Client *client = clients_.getNode(client_socket);
+    if(client == nullptr){
+        return status::INVALID_CLIENT;
+    }
     int dif = client->writing_buffer - client->starting_buffer;
     if(dif < 0){
         dif *= -1;
@@ -912,11 +929,10 @@ Sends different status messages to clients.
 Returns INVALID_CLIENT, ERROR, RESOURCE_UNAVAILABLE, SUCCESS.
 */
 int Server::sendStatusMessage(int client_socket, int receiver_fd, uint8_t *buffer, int bytes_to_send){
-    if(client_socket == -1){
+    Client *client = clients_.getNode(client_socket);
+    if(client == nullptr){
         return status::INVALID_CLIENT;
     }
-    Client *client = clients_.getNode(client_socket);
-
     int total_bytes_sent = 0;
     int bytes_sent = 0;
 
@@ -944,11 +960,10 @@ Sends message from one client to another.
 Returns INVALID_CLIENT, ERROR, RESOURCE_UNAVAILABLE, SUCCESS.
 */
 int Server::sendToClient(int client_socket){
-    if(client_socket == -1){
+    Client *client = clients_.getNode(client_socket);
+    if(client == nullptr){
         return status::INVALID_CLIENT;
     }
-    Client *client = clients_.getNode(client_socket);
-
     int sending_pointer = 0;
     int bytes_to_send = client->payload_length + config::HEADER_SIZE;
     int total_bytes_sent = 0;
@@ -983,9 +998,6 @@ int Server::sendToClient(int client_socket){
 
 // Prints the Name, Key, IP, Port and Socket of a new client.
 bool Server::printClientInformation(int client_socket){
-    if(client_socket == -1){
-        return false;
-    }
     Client *client = clients_.getNode(client_socket);
     if(client == nullptr){
         return false;

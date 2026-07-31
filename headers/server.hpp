@@ -36,6 +36,7 @@ class Server{
         // incoming data
         int receiveFromClient(int client_socket);
         int checkMessage(int client_socket);
+        int checkHeader(int client_socket);
         int actOnMessage(int client_socket);
 
         // client

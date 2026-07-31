@@ -358,9 +358,6 @@ Checks if the entire message header have been received.
 Returns INCOMPLETE_MESSAGE, INVALID_MESSAGE, SUCCESS.
 */
 int ClientProcessor::checkHeader(){
-    if(valid_header_){
-        return status::SUCCESS;
-    }
     if(byte_counter_ < config::HEADER_SIZE){
         return status::INCOMPLETE_MESSAGE;
     }

@@ -27,6 +27,7 @@ struct Client{
     uint32_t writing_pointer{0};
     uint32_t reading_pointer{0};
 
+    bool valid_header_{false};
     uint32_t byte_counter{0};
     uint16_t payload_length{UINT16_MAX};
     uint8_t type{types::INVALID_TYPE};
