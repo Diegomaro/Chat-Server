@@ -1,23 +1,6 @@
 ## About The Project
 A TCP chat server written in C++ to explore networking, protocol design, systems programming and client-server architecture. This repository serves as a long-term systems programming project that incrementally explores concepts in networking, security, system design, testing and performance.
 
-## Project Goals
-The goal of this project is to learn the fundamentals of network programming, security and understand the design principles behind reliable client-server applications.
-
-The project focuses on:
-* TCP/IP networking
-* Software architecture
-* Reliable messaging
-* Memory management
-* Security fundamentals
-* Testing
-
-## Design Principles
-Some guiding principles include:
-- Build core features from scratch.
-- Prioritize reliability over optimization.
-- Consider scalability throughout development.
-
 ## Getting Started
 ### Prerequisites
 - Linux
@@ -43,13 +26,6 @@ In other terminals, start one or more clients:
 ```sh
 ./build/client
 ```
-
-## Current Features
-* TCP client/server communication
-* Multiple simultaneous client connections
-* Message forwarding between clients
-* Buffering of incoming and outgoing messages
-* Unique user registration
 
 ## Roadmap
 
@@ -88,7 +64,7 @@ In other terminals, start one or more clients:
 1. [ ] Rate limiting per client.
 2. [ ] Session token with expiration.
 
-## Milestone 6
+### Milestone 6
 1. [ ] Encryption in transit.
 2. [ ] Encryption at rest and key storage.
 
