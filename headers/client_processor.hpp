@@ -8,7 +8,11 @@
 #include <atomic>
 
 #include "hash_table.hpp"
-#include "constants.hpp"
+#include "constants/config.hpp"
+#include "constants/status.hpp"
+#include "constants/types.hpp"
+#include "constants/auth.hpp"
+
 
 class ClientProcessor{
     public:
@@ -36,13 +40,13 @@ class ClientProcessor{
 
         // central loop
         // outgoing data
-        int sendMessage(int bytes_to_send, uint8_t *buffer);
+        Status sendMessage(int bytes_to_send, uint8_t *buffer);
 
         // incoming data
-        int receiveFromServer();
-        int checkMessage();
-        int checkHeader();
-        int actOnMessage();
+        Status receiveFromServer();
+        Status checkMessage();
+        Status checkHeader();
+        Status actOnMessage();
 
         // buffer managament
         void cleanIncomingBuffer();
@@ -56,8 +60,8 @@ class ClientProcessor{
         bool messageInputLoop();
 
         // message input loop
-        int setMessage();
-        int setReceiver();
+        Status setMessage();
+        Status setReceiver();
 
         // helper methods
         bool validateCredential(const std::string &credential, uint8_t min_length, uint8_t max_length);

@@ -2,7 +2,8 @@
 #include <arpa/inet.h>
 #include <cstdint>
 #include <string.h>
-#include "constants.hpp"
+#include "constants/config.hpp"
+#include "constants/types.hpp"
 
 struct Client{
     Client();

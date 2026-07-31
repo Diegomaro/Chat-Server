@@ -29,22 +29,22 @@ class Server{
         bool setupListenerSocket();
 
         // connections to client
-        int acceptConnection();
+        Status acceptConnection();
         bool addClient(const sockaddr_storage& client_sockaddr);
         bool closeConnection(int client_socket);
 
         // incoming data
-        int receiveFromClient(int client_socket);
-        int checkMessage(int client_socket);
-        int checkHeader(int client_socket);
-        int actOnMessage(int client_socket);
+        Status receiveFromClient(int client_socket);
+        Status checkMessage(int client_socket);
+        Status checkHeader(int client_socket);
+        Status actOnMessage(int client_socket);
 
         // client
         bool cleanClientBuffer(int client_socket);
 
         // sending data
-        int sendStatusMessage(int client_socket, int receiver_fd, uint8_t *buffer, int bytes_to_send);
-        int sendToClient(int client_socket);
+        Status sendStatusMessage(int client_socket, int receiver_fd, uint8_t *buffer, int bytes_to_send);
+        Status sendToClient(int client_socket);
 
         // print data
         bool printClientInformation(int client_socket);
