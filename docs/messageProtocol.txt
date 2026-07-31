@@ -6,14 +6,14 @@ HEAD_BITS  TYPE     RECEIVER_KEY    PAYLOAD_LENGTH  PAYLOAD
 HEAD_BITS = 11111111
 Simple sequence of bits.
 
-TYPE = USER (1) | REGISTER (2) | LOGIN (3) | SEND_REQUEST (4) | ACCEPT_REQUEST (5) | REJECT_REQUEST(6) | UPDATE (7) | ACK (8)
+TYPE = USER (1) | REGISTER (2) | LOGIN (3) | SEND_REQUEST (4) | ACCEPT_REQUEST (5) | REJECT_REQUEST(6) | STATUS (7) | UPDATE (8) | ACK (9)
 User - send message to another user.
 Register - Send username + password to register.
 Login - Send username + password to login.
 Send request - Send request to another user to communicate.
 Accept request - Accept a specific communication request.
 Reject request - Reject a specific communication request.
-Update - Later.
+STATUS - Return status messages about messages.
 ACK - Send ack of messages processed/delivered.
 
 RECEIVER_KEY = The destinatory USER | The destinatory GROUP | The source USER | The source GROUP

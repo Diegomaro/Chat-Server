@@ -17,7 +17,7 @@ HashTable<T>::~HashTable(){
 }
 
 template <typename T>
-bool HashTable<T>::HashData::operator == (HashTable<T>::HashData &HASHDATA){
+bool HashTable<T>::HashData::operator == (const HashTable<T>::HashData &HASHDATA){
     return key_ == HASHDATA.key_;
 }
 
@@ -47,9 +47,7 @@ bool HashTable<T>::insertNode(int key, T data){
     HashData hashData;
     hashData.key_ = key;
     hashData.data_ = data;
-    if(!table_[hash(key)].insertTail(hashData)){
-        return false;
-    }
+    table_[hash(key)].insertTail(hashData);
     if(is_rehashing_){
         return true;
     }
@@ -97,6 +95,7 @@ T *HashTable<T>::getNode(int key){
         return nullptr;
     }
     table_[hash(key)].resetNodeIndex();
+
     while(table_[hash(key)].hasNode()){
         HashData tmpData = table_[hash(key)].getNode();
         if(tmpData.key_ == key){
@@ -212,13 +211,6 @@ unsigned int HashTable<T>::getSize(){
 template <typename T>
 unsigned int HashTable<T>::getDataCount(){
     return data_count_;
-}
-
-template <typename T>
-void HashTable<T>::printAll(){
-    for(unsigned int i = 0; i < size_; i++){
-        table_[i].printAll();
-    }
 }
 
 template <typename T>

@@ -10,7 +10,7 @@ class HashTable{
         struct HashData{
             int key_;
             T data_;
-            bool operator == (HashData &HASHDATA);
+            bool operator == (const HashData &HASHDATA);
         };
         HashTable();
         ~HashTable();
@@ -29,7 +29,6 @@ class HashTable{
 
         unsigned int getSize();
         unsigned int getDataCount();
-        void printAll();
         bool clear();
     private:
         unsigned int hash(int key);

@@ -48,3 +48,6 @@ Time is important to consider, as it gives valuable information to clients.
  -6 bits minutes
 
 32 bits total = 4 bytes
+
+Update type:
+Update type that indicates if the client must be updated. Alternative is to have protocol version agreement on connection.

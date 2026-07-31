@@ -472,9 +472,7 @@ Status ClientProcessor::actOnMessage(){
                     for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
                         usernameMapping.username[i] = temp_username[i];
                     }
-                    if(!incoming_requests_.insertTail(usernameMapping)){
-                        return Status::ERROR;
-                    }
+                    incoming_requests_.insertTail(usernameMapping);
                 }
                 // remove from outgoing requests
             }

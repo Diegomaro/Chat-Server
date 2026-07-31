@@ -12,21 +12,20 @@ public:
 
 	LinkedList();
 	~LinkedList();
-	bool insertHead(T data);
-	bool insertTail(T data);
-	bool deleteHead();
-	bool deleteTail();
-	bool deleteNode(T data);
-	bool searchNode(T data);
+	void insertHead(const T& data);
+	void insertTail(const T& data);
+	void deleteHead();
+	void deleteTail();
+	bool deleteNode(const T& data);
+	bool searchNode(const T& data);
 	void resetNodeIndex();
 	bool hasNode();
 	bool advanceNode();
 	T &getNode();
 	T &getHead();
-	bool printAll();
 	bool isEmpty();
 	uint32_t getSize();
-	bool clear();
+	void clear();
 private:
 	Node *current_node_{nullptr};
 	Node *head_{nullptr};

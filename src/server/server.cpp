@@ -81,7 +81,7 @@ void Server::centralLoop(){
                     switch(accept_state){
                         case Status::SUCCESS:{
                         } break;
-                        case Status::NOTHING_TO_READ:{
+                        case Status::NOTHING_TO_DO:{
                             accept_loop = false;
                         } break;
                         case Status::ERROR:{
@@ -109,7 +109,7 @@ void Server::centralLoop(){
                                     switch(act_state){
                                         //
                                     }
-                                     if(!cleanClientBuffer(sender_socket)){
+                                    if(!cleanClientBuffer(sender_socket)){
                                        return;
                                     }
                                 } break;
@@ -176,23 +176,21 @@ bool Server::setupBuffer(){
     if(buffer_pool_ || receiver_buffer_ || sending_buffer_){
         return false;
     }
-    buffer_pool_ = new(std::nothrow) uint8_t [config::BUFFER_SIZE];
+    buffer_pool_ = new uint8_t [config::BUFFER_SIZE];
     if(!buffer_pool_){
         return false;
     }
-    receiver_buffer_ = new(std::nothrow) uint8_t [config::BUFFER_READING_SIZE];
+    receiver_buffer_ = new uint8_t [config::BUFFER_READING_SIZE];
     if(!receiver_buffer_){
         return false;
     }
-    sending_buffer_ = new(std::nothrow) uint8_t [config::READING_BUFFER_SIZE];
+    sending_buffer_ = new uint8_t [config::READING_BUFFER_SIZE];
     if(!sending_buffer_){
         return false;
     }
     uint32_t current_address = 0;
     for(int i = 0; i < config::TOTAL_BUFFER_SEGMENTS; i++){
-        if(!available_buffers_.insertTail(current_address)){
-            return false;
-        }
+        available_buffers_.insertTail(current_address);
         current_address += config::BUFFER_SEGMENT_SIZE;
     }
     return true;
@@ -288,7 +286,7 @@ bool Server::setupListenerSocket(){
 
 /*
 Accepts a incoming connection request and adds them as as a client.
-Returns EXCEEDED_CLIENT_MAX, NOTHING_TO_READ, ERROR, SUCCESS.
+Returns EXCEEDED_CLIENT_MAX, NOTHING_TO_DO, ERROR, SUCCESS.
 */
 Status Server::acceptConnection(){
     if(clients_.getDataCount() + 1 >= config::MAX_HOSTS){
@@ -300,7 +298,7 @@ Status Server::acceptConnection(){
     if((pending_client_fd_ = accept(listener_fd_, (struct sockaddr *)&client_sockaddr, &client_sockaddr_len)) == -1){
         int error = errno;
         if(error == EAGAIN || error == EWOULDBLOCK){
-            return Status::NOTHING_TO_READ;
+            return Status::NOTHING_TO_DO;
         } else{
             perror("accept failed");
             return Status::ERROR;
@@ -343,9 +341,7 @@ bool Server::addClient(const sockaddr_storage& client_sockaddr){
         return false;
     }
     new_client.buffer_pointers[0] = available_buffers_.getHead();
-    if(!available_buffers_.deleteHead()){
-        return false;
-    }
+    available_buffers_.deleteHead();
     new_client.buffer_pointers_count = 1;
     new_client.starting_pointer = new_client.buffer_pointers[0];
     new_client.reading_pointer = new_client.buffer_pointers[0];
@@ -373,9 +369,7 @@ bool Server::closeConnection(int client_socket){
             break;
         }
         if(client->buffer_pointers[i] != UINT32_MAX){
-            if(!available_buffers_.insertHead(client->buffer_pointers[i])){
-                return false;
-            }
+            available_buffers_.insertHead(client->buffer_pointers[i]);
             buffers_erased++;
         }
     }
@@ -441,9 +435,7 @@ Status Server::receiveFromClient(int client_socket){
             } else{
                 uint32_t new_buffer_segment = available_buffers_.getHead();
                 client->buffer_pointers[(client->writing_buffer + 1) % 128] = new_buffer_segment;
-                if(!available_buffers_.deleteHead()){
-                    return Status::ERROR;
-                }
+                available_buffers_.deleteHead();
                 client->buffer_pointers_count++;
                 client->writing_buffer = (client->writing_buffer + 1) % 128;
                 client->writing_pointer = new_buffer_segment;
@@ -838,17 +830,13 @@ Status Server::actOnMessage(int client_socket){
                     return Status::ERROR;
                 }
                 LinkedList<uint32_t> *known_users = *client_key_to_known_keys_.getNode(client->sender_key);
-                if(!known_users->insertHead(client->receiver_key)){
-                    return Status::ERROR;
-                }
+                known_users->insertHead(client->receiver_key);
 
                 if(!client_key_to_known_keys_.searchNode(client->receiver_key)){
                     return Status::ERROR;
                 }
                 known_users = *client_key_to_known_keys_.getNode(client->receiver_key);
-                if(!known_users->insertHead(client->sender_key)){
-                    return Status::ERROR;
-                }
+                known_users->insertHead(client->sender_key);
             }
             // working here
 
@@ -909,9 +897,7 @@ bool Server::cleanClientBuffer(int client_socket){
         dif *= -1;
     }
     for(int i = 0; i < dif; i++){
-        if(!available_buffers_.insertHead(client->buffer_pointers[(client->starting_buffer + i) % config::BUFFER_SEGMENTS_PER_CLIENT])){
-            return false;
-        }
+        available_buffers_.insertHead(client->buffer_pointers[(client->starting_buffer + i) % config::BUFFER_SEGMENTS_PER_CLIENT]);
         client->buffer_pointers[(client->starting_buffer + i) % config::BUFFER_SEGMENTS_PER_CLIENT] = UINT32_MAX;
         client->buffer_pointers_count--;
     }
