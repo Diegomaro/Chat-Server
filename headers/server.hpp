@@ -7,6 +7,9 @@
 #include "hash_table.hpp"
 #include "client.hpp"
 
+#include "constants/status.hpp"
+#include "constants/auth.hpp"
+
 class Server{
     public:
         Server();

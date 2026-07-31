@@ -14,10 +14,6 @@
 #include <thread>
 
 #include "../../headers/server.hpp"
-#include "constants/config.hpp"
-#include "constants/status.hpp"
-#include "constants/types.hpp"
-#include "constants/auth.hpp"
 
 Server::Server(){
     memset(&processed_ack_message_, 0, sizeof(processed_ack_message_));

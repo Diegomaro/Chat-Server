@@ -203,10 +203,10 @@ void ClientProcessor::centralLoop(){
                 case Status::SUCCESS:{
                 } break;
                 case Status::RESOURCE_UNAVAILABLE:{
-                    std::cout << "Could not sent message!" << std::endl;
+                    std::cout << "Could not sent message!" << std::endl << ">";
                 } break;
                 case Status::ERROR:{
-                    std::cout << "Could not sent message!" << std::endl;
+                    std::cout << "Could not sent message!" << std::endl << ">";
                 } break;
             }
             send_register_ = false;
@@ -214,13 +214,13 @@ void ClientProcessor::centralLoop(){
         if(send_request_){
             switch(sendMessage(config::HEADER_SIZE + config::HOSTNAME_LENGTH, request_communication_)){
                 case Status::SUCCESS:{
-                    std::cout << "Request sent correctly!" << std::endl;
+                    std::cout << "Request sent correctly!" << std::endl << ">";
                 } break;
                 case Status::RESOURCE_UNAVAILABLE:{
-                    std::cout << "Could not sent message!" << std::endl;
+                    std::cout << "Could not sent message!" << std::endl << ">";
                 } break;
                 case Status::ERROR:{
-                    std::cout << "Could not sent message!" << std::endl;
+                    std::cout << "Could not sent message!" << std::endl << ">";
                 } break;
             }
             send_request_ = false;
@@ -230,10 +230,10 @@ void ClientProcessor::centralLoop(){
                 case Status::SUCCESS:{
                 } break;
                 case Status::RESOURCE_UNAVAILABLE:{
-                    std::cout << "Could not sent message!" << std::endl;
+                    std::cout << "Could not sent message!" << std::endl << ">";
                 } break;
                 case Status::ERROR:{
-                    std::cout << "Could not sent message!" << std::endl;
+                    std::cout << "Could not sent message!" << std::endl << ">";
                 } break;
             }
             respond_request_ = false;
@@ -245,10 +245,10 @@ void ClientProcessor::centralLoop(){
                     case Status::SUCCESS:{
                     } break;
                     case Status::RESOURCE_UNAVAILABLE:{
-                        std::cout << "Could not sent message!" << std::endl;
+                        std::cout << "Could not sent message!" << std::endl << ">";
                     } break;
                     case Status::ERROR:{
-                        std::cout << "Could not sent message!" << std::endl;
+                        std::cout << "Could not sent message!" << std::endl << ">";
                     } break;
                 }
                 send_message_ = false;
