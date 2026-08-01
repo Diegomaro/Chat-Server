@@ -8,16 +8,13 @@
 #include "client.hpp"
 
 #include "constants/status.hpp"
-#include "constants/auth.hpp"
+#include "constants/info.hpp"
 
 class Server{
     public:
         Server();
         ~Server();
-
-        // setup
         bool setupServer();
-        // central
         void centralLoop();
     private:
         struct UsernameMapping{
@@ -25,39 +22,54 @@ class Server{
             uint32_t key{UINT32_MAX};
         };
 
-        // setup
+        // Setup methods
         bool setupHashTables();
-        bool setupBuffer();
-        bool setupHeaderTypes();
+        void setupBuffer();
+        void setupHeaderTypes();
         bool setupListenerSocket();
 
         // connections to client
+
         Status acceptConnection();
-        bool addClient(const sockaddr_storage& client_sockaddr);
-        bool closeConnection(int client_socket);
+        Status addClient(const sockaddr_storage& client_sockaddr);
+        Status closeConnection(int client_socket);
 
         // incoming data
+
         Status receiveFromClient(int client_socket);
+        Status messageProcessor(int client_socket);
         Status checkMessage(int client_socket);
         Status checkHeader(int client_socket);
         Status actOnMessage(int client_socket);
 
-        // client
-        bool cleanClientBuffer(int client_socket);
+        Status actOnUserMessage(int client_socket);
+        //Status actOnRegister(int client_socket);
+
 
         // sending data
-        Status sendStatusMessage(int client_socket, int receiver_fd, uint8_t *buffer, int bytes_to_send);
+
+        Status sendMessage(int receiver_fd, uint8_t *buffer, int bytes_to_send);
         Status sendToClient(int client_socket);
 
+        // client
+        Status resetClientBuffer(int client_socket);
+        bool cleanClientBuffer(int client_socket);
+
         // print data
+
         bool printClientInformation(int client_socket);
 
+        // helper method
+
         unsigned long stringHash(const char *str);
+
+        // server attributes
 
         HashTable<Client> clients_;
         HashTable<int> client_key_to_socket_;
         HashTable<UsernameMapping> username_to_client_key_;
         HashTable<LinkedList<uint32_t>*> client_key_to_known_keys_;
+        HashTable<LinkedList<uint32_t>*> client_key_to_requested_keys_;
 
         uint8_t *buffer_pool_{nullptr};
         uint8_t *receiver_buffer_{nullptr};
@@ -71,9 +83,10 @@ class Server{
 
         struct epoll_event events_[config::MAX_EVENTS];
 
+        uint8_t info_message_[config::INFO_MESSAGE_LENGTH];
         uint8_t processed_ack_message_[config::HEADER_SIZE];
         uint8_t delivered_ack_message_[config::HEADER_SIZE];
         uint8_t request_communication_message_[config::HEADER_SIZE + config::HOSTNAME_LENGTH];
         uint8_t accept_communication_message_[config::HEADER_SIZE + config::HOSTNAME_LENGTH];
-        uint8_t authentication_message_[config::HEADER_SIZE + config::AUTH_PAYLOAD_LENGTH];
+        uint8_t authentication_message_[config::AUTH_MESSAGE_LENGTH];
 };

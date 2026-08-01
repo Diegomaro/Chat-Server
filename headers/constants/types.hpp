@@ -6,6 +6,7 @@ namespace types{
     inline constexpr const uint8_t SEND_REQUEST = 4;
     inline constexpr const uint8_t ACCEPT_REQUEST = 5;
     inline constexpr const uint8_t REJECT_REQUEST = 6;
-    inline constexpr const uint8_t UPDATE = 7;
-    inline constexpr const uint8_t ACK = 8;
+    inline constexpr const uint8_t INFO = 7;
+    inline constexpr const uint8_t UPDATE = 8;
+    inline constexpr const uint8_t ACK = 9;
 }

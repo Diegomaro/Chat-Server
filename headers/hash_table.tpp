@@ -2,14 +2,7 @@
 #include "hash_table.hpp"
 
 template <typename T>
-HashTable<T>::HashTable(){
-    is_rehashing_ = false;
-    table_ = nullptr;
-    data_count_ = 0;
-    size_ = 0;
-    power_ = 0;
-    current_node_ = 0;
-}
+HashTable<T>::HashTable(){}
 
 template <typename T>
 HashTable<T>::~HashTable(){
@@ -23,13 +16,10 @@ bool HashTable<T>::HashData::operator == (const HashTable<T>::HashData &HASHDATA
 
 template <typename T>
 bool HashTable<T>::createTable(unsigned int desiredSize){
-    if(table_ || !desiredSize){
-        return false;
+    if(table_){
+        clear();
     }
-    table_ = new(std::nothrow) LinkedList<HashData> [desiredSize];
-    if(!table_) {
-        return false;
-    }
+    table_ = new LinkedList<HashData> [desiredSize];
     double tmpPower = std::log2(desiredSize);
     if(tmpPower  - (int)tmpPower != 0.f){
         return false;
@@ -149,7 +139,7 @@ typename HashTable<T>::HashData* HashTable<T>::getNode(){
 
 template <typename T>
 bool HashTable<T>::checkRehash(){
-    if(!size_){
+    if(size_ == 0){
         return false;
     }
     float loadFactor = (float) data_count_ / size_;
@@ -169,7 +159,7 @@ bool HashTable<T>::rehash(){
         return false;
     }
     LinkedList<HashData> *oldTable = table_;
-    LinkedList<HashData> *newTable = new(std::nothrow) LinkedList<HashData> [size_ * 2];
+    LinkedList<HashData> *newTable = new LinkedList<HashData> [size_ * 2];
     unsigned int oldSize = size_;
     size_ *= 2;
     power_ ++;
@@ -214,15 +204,12 @@ unsigned int HashTable<T>::getDataCount(){
 }
 
 template <typename T>
-bool HashTable<T>::clear(){
+void HashTable<T>::clear(){
     if(table_){
         size_ = 0;
         power_ = 0;
         data_count_ = 0;
         delete [] table_;
         table_ = nullptr;
-        return true;
-    } else{
-        return false;
     }
 }

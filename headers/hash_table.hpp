@@ -29,19 +29,18 @@ class HashTable{
 
         unsigned int getSize();
         unsigned int getDataCount();
-        bool clear();
+        void clear();
     private:
         unsigned int hash(int key);
         unsigned int hashFunction(int key);
         bool checkRehash();
         bool rehash();
-        bool is_rehashing_;
-        LinkedList<HashData> *table_;
-        unsigned int size_;
-        unsigned int power_;
-        unsigned int data_count_;
-
-        int current_node_;
+        bool is_rehashing_{false};
+        LinkedList<HashData> *table_{nullptr};
+        unsigned int size_{0};
+        unsigned int power_{0};
+        unsigned int data_count_{0};
+        int current_node_{0};
 };
 
 #include "hash_table.tpp"

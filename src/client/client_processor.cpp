@@ -424,17 +424,17 @@ Status ClientProcessor::actOnMessage(){
             uint8_t register_type = incoming_buffer_[reading_pointer_];
             advanceReadingPointer();
             switch(register_type){
-                case auth::VALID:{
+                case info::VALID:{
                     std::cout << "Logged in!" << std::endl;
                     logged_in_ = true;
                 } break;
-                case auth::INVALID_CREDENTIAL:{
+                case info::INVALID_CREDENTIAL:{
                     std::cout << "Invalid credentials. Please try again!" << std::endl;
                 } break;
-                case auth::NOT_UNIQUE:{
+                case info::NOT_UNIQUE:{
                     std::cout << "\"" << username_ << "\" is not available!" << std::endl;
                 } break;
-                case auth::ALREADY_LOGGED_IN:{
+                case info::ALREADY_LOGGED_IN:{
                     std::cout << "Already logged in!" << std::endl;
                 } break;
             }

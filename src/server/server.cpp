@@ -16,6 +16,7 @@
 #include "../../headers/server.hpp"
 
 Server::Server(){
+    memset(&info_message_, 0, sizeof(info_message_));
     memset(&processed_ack_message_, 0, sizeof(processed_ack_message_));
     memset(&delivered_ack_message_, 0, sizeof(delivered_ack_message_));
     memset(&request_communication_message_, 0, sizeof(request_communication_message_));
@@ -57,103 +58,27 @@ Server::~Server(){
 }
 
 bool Server::setupServer(){
-    if(!setupHashTables()
-    || !setupBuffer()
-    || !setupHeaderTypes()
-    || !setupListenerSocket()){
+    try{
+        if(!setupHashTables()){
+            // wrong initial size
+            return false;
+        }
+    } catch(const std::bad_alloc&){
+        std::cout << "Error: insuficcient memory space!" << std::endl;
+        return false;
+    }
+
+    try{
+        setupBuffer();
+    } catch(const std::bad_alloc&){
+        std::cout << "Error: insuficcient memory space!" << std::endl;
+        return false;
+    }
+    setupHeaderTypes();
+    if(!setupListenerSocket()){
         return false;
     }
     return true;
-}
-
-void Server::centralLoop(){
-    while(true){
-        int ready_polls = 0;
-        if((ready_polls = epoll_wait(epoll_fd_, events_, config::MAX_EVENTS, -1)) == -1){
-            perror("epoll wait failed");
-            return;
-        }
-        for (int i = 0; i < ready_polls; i++){
-            if(events_[i].data.fd == listener_fd_){
-                bool accept_loop = true;
-                while(accept_loop){
-                    Status accept_state = acceptConnection();
-                    switch(accept_state){
-                        case Status::SUCCESS:{
-                        } break;
-                        case Status::NOTHING_TO_DO:{
-                            accept_loop = false;
-                        } break;
-                        case Status::ERROR:{
-                            //
-                            return;
-                        } break;
-                        case Status::EXCEEDED_CLIENT_MAX:{
-                            //
-                            return;
-                        } break;
-                    }
-                }
-            } else if (events_[i].events & EPOLLIN){
-                int sender_socket = events_[i].data.fd;
-                bool receive_loop = true;
-                while(receive_loop){
-                    Status rcvf_state = receiveFromClient(sender_socket);
-                    switch(rcvf_state){
-                        case Status::SUCCESS:{
-                            Status check_state = checkMessage(sender_socket);
-                            //work here
-                            switch(check_state){
-                                case Status::SUCCESS:{
-                                    Status act_state = actOnMessage(sender_socket);
-                                    switch(act_state){
-                                        //
-                                    }
-                                    if(!cleanClientBuffer(sender_socket)){
-                                       return;
-                                    }
-                                } break;
-                                case Status::ERROR:{
-                                    return;
-                                } break;
-                                case Status::INVALID_MESSAGE:{
-                                    //send signal of error to user
-                                    receive_loop = false;
-                                } break;
-                                case Status::INVALID_CLIENT:{
-                                    //send signal of error to user
-                                    receive_loop = false;
-                                } break;
-                            }
-                           //if missing timeout
-                        } break;
-                        case Status::NOTHING_TO_READ:{
-                            receive_loop = false;
-                        } break;
-                        case Status::INVALID_CLIENT:{
-                            return;
-                        } break;
-                        case Status::CLOSED_CONVERSATION:{
-                            if(!closeConnection(sender_socket)){
-                                return;
-                            }
-                            receive_loop = false;
-                            return; // to test for memory leaks
-                        } break;
-                        case Status::ERROR:{
-                            return;
-                        } break;
-                        case Status::EXCEEDED_CLIENT_BUFFER_SIZE:{
-                            // return error message to client and restart buffer segments
-                        } break;
-                    }
-                }
-            }
-        }
-        if(ready_polls == 0){
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-    }
 }
 
 bool Server::setupHashTables(){
@@ -169,37 +94,34 @@ bool Server::setupHashTables(){
     if(!client_key_to_known_keys_.createTable(config::INITIAL_HASHTABLE_SIZE)){
         return false;
     }
+    if(!client_key_to_requested_keys_.createTable(config::INITIAL_HASHTABLE_SIZE)){
+        return false;
+    }
     return true;
 }
 
-bool Server::setupBuffer(){
-    if(buffer_pool_ || receiver_buffer_ || sending_buffer_){
-        return false;
-    }
-    buffer_pool_ = new uint8_t [config::BUFFER_SIZE];
-    if(!buffer_pool_){
-        return false;
-    }
-    receiver_buffer_ = new uint8_t [config::BUFFER_READING_SIZE];
-    if(!receiver_buffer_){
-        return false;
-    }
-    sending_buffer_ = new uint8_t [config::READING_BUFFER_SIZE];
-    if(!sending_buffer_){
-        return false;
-    }
+void Server::setupBuffer(){
+    buffer_pool_ = new uint8_t[config::BUFFER_SIZE];
+    receiver_buffer_ = new uint8_t[config::BUFFER_READING_SIZE];
+    sending_buffer_ = new uint8_t[config::READING_BUFFER_SIZE];
     uint32_t current_address = 0;
     for(int i = 0; i < config::TOTAL_BUFFER_SEGMENTS; i++){
         available_buffers_.insertTail(current_address);
         current_address += config::BUFFER_SEGMENT_SIZE;
     }
-    return true;
 }
 
-bool Server::setupHeaderTypes(){
-    if(!processed_ack_message_ || !delivered_ack_message_ || !authentication_message_ || !request_communication_message_){
-        return false;
-    }
+void Server::setupHeaderTypes(){
+    info_message_[0] = UINT8_MAX;
+    info_message_[1] = types::INFO;
+    info_message_[2] = UINT8_MAX;
+    info_message_[3] = UINT8_MAX;
+    info_message_[4] = UINT8_MAX;
+    info_message_[5] = UINT8_MAX;
+    info_message_[6] = 0;
+    info_message_[7] = config::INFO_MESSAGE_LENGTH - config::HEADER_SIZE;
+    info_message_[8] = 0;
+
     processed_ack_message_[0] = UINT8_MAX;
     processed_ack_message_[1] = types::ACK;
     processed_ack_message_[2] = UINT8_MAX;
@@ -225,7 +147,7 @@ bool Server::setupHeaderTypes(){
     authentication_message_[4] = UINT8_MAX;
     authentication_message_[5] = UINT8_MAX;
     authentication_message_[6] = 0;
-    authentication_message_[7] = config::AUTH_PAYLOAD_LENGTH;
+    authentication_message_[7] = config::AUTH_MESSAGE_LENGTH - config::HEADER_SIZE;
     authentication_message_[8] = 0;
 
     request_communication_message_[0] = UINT8_MAX;
@@ -236,7 +158,6 @@ bool Server::setupHeaderTypes(){
     request_communication_message_[5] = UINT8_MAX;
     request_communication_message_[6] = 0;
     request_communication_message_[7] = config::HOSTNAME_LENGTH;
-    return true;
 }
 
 bool Server::setupListenerSocket(){
@@ -284,9 +205,181 @@ bool Server::setupListenerSocket(){
     return true;
 }
 
+void Server::centralLoop(){
+    while(true){
+        int ready_polls = 0;
+        if((ready_polls = epoll_wait(epoll_fd_, events_, config::MAX_EVENTS, -1)) == -1){
+            perror("epoll wait failed");
+            return;
+        }
+        for (int i = 0; i < ready_polls; i++){
+            if(events_[i].data.fd == listener_fd_){
+                bool accept_loop = true;
+                while(accept_loop){
+                    Status accept_state = acceptConnection();
+                    switch(accept_state){
+                        case Status::SUCCESS:{
+                        } break;
+                        case Status::NOTHING_TO_DO:{
+                            accept_loop = false;
+                        } break;
+                        case Status::EXCEEDED_CLIENT_MAX:{
+                            accept_loop = false;
+                            // log the event. clear queue.
+                        } break;
+                        case Status::PROGRAMMING_ERROR:{
+                            //Log programming error.
+                            std::cout << "There's a code error on acceptConnection!" << std::endl;
+                            return;
+                        } break;
+                        case Status::INSUFFICIENT_BUFFER_SPACE:{
+                            std::cout << "Error in distribution of buffer segments found on acceptConnection!" << std::endl;
+                            return;
+                        } break;
+                        case Status::INSUFFICIENT_MEMORY:{
+                            return;
+                        } break;
+                        case Status::ERROR:{
+                            std::cout << "Unhandled error." << std::endl;
+                            return;
+                        } break;
+                    }
+                }
+            } else if (events_[i].events & EPOLLIN){
+                int sender_socket = events_[i].data.fd;
+                bool receive_loop = true;
+                while(receive_loop){
+                    Status rcvf_state = receiveFromClient(sender_socket);
+                    switch(rcvf_state){
+                        case Status::SUCCESS:{
+                            Status check_state = messageProcessor(sender_socket);
+                            switch(check_state){
+                                case Status::SUCCESS:{
+                                } break;
+                                case Status::INCOMPLETE_MESSAGE:{
+                                } break;
+                                case Status::RESOURCE_UNAVAILABLE:{
+                                    receive_loop = false;
+                                } break;
+                                case Status::EXCEEDED_CLIENT_MAX:{
+                                    std::cout << "Message protocol requires upgrade! Capacity of registers users exceeded!";
+                                    return;
+                                } break;
+                                case Status::INSUFFICIENT_BUFFER_SPACE:{
+                                    std::cout << "Error in distribution of buffer segments found on messageProcessor!" << std::endl;
+                                    return;
+                                } break;
+                                case Status::INSUFFICIENT_MEMORY:{
+                                    return;
+                                } break;
+                                case Status::ERROR:{
+                                    return;
+                                } break;
+                            }
+                           //if missing timeout
+                        } break;
+                        case Status::NOTHING_TO_READ:{
+                            receive_loop = false;
+                        } break;
+                        case Status::CLOSED_CONVERSATION:{
+                            Status close_connection = closeConnection(sender_socket);
+                            switch(close_connection){
+                                case Status::SUCCESS:{
+                                    return; // current method of shutting down server.
+                                } break;
+                                case Status::PROGRAMMING_ERROR:{
+                                    std::cout << "There's a code error on closeConnection!" << std::endl;
+                                    return;
+                                } break;
+                                case Status::INSUFFICIENT_MEMORY:{
+                                    return;
+                                } break;
+                                case Status::ERROR:{
+                                    return;
+                                } break;
+                            }
+                        } break;
+                        case Status::EXCEEDED_CLIENT_BUFFER_SIZE:{
+                            Status check_state = messageProcessor(sender_socket);
+                            switch(check_state){
+                                case Status::SUCCESS:{
+                                } break;
+                                case Status::INCOMPLETE_MESSAGE:{
+                                    info_message_[8] = info::INVALID_MESSAGE;
+                                    Status send_state = sendMessage(
+                                        sender_socket,
+                                        info_message_,
+                                        config::INFO_MESSAGE_LENGTH
+                                    );
+                                    switch(send_state){
+                                        case Status::RESOURCE_UNAVAILABLE:{
+                                            //
+                                        }
+                                        case Status::ERROR:{
+                                            return;
+                                        }
+                                    }
+                                    Status reset_client_status = resetClientBuffer(sender_socket);
+                                    switch(reset_client_status){
+                                        case Status::INSUFFICIENT_BUFFER_SPACE:{
+                                            std::cout << "Error in distribution of buffer segments found on messageProcessor!" << std::endl;
+                                            return;
+                                        } break;
+                                        case Status::INSUFFICIENT_MEMORY:{
+                                            return;
+                                        } break;
+                                        case Status::ERROR:{
+                                            return;
+                                        } break;
+                                    }
+                                } break;
+                                case Status::RESOURCE_UNAVAILABLE:{
+                                    receive_loop = false;
+                                } break;
+                                case Status::EXCEEDED_CLIENT_MAX:{
+                                    std::cout << "Message protocol requires upgrade! Capacity of registers users exceeded!";
+                                    return;
+                                } break;
+                                case Status::INSUFFICIENT_BUFFER_SPACE:{
+                                    std::cout << "Error in distribution of buffer segments found on messageProcessor!" << std::endl;
+                                    return;
+                                } break;
+                                case Status::INSUFFICIENT_MEMORY:{
+                                    return;
+                                } break;
+                                case Status::ERROR:{
+                                    return;
+                                } break;
+                            }
+                        } break;
+                        case Status::INSUFFICIENT_BUFFER_SPACE:{
+                            std::cout << "Error in distribution of buffer segments found on receiveFromClient!" << std::endl;
+                            return;
+                        } break;
+                        case Status::ERROR:{
+                            return;
+                        } break;
+                    }
+                }
+            }
+        }
+        if(ready_polls == 0){
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+    }
+}
+
 /*
 Accepts a incoming connection request and adds them as as a client.
-Returns EXCEEDED_CLIENT_MAX, NOTHING_TO_DO, ERROR, SUCCESS.
+Returns:
+
+SUCCESS - Client added correctly.
+NOTHING_TO_DO - No pending clients to add.
+EXCEEDED_CLIENT_MAX - Can't add more clients right now.
+PROGRAMMING_ERROR - There's an issue with how hash tables are handled.
+INSUFFICIENT_BUFFER_SPACE - Non available client buffer segments. Error in server code.
+INSUFFICIENT_MEMORY - No memory available.
+ERROR - Error that has not yet been handled.
 */
 Status Server::acceptConnection(){
     if(clients_.getDataCount() + 1 >= config::MAX_HOSTS){
@@ -300,15 +393,16 @@ Status Server::acceptConnection(){
         if(error == EAGAIN || error == EWOULDBLOCK){
             return Status::NOTHING_TO_DO;
         } else{
-            perror("accept failed");
+            perror("Accept failed.");
             return Status::ERROR;
         }
     }
-    if(!addClient(client_sockaddr)){
-        return Status::EXCEEDED_CLIENT_MAX;
+    Status addClientStatus = addClient(client_sockaddr);
+    if(addClientStatus != Status::SUCCESS){
+        return addClientStatus;
     }
     if(fcntl(pending_client_fd_, F_SETFL, O_NONBLOCK) == -1){
-        perror("non blocking failed");
+        perror("Non blocking failed");
         return Status::ERROR;
     }
     struct epoll_event ev;
@@ -321,8 +415,16 @@ Status Server::acceptConnection(){
     return Status::SUCCESS;
 }
 
-// Registers a client with their socket info. Gives each registered client a buffer segment to occupy.
-bool Server::addClient(const sockaddr_storage& client_sockaddr){
+/*
+Registers a client with their socket info. Gives each registered client a buffer segment to occupy.
+Returns:
+
+SUCCESS - Client added correctly.
+PROGRAMMING_ERROR - There's an issue with how hash tables are handled.
+INSUFFICIENT_BUFFER_SPACE - Non available client buffer segments. Error in server code.
+INSUFFICIENT_MEMORY - No memory available.
+*/
+Status Server::addClient(const sockaddr_storage& client_sockaddr){
     Client new_client;
     new_client.name[0] = '\0';
     void* addr;
@@ -331,14 +433,14 @@ bool Server::addClient(const sockaddr_storage& client_sockaddr){
         addr = &(ipv4->sin_addr);
         new_client.port = ntohs(ipv4->sin_port);
     }
-    else {
+    else{
         sockaddr_in6* ipv6 = (sockaddr_in6*)&client_sockaddr;
         addr = &(ipv6->sin6_addr);
         new_client.port = ntohs(ipv6->sin6_port);
     }
     inet_ntop(client_sockaddr.ss_family, addr, new_client.ip, sizeof(new_client.ip));
     if(available_buffers_.isEmpty()){
-        return false;
+        return Status::INSUFFICIENT_BUFFER_SPACE;
     }
     new_client.buffer_pointers[0] = available_buffers_.getHead();
     available_buffers_.deleteHead();
@@ -347,21 +449,33 @@ bool Server::addClient(const sockaddr_storage& client_sockaddr){
     new_client.reading_pointer = new_client.buffer_pointers[0];
     new_client.writing_pointer = new_client.buffer_pointers[0];
 
-    if(!clients_.insertNode(pending_client_fd_, new_client)){
-        return false;
+    try{
+        if(!clients_.insertNode(pending_client_fd_, new_client)){
+            return Status::PROGRAMMING_ERROR;
+        }
+    } catch (const std::bad_alloc&){
+        return Status::INSUFFICIENT_MEMORY;
     }
-    return true;
+    return Status::SUCCESS;
 }
 
-// Closes a client connection. Returns occupied buffer segments to the buffer pool.
-bool Server::closeConnection(int client_socket){
+/*
+Closes a client connection. Returns occupied buffer segments to the buffer pool.
+Returns:
+
+SUCCESS - Socket closed correctly.
+PROGRAMMING_ERROR - There's an issue with the deleting of nodes in hash table.
+INSUFFICIENT_MEMORY - No memory available.
+ERROR - Error that has not yet been handled.
+*/
+Status Server::closeConnection(int client_socket){
     if(close(client_socket) == -1){
         perror("clossing failed");
-        return false;
+        return Status::ERROR;
     }
     Client *client = clients_.getNode(client_socket);
     if(client == nullptr){
-        return false;
+        return Status::ERROR;
     }
     int8_t buffers_erased = 0;
     for(int i = 0; i < config::BUFFER_SEGMENTS_PER_CLIENT; i++){
@@ -369,26 +483,36 @@ bool Server::closeConnection(int client_socket){
             break;
         }
         if(client->buffer_pointers[i] != UINT32_MAX){
-            available_buffers_.insertHead(client->buffer_pointers[i]);
+            try{
+                available_buffers_.insertHead(client->buffer_pointers[i]);
+            } catch(const std::bad_alloc&){
+                return Status::INSUFFICIENT_MEMORY;
+            }
             buffers_erased++;
         }
     }
     if(!client_key_to_socket_.deleteNode(client->sender_key)){
-        return false;
+        return Status::PROGRAMMING_ERROR;
     }
     if(!username_to_client_key_.deleteNode(stringHash(client->name))){
-        return false;
+        return Status::PROGRAMMING_ERROR;
     }
     if(!clients_.deleteNode(client_socket)){
-        return false;
+        return Status::PROGRAMMING_ERROR;
     }
     std::cout << "manual close of socket "  << client_socket << std::endl;
-    return true;
+    return Status::SUCCESS;
 }
 
 /*
 Copies an incoming message (possibly fragmented) to the corresponding client buffers.
-Returns INVALID_CLIENT, ERROR, NOTHING_TO_READ, CLOSED_CONVERSATION, EXCEEDED_CLIENT_BUFFER_SIZE, INSUFFICIENT_BUFFER_SPACE, SUCCESS.
+Returns:
+SUCCESS - All bytes were received and copied to client buffers.
+NOTHING_TO_READ - There are no more bytes to copy from a client.
+CLOSED_CONVERSATION - The client closed the conversation.
+EXCEEDED_CLIENT_BUFFER_SIZE - All client buffers have been filled.
+INSUFFICIENT_BUFFER_SPACE - Non available client buffer segments. Error in server code.
+ERROR - Error that has not yet been handled.
 */
 Status Server::receiveFromClient(int client_socket){
     Client *client = clients_.getNode(client_socket);
@@ -409,7 +533,7 @@ Status Server::receiveFromClient(int client_socket){
     if(bytes_received == 0){
         return Status::CLOSED_CONVERSATION;
     }
-
+    //copy received messages to client buffers.
     int bytes_remaining = bytes_received;
     int msg_buffer_offset = 0;
     while(bytes_remaining > 0){
@@ -419,35 +543,152 @@ Status Server::receiveFromClient(int client_socket){
             client->writing_pointer += bytes_remaining;
             client->byte_counter += bytes_remaining;
             bytes_remaining = 0;
-        }else {
+        }else{
             memcpy(&buffer_pool_[client->writing_pointer], &receiver_buffer_[msg_buffer_offset], available_segment_bytes);
             client->byte_counter += available_segment_bytes;
             msg_buffer_offset += available_segment_bytes;
             bytes_remaining -= available_segment_bytes;
             if(client->buffer_pointers_count + 1 >= config::BUFFER_SEGMENTS_PER_CLIENT){
-                if(checkMessage(client_socket) == Status::SUCCESS){
-                    std::cout << "work on it later" << std::endl;
-                    // delete old message
-                }
                 return Status::EXCEEDED_CLIENT_BUFFER_SIZE;
-            } else if(available_buffers_.isEmpty()){
-                return Status::INSUFFICIENT_BUFFER_SPACE;
-            } else{
-                uint32_t new_buffer_segment = available_buffers_.getHead();
-                client->buffer_pointers[(client->writing_buffer + 1) % 128] = new_buffer_segment;
-                available_buffers_.deleteHead();
-                client->buffer_pointers_count++;
-                client->writing_buffer = (client->writing_buffer + 1) % 128;
-                client->writing_pointer = new_buffer_segment;
             }
+            if(available_buffers_.isEmpty()){
+                return Status::INSUFFICIENT_BUFFER_SPACE;
+            }
+            uint32_t new_buffer_segment = available_buffers_.getHead();
+            client->buffer_pointers[(client->writing_buffer + 1) % 128] = new_buffer_segment;
+            available_buffers_.deleteHead();
+            client->buffer_pointers_count++;
+            client->writing_buffer = (client->writing_buffer + 1) % 128;
+            client->writing_pointer = new_buffer_segment;
         }
     }
     return Status::SUCCESS;
 }
 
 /*
+Checks message and acts on it based on its type.
+Returns:
+
+SUCCESS - Message is complete and has been processed.
+INCOMPLETE_MESSAGE - The entire message has not been received.
+RESOURCE_UNAVAILABLE - Unexpected error.
+EXCEEDED_CLIENT_MAX - No more users can be registered.
+INSUFFICIENT_BUFFER_SPACE - Non available client buffer segments. Error in server code.
+INSUFFICIENT_MEMORY - No memory available.
+ERROR - An unhandled error ocurred.
+*/
+Status Server::messageProcessor(int client_socket){
+    Client *client = clients_.getNode(client_socket);
+    if(client == nullptr){
+        return Status::ERROR;
+    }
+    Status check_state = checkMessage(client_socket);
+    switch(check_state){
+        case Status::INCOMPLETE_MESSAGE:{
+            return Status::INCOMPLETE_MESSAGE;
+        } break;
+        case Status::INVALID_CLIENT:
+        case Status::INVALID_MESSAGE:{
+            if(check_state == Status::INVALID_CLIENT){
+                info_message_[8] = info::INVALID_CLIENT;
+            } else{
+                info_message_[8] = info::INVALID_MESSAGE;
+            }
+            sendMessage(
+                client_socket,
+                info_message_,
+                config::INFO_MESSAGE_LENGTH
+            );
+            Status reset_client_status = resetClientBuffer(client_socket);
+            switch(reset_client_status){
+                case Status::INSUFFICIENT_BUFFER_SPACE:{
+                    return Status::INSUFFICIENT_BUFFER_SPACE;
+                } break;
+                case Status::INSUFFICIENT_MEMORY:{
+                    return Status::INSUFFICIENT_MEMORY;
+                } break;
+                case Status::ERROR:{
+                    return Status::ERROR;
+                } break;
+            }
+            return Status::SUCCESS;
+        } break;
+        case Status::ERROR:{
+            return Status::ERROR;
+        } break;
+    }
+
+    Status act_state = actOnMessage(client_socket);
+    switch(act_state){
+        case Status::SUCCESS:{
+            if(!cleanClientBuffer(client_socket)){
+                return Status::ERROR;
+            }
+            return Status::SUCCESS;
+        }
+        case Status::INVALID_CLIENT:{
+            info_message_[8] = info::INVALID_CLIENT;
+            Status send_status = sendMessage(
+                client_socket,
+                info_message_,
+                config::INFO_MESSAGE_LENGTH
+            );
+            if(!cleanClientBuffer(client_socket)){
+                return Status::ERROR;
+            }
+            return send_status;
+        }
+        case Status::INVALID_MESSAGE:{
+            Status send_status = sendMessage(
+                client_socket,
+                info_message_,
+                config::INFO_MESSAGE_LENGTH
+            );
+            if(!cleanClientBuffer(client_socket)){
+                return Status::ERROR;
+            }
+            return send_status;
+        } break;
+        case Status::RESOURCE_UNAVAILABLE:{
+            info_message_[8] = info::SEND_ERROR;
+            Status send_status = sendMessage(
+                client_socket,
+                info_message_,
+                config::INFO_MESSAGE_LENGTH
+            );
+            if(!cleanClientBuffer(client_socket)){
+                return Status::ERROR;
+            }
+            return Status::RESOURCE_UNAVAILABLE;
+        } break;
+        case Status::EXCEEDED_CLIENT_MAX:{
+            info_message_[8] = info::COULD_NOT_REGISTER;
+            Status send_status = sendMessage(
+                client_socket,
+                info_message_,
+                config::INFO_MESSAGE_LENGTH
+            );
+            if(!cleanClientBuffer(client_socket)){
+                return Status::ERROR;
+            }
+            return Status::EXCEEDED_CLIENT_MAX;
+        } break;
+        case Status::ERROR:{
+            return Status::ERROR;
+        } break;
+    }
+    return Status::ERROR;
+}
+
+/*
 Checks if the entire message header + payload have been received.
-returns INVALID_CLIENT, ERROR, INVALID_MESSAGE, INCOMPLETE_MESSAGE, SUCCESS.
+Returns:
+
+SUCCESS - Message header is complete and valid.
+INCOMPLETE_MESSAGE - The entire message has not been received.
+INVALID_CLIENT - The target client is non existant.
+INVALID_MESSAGE - The message does not follow the protocol rules.
+ERROR - An unhandled error ocurred.
 */
 Status Server::checkMessage(int client_socket){
     Client *client = clients_.getNode(client_socket);
@@ -460,7 +701,6 @@ Status Server::checkMessage(int client_socket){
             return header_state;
         }
     }
-
     if(client->byte_counter < client->payload_length + config::HEADER_SIZE){
         return Status::INCOMPLETE_MESSAGE;
     }
@@ -469,7 +709,12 @@ Status Server::checkMessage(int client_socket){
 
 /*
 Verifies that a message has a valid header and replaces target key with sender key.
-returns INVALID_CLIENT, ERROR, INVALID_MESSAGE, INCOMPLETE_MESSAGE, SUCCESS.
+Returns:
+SUCCESS - Message header is complete and valid.
+INCOMPLETE_MESSAGE - The entire header has not been received.
+INVALID_CLIENT - The target client is non existant.
+INVALID_MESSAGE - The message does not follow the protocol rules.
+ERROR - An unhandled error ocurred.
 */
 Status Server::checkHeader(int client_socket){
     Client *client = clients_.getNode(client_socket);
@@ -539,44 +784,49 @@ Status Server::checkHeader(int client_socket){
 
 /*
 Performs different tasks depending on the type of message received.
-returns ERROR, INVALID_MESSAGE, UNAUTHENTICATED_USER, RESOURCE_UNAVAILABLE, INVALID_CLIENT, INCOMPLETE_MESSAGE, SUCCESS.
+Returns:
+SUCCESS - The message was valid and was processed correctly.
+INVALID_CLIENT - Client sent a message to client that does not exist, or they are not allowed to message to.
+INVALID_MESSAGE - Client sent an invalid message.
+RESOURCE_UNAVAILABLE - Unexpected error.
+EXCEEDED_CLIENT_MAX - No more users can be registered.
+ERROR - An unhandled error ocurred.
 */
 Status Server::actOnMessage(int client_socket){
     Client* client = clients_.getNode(client_socket);
     if(client == nullptr){
-        return Status::INVALID_CLIENT;
+        return Status::ERROR;
     }
+
+    if(client->logged_in == false && client->type != types::REGISTER && client->type != types::LOGIN){
+        info_message_[8] = info::UNAUTHENTICATED_USER;
+        return Status::INVALID_MESSAGE;
+    }
+
     switch(client->type){
         case types::USER:{
-            if(!client->logged_in){
-                return Status::UNAUTHENTICATED_USER;
-            }
             if(client->payload_length == 0 || client->payload_length > config::MAX_MESSAGE_SIZE){
+                info_message_[8] = info::INVALID_MESSAGE;
                 return Status::INVALID_MESSAGE;
             }
-
-            if(client_key_to_known_keys_.searchNode(client->sender_key)){
-                LinkedList<uint32_t> *known_users = *client_key_to_known_keys_.getNode(client->sender_key);
-                if(!known_users->searchNode(client->receiver_key)){
-                    return Status::INVALID_CLIENT;
-                }
-            } else{
+            // Sender knows receiver
+            if(!client_key_to_known_keys_.searchNode(client->sender_key)){
                 return Status::ERROR;
             }
+            LinkedList<uint32_t> *known_users = *client_key_to_known_keys_.getNode(client->sender_key);
+            if(!known_users->searchNode(client->receiver_key)){
+                return Status::INVALID_CLIENT;
+            }
 
+            // later it should be changed to store all client keys, regardless of whether online or not.
             if(!clients_.searchNode(client->receiver_fd)){
                 return Status::INVALID_CLIENT;
-                // later it should be changed to store all client keys, regardless of whether online or not.
-                // If client is not available it should be stored in some file. (much later)
             }
-            Status ack_state = sendStatusMessage(
-                client_socket,
+            Status ack_state = sendMessage(
                 client_socket,
                 processed_ack_message_,
                 config::HEADER_SIZE
             );
-            Status send_state = sendToClient(client_socket);
-
             switch(ack_state){
                 case Status::RESOURCE_UNAVAILABLE:{
                     // should not return, rather be stored
@@ -586,10 +836,8 @@ Status Server::actOnMessage(int client_socket){
                     return Status::ERROR;
                 } break;
             }
-            /*
-            verify if target is available. If not available, store the message in txt file.
-            Otherwise request sending buffer.
-            */
+            // If client is not available it should be stored in some file. (much later)
+            Status send_state = sendToClient(client_socket);
             switch(send_state){
                 case Status::RESOURCE_UNAVAILABLE:{
                     //should not return, rather be stored
@@ -603,11 +851,13 @@ Status Server::actOnMessage(int client_socket){
         } break;
         case types::REGISTER:{
             if(client->logged_in){
-                // do smth
+                info_message_[8] = info::ALREADY_LOGGED_IN;
+                return Status::INVALID_MESSAGE;
             }
 
             if(client->payload_length < config::HOSTNAME_LENGTH + config::MIN_PASSWORD_LENGTH
             || client->payload_length > config::HOSTNAME_LENGTH + config::MAX_PASSWORD_LENGTH){
+                info_message_[8] = info::INVALID_CREDENTIAL;
                 return Status::INVALID_MESSAGE;
             }
 
@@ -621,25 +871,15 @@ Status Server::actOnMessage(int client_socket){
                 || (username[i] > 90 && username[i] < 95)
                 || (username[i] > 95 && username[i] < 97)
                 || username[i] > 122){
-                    authentication_message_[8] = auth::INVALID_CREDENTIAL;
-                    return sendStatusMessage(
-                        client_socket,
-                        client_socket,
-                        authentication_message_,
-                        config::HEADER_SIZE + config::AUTH_PAYLOAD_LENGTH
-                    );
+                    info_message_[8] = info::INVALID_CREDENTIAL;
+                    return Status::INVALID_MESSAGE;
                 }
                 usr_ctr += username[i] != 0 ? 1 : 0;
                 client->advanceReadingPointer();
             }
             if(usr_ctr < 1){
-                authentication_message_[8] = auth::INVALID_CREDENTIAL;
-                return sendStatusMessage(
-                    client_socket,
-                    client_socket,
-                    authentication_message_,
-                    config::HEADER_SIZE + config::AUTH_PAYLOAD_LENGTH
-                );
+                info_message_[8] = info::INVALID_CREDENTIAL;
+                return Status::INVALID_MESSAGE;
             }
             uint8_t password [client->payload_length - config::HOSTNAME_LENGTH];
             uint32_t psw_ctr = 0;
@@ -650,26 +890,16 @@ Status Server::actOnMessage(int client_socket){
                 || (password[i] > 90 && password[i] < 95)
                 || (password[i] > 95 && password[i] < 97)
                 || password[i] > 122){
-                    authentication_message_[8] = auth::INVALID_CREDENTIAL;
-                    return sendStatusMessage(
-                        client_socket,
-                        client_socket,
-                        authentication_message_,
-                        config::HEADER_SIZE + config::AUTH_PAYLOAD_LENGTH
-                    );
+                    info_message_[8] = info::INVALID_CREDENTIAL;
+                    return Status::INVALID_MESSAGE;
                 }
                 psw_ctr++;
                 client->advanceReadingPointer();
             }
 
             if(psw_ctr < config::MIN_PASSWORD_LENGTH || psw_ctr > config::MAX_PASSWORD_LENGTH){
-                authentication_message_[8] = auth::INVALID_CREDENTIAL;
-                return sendStatusMessage(
-                    client_socket,
-                    client_socket,
-                    authentication_message_,
-                    config::HEADER_SIZE + config::AUTH_PAYLOAD_LENGTH
-                );
+                info_message_[8] = info::INVALID_CREDENTIAL;
+                return Status::INVALID_MESSAGE;
             }
 
             // unique username
@@ -686,13 +916,8 @@ Status Server::actOnMessage(int client_socket){
                             }
                         }
                         if(equal_usernames){
-                            authentication_message_[8] = auth::NOT_UNIQUE;
-                            return sendStatusMessage(
-                                client_socket,
-                                client_socket,
-                                authentication_message_,
-                                config::HEADER_SIZE + config::AUTH_PAYLOAD_LENGTH
-                            );
+                            info_message_[8] = info::NOT_UNIQUE;
+                            return Status::INVALID_MESSAGE;
                         }
                     }
                     username_to_client_key_.advanceNode();
@@ -724,26 +949,28 @@ Status Server::actOnMessage(int client_socket){
                 return Status::ERROR;
             }
             client_key_to_known_keys_.insertNode(client->sender_key, known_users);
+            LinkedList<uint32_t> *requests_to_users = new(std::nothrow) LinkedList<uint32_t>;
+            if(requests_to_users == nullptr){
+                return Status::ERROR;
+            }
+            client_key_to_requested_keys_.insertNode(client->sender_key, requests_to_users);
             if(!printClientInformation(client_socket)){
                 return Status::ERROR;
             }
-            authentication_message_[8] = auth::VALID;
-            return sendStatusMessage(
-                client_socket,
+            authentication_message_[8] = info::VALID;
+            return sendMessage(
                 client_socket,
                 authentication_message_,
-                config::HEADER_SIZE + config::AUTH_PAYLOAD_LENGTH
+                config::AUTH_MESSAGE_LENGTH
             );
         } break;
         case types::LOGIN:{
             // implement eventually
         } break;
         case types::SEND_REQUEST:{
-            if(!client->logged_in){
-                return Status::UNAUTHENTICATED_USER;
-            }
             // search username. Verify that the connection is not established, if yes, just return true without doing anything.
             if(client->payload_length != config::HOSTNAME_LENGTH){
+                info_message_[8] = info::INVALID_MESSAGE;
                 return Status::INVALID_MESSAGE;
             }
             uint8_t target_username [config::HOSTNAME_LENGTH];
@@ -755,6 +982,7 @@ Status Server::actOnMessage(int client_socket){
                 || (target_username[i] > 90 && target_username[i] < 95)
                 || (target_username[i] > 95 && target_username[i] < 97)
                 || target_username[i] > 122){
+                    info_message_[8] = info::INVALID_MESSAGE;
                     return Status::INVALID_MESSAGE;
                 }
                 usr_ctr++;
@@ -787,14 +1015,32 @@ Status Server::actOnMessage(int client_socket){
                             return Status::ERROR;
                         }
                         client->receiver_fd = *client_fd;
+
+                        if(!client_key_to_known_keys_.searchNode(client->sender_key)){
+                            return Status::ERROR;
+                        }
+                        LinkedList<uint32_t> *known_clients = *client_key_to_known_keys_.getNode(client->sender_key);
+                        if(known_clients->searchNode(client->receiver_key)){
+                            info_message_[8] = info::ALREADY_KNOWN_CLIENT;
+                            return Status::INVALID_MESSAGE;
+                        }
+
+                        if(!client_key_to_requested_keys_.searchNode(client->sender_key)){
+                            return Status::ERROR;
+                        }
+                        LinkedList<uint32_t> *requests = *client_key_to_requested_keys_.getNode(client->sender_key);
+                        if(requests->searchNode(client->receiver_key)){
+                            info_message_[8] = info::ALREADY_SENT_REQUEST;
+                            return Status::INVALID_MESSAGE;
+                        }
+
                         for(int i = 0; i < config::CLIENT_KEY_LENGTH; i++){
                             request_communication_message_[i + 2] = client->sender_key << ((config::CLIENT_KEY_LENGTH - 1 - i) * 8);
                         }
                         for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
                             request_communication_message_[i + config::HEADER_SIZE] = client->name[i];
                         }
-                        return sendStatusMessage(
-                            client_socket,
+                        return sendMessage(
                             client->receiver_fd,
                             request_communication_message_,
                             config::HEADER_SIZE + config::HOSTNAME_LENGTH
@@ -807,12 +1053,33 @@ Status Server::actOnMessage(int client_socket){
         } break;
         case types::ACCEPT_REQUEST:
         case types::REJECT_REQUEST:{
+            //validate if request exist
+
             if(client->payload_length != config::HOSTNAME_LENGTH){
+                info_message_[8] = info::INVALID_MESSAGE;
                 return Status::INVALID_MESSAGE;
             }
-            if(username_to_client_key_.getDataCount() == 0 || !clients_.searchNode(client->receiver_fd)){
+            if(!clients_.searchNode(client->receiver_fd)){
                 return Status::INVALID_CLIENT;
             }
+
+            if(!client_key_to_known_keys_.searchNode(client->sender_key)){
+                return Status::ERROR;
+            }
+            LinkedList<uint32_t> *known_clients = *client_key_to_known_keys_.getNode(client->sender_key);
+            if(known_clients->searchNode(client->receiver_key)){
+                info_message_[8] = info::ALREADY_KNOWN_CLIENT;
+                return Status::INVALID_MESSAGE;
+            }
+
+            if(!client_key_to_requested_keys_.searchNode(client->receiver_key)){
+                return Status::ERROR;
+            }
+            LinkedList<uint32_t> *requests = *client_key_to_requested_keys_.getNode(client->receiver_key);
+            if(!requests->searchNode(client->sender_key)){
+                return Status::INVALID_CLIENT;
+            }
+
             Status send_state = sendToClient(client_socket);
 
             switch(send_state){
@@ -826,26 +1093,17 @@ Status Server::actOnMessage(int client_socket){
             }
 
             if(client->type == types::ACCEPT_REQUEST){
-                if(!client_key_to_known_keys_.searchNode(client->sender_key)){
-                    return Status::ERROR;
-                }
-                LinkedList<uint32_t> *known_users = *client_key_to_known_keys_.getNode(client->sender_key);
-                known_users->insertHead(client->receiver_key);
+                known_clients->insertHead(client->receiver_key);
 
                 if(!client_key_to_known_keys_.searchNode(client->receiver_key)){
                     return Status::ERROR;
                 }
-                known_users = *client_key_to_known_keys_.getNode(client->receiver_key);
-                known_users->insertHead(client->sender_key);
+                known_clients = *client_key_to_known_keys_.getNode(client->receiver_key);
+                known_clients->insertHead(client->sender_key);
             }
-            // working here
-
             return Status::SUCCESS;
         } break;
         case types::ACK:{
-            if(!client->logged_in){
-                return Status::UNAUTHENTICATED_USER;
-            }
             if(client_key_to_known_keys_.searchNode(client->sender_key)){
                 LinkedList<uint32_t> *known_users = *client_key_to_known_keys_.getNode(client->sender_key);
                 if(!known_users->searchNode(client->receiver_key)){
@@ -861,8 +1119,7 @@ Status Server::actOnMessage(int client_socket){
             delivered_ack_message_[3] = client->sender_key >> 16;
             delivered_ack_message_[4] = client->sender_key >> 8;
             delivered_ack_message_[5] = client->sender_key;
-            Status ack_state = sendStatusMessage(
-                client_socket,
+            Status ack_state = sendMessage(
                 client->receiver_fd,
                 delivered_ack_message_,
                 config::HEADER_SIZE
@@ -880,9 +1137,116 @@ Status Server::actOnMessage(int client_socket){
 
         } break;
         default:{
+            info_message_[8] = info::INVALID_MESSAGE;
             return Status::INVALID_MESSAGE;
         }
     }
+    return Status::ERROR;
+}
+
+/*
+Sends different status messages to clients.
+Returns:
+
+SUCCESS - The entire status message has been sent.
+RESOURCE_UNAVAILABLE - Unexpected error.
+ERROR - An unhandled error ocurred.
+*/
+Status Server::sendMessage(int receiver_fd, uint8_t *buffer, int bytes_to_send){
+    int total_bytes_sent = 0;
+    int bytes_sent = 0;
+
+    while(total_bytes_sent < bytes_to_send){
+        if((bytes_sent = send(
+            receiver_fd,
+            &buffer[total_bytes_sent],
+            bytes_to_send - total_bytes_sent,
+            0)) == -1){
+            int error = errno;
+            if(error == EAGAIN || error == EWOULDBLOCK){
+                return Status::RESOURCE_UNAVAILABLE;
+            } else{
+                perror("Send of authentication failed.");
+                return Status::ERROR;
+            }
+        }
+        total_bytes_sent += bytes_sent;
+    }
+    return Status::SUCCESS;
+}
+
+/*
+Sends message from one client to another.
+Returns:
+
+SUCCESS - The entire message has been sent.
+RESOURCE_UNAVAILABLE - Unexpected error.
+ERROR - An unhandled error ocurred.
+*/
+Status Server::sendToClient(int client_socket){
+    Client *client = clients_.getNode(client_socket);
+    if(client == nullptr){
+        return Status::ERROR;
+    }
+    int sending_pointer = 0;
+    int bytes_to_send = client->payload_length + config::HEADER_SIZE;
+
+    client->reading_pointer = client->starting_pointer;
+    for(int i = 0; i <  bytes_to_send; i++){
+        sending_buffer_[sending_pointer] = buffer_pool_[client->reading_pointer];
+        client->advanceReadingPointer();
+        sending_pointer++;
+    }
+
+    return sendMessage(
+        client->receiver_fd,
+        sending_buffer_,
+        bytes_to_send
+    );
+}
+
+/*
+Resets client buffers after an invalid message has been received.
+Returns:
+
+SUCCESS - The entire message has been sent.
+INSUFFICIENT_BUFFER_SPACE - Non available client buffer segments. Error in server code.
+INSUFFICIENT_MEMORY - No memory available.
+ERROR - An unhandled error ocurred.
+*/
+Status Server::resetClientBuffer(int client_socket){
+    Client *client = clients_.getNode(client_socket);
+    if(client == nullptr){
+        return Status::ERROR;
+    }
+    for(int i = 0; i < config::BUFFER_SEGMENTS_PER_CLIENT; i++){
+        if(client->buffer_pointers_count <= 0){
+            break;
+        }
+        if(client->buffer_pointers[i] != UINT32_MAX){
+            try{
+                available_buffers_.insertHead(client->buffer_pointers[i]);
+                client->buffer_pointers[i] = UINT32_MAX;
+                client->buffer_pointers_count--;
+            } catch(const std::bad_alloc&){
+                return Status::INSUFFICIENT_MEMORY;
+            }
+        }
+    }
+    if(available_buffers_.isEmpty()){
+        return Status::INSUFFICIENT_BUFFER_SPACE;
+    }
+    client->buffer_pointers[0] = available_buffers_.getHead();
+    available_buffers_.deleteHead();
+    client->buffer_pointers_count = 1;
+    client->starting_buffer = 0;
+    client->writing_buffer = 0;
+    client->reading_buffer = 0;
+    client->starting_pointer = client->buffer_pointers[0];
+    client->writing_pointer = client->buffer_pointers[0];
+    client->reading_pointer = client->buffer_pointers[0];
+    client->byte_counter = 0;
+    client->resetMessage();
     return Status::SUCCESS;
 }
 
@@ -910,78 +1274,6 @@ bool Server::cleanClientBuffer(int client_socket){
     return true;
 }
 
-/*
-Sends different status messages to clients.
-Returns INVALID_CLIENT, ERROR, RESOURCE_UNAVAILABLE, SUCCESS.
-*/
-Status Server::sendStatusMessage(int client_socket, int receiver_fd, uint8_t *buffer, int bytes_to_send){
-    Client *client = clients_.getNode(client_socket);
-    if(client == nullptr){
-        return Status::INVALID_CLIENT;
-    }
-    int total_bytes_sent = 0;
-    int bytes_sent = 0;
-
-    while(total_bytes_sent < bytes_to_send){
-        if((bytes_sent = send(
-            receiver_fd,
-            &buffer[total_bytes_sent],
-            bytes_to_send - total_bytes_sent,
-            0)) == -1){
-            int error = errno;
-            if(error == EAGAIN || error == EWOULDBLOCK){
-                return Status::RESOURCE_UNAVAILABLE;
-            } else{
-                perror("Send of authentication failed.");
-                return Status::ERROR;
-            }
-        }
-        total_bytes_sent += bytes_sent;
-    }
-    return Status::SUCCESS;
-}
-
-/*
-Sends message from one client to another.
-Returns INVALID_CLIENT, ERROR, RESOURCE_UNAVAILABLE, SUCCESS.
-*/
-Status Server::sendToClient(int client_socket){
-    Client *client = clients_.getNode(client_socket);
-    if(client == nullptr){
-        return Status::INVALID_CLIENT;
-    }
-    int sending_pointer = 0;
-    int bytes_to_send = client->payload_length + config::HEADER_SIZE;
-    int total_bytes_sent = 0;
-
-    client->reading_pointer = client->starting_pointer;
-    for(int i = 0; i <  bytes_to_send; i++){
-        sending_buffer_[sending_pointer] = buffer_pool_[client->reading_pointer];
-        client->advanceReadingPointer();
-        sending_pointer++;
-    }
-    while(total_bytes_sent < bytes_to_send){
-        int sent_bytes = 0;
-        if((sent_bytes = send(
-            client->receiver_fd,
-            &sending_buffer_[total_bytes_sent],
-            (bytes_to_send - total_bytes_sent),
-            0)) == -1)
-        {
-            int error = errno;
-            if(error == EAGAIN || error == EWOULDBLOCK){
-                return Status::RESOURCE_UNAVAILABLE;
-            } else{
-                perror("Send of message failed.");
-                return Status::ERROR;
-            }
-        } else{
-            total_bytes_sent += sent_bytes;
-        }
-    }
-    return Status::SUCCESS;
-}
-
 // Prints the Name, Key, IP, Port and Socket of a new client.
 bool Server::printClientInformation(int client_socket){
     Client *client = clients_.getNode(client_socket);
@@ -995,7 +1287,6 @@ bool Server::printClientInformation(int client_socket){
     << "Port: " << client->port << std::endl
     << "Socket: " << client_socket << std::endl
     << std::endl;
-    client = nullptr;
     return true;
 }
 

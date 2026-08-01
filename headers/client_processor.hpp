@@ -11,8 +11,7 @@
 #include "constants/config.hpp"
 #include "constants/status.hpp"
 #include "constants/types.hpp"
-#include "constants/auth.hpp"
-
+#include "constants/info.hpp"
 
 class ClientProcessor{
     public:
