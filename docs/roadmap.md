@@ -24,6 +24,7 @@
 
 ## Milestone 3
 1. [ ] ID system of messages.
+2. [ ] Timestamps.
 2. [ ] Priority message queue.
 
 ## Milestone 4
@@ -51,6 +52,7 @@
 
 ## Milestone 9
 1. [ ] System status reporting.
+2. [ ] Monitoring.
 2. [ ] Admin accounts.
 
 ## Milestone 10
@@ -59,4 +61,3 @@
 
 ## Milestone 11
 1. [ ] Split terminal window into message printing and user input.
-2. [ ] GUI of application.

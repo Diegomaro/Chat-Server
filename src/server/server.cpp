@@ -246,13 +246,13 @@ void Server::centralLoop(){
                     }
                 }
             } else if (events_[i].events & EPOLLIN){
-                int sender_socket = events_[i].data.fd;
+                int client_socket = events_[i].data.fd;
                 bool receive_loop = true;
                 while(receive_loop){
-                    Status rcvf_state = receiveFromClient(sender_socket);
+                    Status rcvf_state = receiveFromClient(client_socket);
                     switch(rcvf_state){
                         case Status::SUCCESS:{
-                            Status check_state = messageProcessor(sender_socket);
+                            Status check_state = messageProcessor(client_socket);
                             switch(check_state){
                                 case Status::SUCCESS:{
                                 } break;
@@ -276,13 +276,12 @@ void Server::centralLoop(){
                                     return;
                                 } break;
                             }
-                           //if missing timeout
                         } break;
                         case Status::NOTHING_TO_READ:{
                             receive_loop = false;
                         } break;
                         case Status::CLOSED_CONVERSATION:{
-                            Status close_connection = closeConnection(sender_socket);
+                            Status close_connection = closeConnection(client_socket);
                             switch(close_connection){
                                 case Status::SUCCESS:{
                                     return; // current method of shutting down server.
@@ -300,14 +299,14 @@ void Server::centralLoop(){
                             }
                         } break;
                         case Status::EXCEEDED_CLIENT_BUFFER_SIZE:{
-                            Status check_state = messageProcessor(sender_socket);
+                            Status check_state = messageProcessor(client_socket);
                             switch(check_state){
                                 case Status::SUCCESS:{
                                 } break;
                                 case Status::INCOMPLETE_MESSAGE:{
                                     info_message_[8] = info::INVALID_MESSAGE;
                                     Status send_state = sendMessage(
-                                        sender_socket,
+                                        client_socket,
                                         info_message_,
                                         config::INFO_MESSAGE_LENGTH
                                     );
@@ -319,7 +318,7 @@ void Server::centralLoop(){
                                             return;
                                         }
                                     }
-                                    Status reset_client_status = resetClientBuffer(sender_socket);
+                                    Status reset_client_status = resetClientBuffer(client_socket);
                                     switch(reset_client_status){
                                         case Status::INSUFFICIENT_BUFFER_SPACE:{
                                             std::cout << "Error in distribution of buffer segments found on messageProcessor!" << std::endl;
@@ -364,14 +363,13 @@ void Server::centralLoop(){
             }
         }
         if(ready_polls == 0){
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
     }
 }
 
 /*
 Accepts a incoming connection request and adds them as as a client.
-Returns:
 
 SUCCESS - Client added correctly.
 NOTHING_TO_DO - No pending clients to add.
@@ -417,7 +415,6 @@ Status Server::acceptConnection(){
 
 /*
 Registers a client with their socket info. Gives each registered client a buffer segment to occupy.
-Returns:
 
 SUCCESS - Client added correctly.
 PROGRAMMING_ERROR - There's an issue with how hash tables are handled.
@@ -461,7 +458,6 @@ Status Server::addClient(const sockaddr_storage& client_sockaddr){
 
 /*
 Closes a client connection. Returns occupied buffer segments to the buffer pool.
-Returns:
 
 SUCCESS - Socket closed correctly.
 PROGRAMMING_ERROR - There's an issue with the deleting of nodes in hash table.
@@ -506,7 +502,7 @@ Status Server::closeConnection(int client_socket){
 
 /*
 Copies an incoming message (possibly fragmented) to the corresponding client buffers.
-Returns:
+
 SUCCESS - All bytes were received and copied to client buffers.
 NOTHING_TO_READ - There are no more bytes to copy from a client.
 CLOSED_CONVERSATION - The client closed the conversation.
@@ -567,7 +563,6 @@ Status Server::receiveFromClient(int client_socket){
 
 /*
 Checks message and acts on it based on its type.
-Returns:
 
 SUCCESS - Message is complete and has been processed.
 INCOMPLETE_MESSAGE - The entire message has not been received.
@@ -682,7 +677,6 @@ Status Server::messageProcessor(int client_socket){
 
 /*
 Checks if the entire message header + payload have been received.
-Returns:
 
 SUCCESS - Message header is complete and valid.
 INCOMPLETE_MESSAGE - The entire message has not been received.
@@ -709,7 +703,7 @@ Status Server::checkMessage(int client_socket){
 
 /*
 Verifies that a message has a valid header and replaces target key with sender key.
-Returns:
+
 SUCCESS - Message header is complete and valid.
 INCOMPLETE_MESSAGE - The entire header has not been received.
 INVALID_CLIENT - The target client is non existant.
@@ -784,8 +778,8 @@ Status Server::checkHeader(int client_socket){
 
 /*
 Performs different tasks depending on the type of message received.
-Returns:
-SUCCESS - The message was valid and was processed correctly.
+
+SUCCESS - The message was valid and was handled correctly.
 INVALID_CLIENT - Client sent a message to client that does not exist, or they are not allowed to message to.
 INVALID_MESSAGE - Client sent an invalid message.
 RESOURCE_UNAVAILABLE - Unexpected error.
@@ -805,336 +799,20 @@ Status Server::actOnMessage(int client_socket){
 
     switch(client->type){
         case types::USER:{
-            if(client->payload_length == 0 || client->payload_length > config::MAX_MESSAGE_SIZE){
-                info_message_[8] = info::INVALID_MESSAGE;
-                return Status::INVALID_MESSAGE;
-            }
-            // Sender knows receiver
-            if(!client_key_to_known_keys_.searchNode(client->sender_key)){
-                return Status::ERROR;
-            }
-            LinkedList<uint32_t> *known_users = *client_key_to_known_keys_.getNode(client->sender_key);
-            if(!known_users->searchNode(client->receiver_key)){
-                return Status::INVALID_CLIENT;
-            }
-
-            // later it should be changed to store all client keys, regardless of whether online or not.
-            if(!clients_.searchNode(client->receiver_fd)){
-                return Status::INVALID_CLIENT;
-            }
-            Status ack_state = sendMessage(
-                client_socket,
-                processed_ack_message_,
-                config::HEADER_SIZE
-            );
-            switch(ack_state){
-                case Status::RESOURCE_UNAVAILABLE:{
-                    // should not return, rather be stored
-                    return Status::RESOURCE_UNAVAILABLE;
-                } break;
-                case Status::ERROR:{
-                    return Status::ERROR;
-                } break;
-            }
-            // If client is not available it should be stored in some file. (much later)
-            Status send_state = sendToClient(client_socket);
-            switch(send_state){
-                case Status::RESOURCE_UNAVAILABLE:{
-                    //should not return, rather be stored
-                    return Status::RESOURCE_UNAVAILABLE;
-                } break;
-                case Status::ERROR:{
-                    return Status::ERROR;
-                } break;
-            }
-            return Status::SUCCESS;
+            return actOnUserMessage(client_socket, client);
         } break;
         case types::REGISTER:{
-            if(client->logged_in){
-                info_message_[8] = info::ALREADY_LOGGED_IN;
-                return Status::INVALID_MESSAGE;
-            }
-
-            if(client->payload_length < config::HOSTNAME_LENGTH + config::MIN_PASSWORD_LENGTH
-            || client->payload_length > config::HOSTNAME_LENGTH + config::MAX_PASSWORD_LENGTH){
-                info_message_[8] = info::INVALID_CREDENTIAL;
-                return Status::INVALID_MESSAGE;
-            }
-
-            //CHECK CREDENTIALS
-            uint8_t username [config::HOSTNAME_LENGTH];
-            uint32_t usr_ctr = 0;
-            for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
-                username[i] = buffer_pool_[client->reading_pointer];
-                if((username[i] > 0 && username[i] < 48)
-                || (username[i] > 57 && username[i] < 65)
-                || (username[i] > 90 && username[i] < 95)
-                || (username[i] > 95 && username[i] < 97)
-                || username[i] > 122){
-                    info_message_[8] = info::INVALID_CREDENTIAL;
-                    return Status::INVALID_MESSAGE;
-                }
-                usr_ctr += username[i] != 0 ? 1 : 0;
-                client->advanceReadingPointer();
-            }
-            if(usr_ctr < 1){
-                info_message_[8] = info::INVALID_CREDENTIAL;
-                return Status::INVALID_MESSAGE;
-            }
-            uint8_t password [client->payload_length - config::HOSTNAME_LENGTH];
-            uint32_t psw_ctr = 0;
-            for(int i = 0; i < client->payload_length - config::HOSTNAME_LENGTH; i++){
-                password[i] = buffer_pool_[client->reading_pointer];
-                if(password[i] < 48
-                || (password[i] > 57 && password[i] < 65)
-                || (password[i] > 90 && password[i] < 95)
-                || (password[i] > 95 && password[i] < 97)
-                || password[i] > 122){
-                    info_message_[8] = info::INVALID_CREDENTIAL;
-                    return Status::INVALID_MESSAGE;
-                }
-                psw_ctr++;
-                client->advanceReadingPointer();
-            }
-
-            if(psw_ctr < config::MIN_PASSWORD_LENGTH || psw_ctr > config::MAX_PASSWORD_LENGTH){
-                info_message_[8] = info::INVALID_CREDENTIAL;
-                return Status::INVALID_MESSAGE;
-            }
-
-            // unique username
-            if(username_to_client_key_.getDataCount() != 0){
-                username_to_client_key_.resetNodeIndex();
-                while(username_to_client_key_.hasNodes()){
-                    if(username_to_client_key_.hasNode()){
-                        bool equal_usernames = true;
-                        char *ref_username = username_to_client_key_.getNode()->data_.username;
-                        for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
-                            if(ref_username[i] != username[i]){
-                                equal_usernames = false;
-                                break;
-                            }
-                        }
-                        if(equal_usernames){
-                            info_message_[8] = info::NOT_UNIQUE;
-                            return Status::INVALID_MESSAGE;
-                        }
-                    }
-                    username_to_client_key_.advanceNode();
-                }
-            }
-            // get key
-            client->sender_key = next_client_key_;
-            if(next_client_key_ >= UINT32_MAX){
-                return Status::EXCEEDED_CLIENT_MAX;
-            }
-            next_client_key_++;
-            UsernameMapping userMapping;
-            for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
-                client->name[i] = username[i];
-                userMapping.username[i] = username[i];
-            }
-            userMapping.key = client->sender_key;
-
-            if(!username_to_client_key_.insertNode(stringHash(client->name), userMapping)){
-                return Status::ERROR;
-            }
-            if(!client_key_to_socket_.insertNode(client->sender_key, client_socket)){
-                return Status::ERROR;
-            }
-            client->logged_in = true;
-
-            LinkedList<uint32_t> *known_users = new(std::nothrow) LinkedList<uint32_t>;
-            if(known_users == nullptr){
-                return Status::ERROR;
-            }
-            client_key_to_known_keys_.insertNode(client->sender_key, known_users);
-            LinkedList<uint32_t> *requests_to_users = new(std::nothrow) LinkedList<uint32_t>;
-            if(requests_to_users == nullptr){
-                return Status::ERROR;
-            }
-            client_key_to_requested_keys_.insertNode(client->sender_key, requests_to_users);
-            if(!printClientInformation(client_socket)){
-                return Status::ERROR;
-            }
-            authentication_message_[8] = info::VALID;
-            return sendMessage(
-                client_socket,
-                authentication_message_,
-                config::AUTH_MESSAGE_LENGTH
-            );
-        } break;
-        case types::LOGIN:{
-            // implement eventually
+            return actOnRegister(client_socket, client);
         } break;
         case types::SEND_REQUEST:{
-            // search username. Verify that the connection is not established, if yes, just return true without doing anything.
-            if(client->payload_length != config::HOSTNAME_LENGTH){
-                info_message_[8] = info::INVALID_MESSAGE;
-                return Status::INVALID_MESSAGE;
-            }
-            uint8_t target_username [config::HOSTNAME_LENGTH];
-            uint32_t usr_ctr = 0;
-            for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
-                target_username[i] = buffer_pool_[client->reading_pointer];
-                if((target_username[i] > 0 && target_username[i] < 48)
-                || (target_username[i] > 57 && target_username[i] < 65)
-                || (target_username[i] > 90 && target_username[i] < 95)
-                || (target_username[i] > 95 && target_username[i] < 97)
-                || target_username[i] > 122){
-                    info_message_[8] = info::INVALID_MESSAGE;
-                    return Status::INVALID_MESSAGE;
-                }
-                usr_ctr++;
-                client->advanceReadingPointer();
-            }
-            if(usr_ctr < 1){
-                return Status::INVALID_CLIENT;
-            }
-            if(username_to_client_key_.getDataCount() == 0){
-                return Status::INVALID_CLIENT;
-            }
-            char *client_username;
-            uint32_t client_key;
-            username_to_client_key_.resetNodeIndex();
-            while(username_to_client_key_.hasNodes()){
-                if(username_to_client_key_.hasNode()){
-                    bool equal_usernames = true;
-                    client_username = username_to_client_key_.getNode()->data_.username;
-                    client_key = username_to_client_key_.getNode()->data_.key;
-                    client->receiver_key = client_key;
-                    for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
-                        if(client_username[i] != target_username[i]){
-                            equal_usernames = false;
-                            break;
-                        }
-                    }
-                    if(equal_usernames){
-                        int *client_fd = client_key_to_socket_.getNode(client_key);
-                        if(client_fd == nullptr){
-                            return Status::ERROR;
-                        }
-                        client->receiver_fd = *client_fd;
-
-                        if(!client_key_to_known_keys_.searchNode(client->sender_key)){
-                            return Status::ERROR;
-                        }
-                        LinkedList<uint32_t> *known_clients = *client_key_to_known_keys_.getNode(client->sender_key);
-                        if(known_clients->searchNode(client->receiver_key)){
-                            info_message_[8] = info::ALREADY_KNOWN_CLIENT;
-                            return Status::INVALID_MESSAGE;
-                        }
-
-                        if(!client_key_to_requested_keys_.searchNode(client->sender_key)){
-                            return Status::ERROR;
-                        }
-                        LinkedList<uint32_t> *requests = *client_key_to_requested_keys_.getNode(client->sender_key);
-                        if(requests->searchNode(client->receiver_key)){
-                            info_message_[8] = info::ALREADY_SENT_REQUEST;
-                            return Status::INVALID_MESSAGE;
-                        }
-
-                        for(int i = 0; i < config::CLIENT_KEY_LENGTH; i++){
-                            request_communication_message_[i + 2] = client->sender_key << ((config::CLIENT_KEY_LENGTH - 1 - i) * 8);
-                        }
-                        for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
-                            request_communication_message_[i + config::HEADER_SIZE] = client->name[i];
-                        }
-                        return sendMessage(
-                            client->receiver_fd,
-                            request_communication_message_,
-                            config::HEADER_SIZE + config::HOSTNAME_LENGTH
-                        );
-                    }
-                }
-                username_to_client_key_.advanceNode();
-            }
-            return Status::INVALID_CLIENT;
+            return actOnSendRequest(client_socket, client);
         } break;
         case types::ACCEPT_REQUEST:
         case types::REJECT_REQUEST:{
-            //validate if request exist
-
-            if(client->payload_length != config::HOSTNAME_LENGTH){
-                info_message_[8] = info::INVALID_MESSAGE;
-                return Status::INVALID_MESSAGE;
-            }
-            if(!clients_.searchNode(client->receiver_fd)){
-                return Status::INVALID_CLIENT;
-            }
-
-            if(!client_key_to_known_keys_.searchNode(client->sender_key)){
-                return Status::ERROR;
-            }
-            LinkedList<uint32_t> *known_clients = *client_key_to_known_keys_.getNode(client->sender_key);
-            if(known_clients->searchNode(client->receiver_key)){
-                info_message_[8] = info::ALREADY_KNOWN_CLIENT;
-                return Status::INVALID_MESSAGE;
-            }
-
-            if(!client_key_to_requested_keys_.searchNode(client->receiver_key)){
-                return Status::ERROR;
-            }
-            LinkedList<uint32_t> *requests = *client_key_to_requested_keys_.getNode(client->receiver_key);
-            if(!requests->searchNode(client->sender_key)){
-                return Status::INVALID_CLIENT;
-            }
-
-            Status send_state = sendToClient(client_socket);
-
-            switch(send_state){
-                case Status::RESOURCE_UNAVAILABLE:{
-                    //should not return, rather be stored
-                    return Status::RESOURCE_UNAVAILABLE;
-                } break;
-                case Status::ERROR:{
-                    return Status::ERROR;
-                } break;
-            }
-
-            if(client->type == types::ACCEPT_REQUEST){
-                known_clients->insertHead(client->receiver_key);
-
-                if(!client_key_to_known_keys_.searchNode(client->receiver_key)){
-                    return Status::ERROR;
-                }
-                known_clients = *client_key_to_known_keys_.getNode(client->receiver_key);
-                known_clients->insertHead(client->sender_key);
-            }
-            return Status::SUCCESS;
+            return actOnRespondToRequest(client_socket, client);
         } break;
         case types::ACK:{
-            if(client_key_to_known_keys_.searchNode(client->sender_key)){
-                LinkedList<uint32_t> *known_users = *client_key_to_known_keys_.getNode(client->sender_key);
-                if(!known_users->searchNode(client->receiver_key)){
-                    return Status::INVALID_CLIENT;
-                }
-            } else{
-                return Status::ERROR;
-            }
-            if(!clients_.searchNode(client->receiver_fd)){
-                return Status::INVALID_CLIENT;
-            }
-            delivered_ack_message_[2] = client->sender_key >> 24;
-            delivered_ack_message_[3] = client->sender_key >> 16;
-            delivered_ack_message_[4] = client->sender_key >> 8;
-            delivered_ack_message_[5] = client->sender_key;
-            Status ack_state = sendMessage(
-                client->receiver_fd,
-                delivered_ack_message_,
-                config::HEADER_SIZE
-            );
-            switch(ack_state){
-                case Status::RESOURCE_UNAVAILABLE:{
-                    // should not return, rather be stored
-                    return Status::RESOURCE_UNAVAILABLE;
-                } break;
-                case Status::ERROR:{
-                    return Status::ERROR;
-                } break;
-            }
-            return Status::SUCCESS;
-
+            return actOnAcknowledgement(client_socket, client);
         } break;
         default:{
             info_message_[8] = info::INVALID_MESSAGE;
@@ -1145,8 +823,386 @@ Status Server::actOnMessage(int client_socket){
 }
 
 /*
+Process a user message and determines if the message should be sent. Sends the message to the receiver.
+
+SUCCESS - The message was valid and was sent.
+INVALID_CLIENT - Client sent a message to a client that does not exist, or they are not allowed to message to.
+INVALID_MESSAGE - Client sent an invalid message.
+RESOURCE_UNAVAILABLE - Unexpected error.
+ERROR - An unhandled error ocurred.
+*/
+Status Server::actOnUserMessage(int client_socket, Client *client){
+    if(client->payload_length == 0 || client->payload_length > config::MAX_MESSAGE_SIZE){
+        info_message_[8] = info::INVALID_MESSAGE;
+        return Status::INVALID_MESSAGE;
+    }
+    // Sender knows receiver
+    if(!client_key_to_known_keys_.searchNode(client->sender_key)){
+        return Status::ERROR;
+    }
+    LinkedList<uint32_t> *known_users = *client_key_to_known_keys_.getNode(client->sender_key);
+    if(!known_users->searchNode(client->receiver_key)){
+        return Status::INVALID_CLIENT;
+    }
+
+    // later it should be changed to store all client keys, regardless of whether online or not.
+    if(!clients_.searchNode(client->receiver_fd)){
+        return Status::INVALID_CLIENT;
+    }
+    Status ack_state = sendMessage(
+        client_socket,
+        processed_ack_message_,
+        config::HEADER_SIZE
+    );
+    switch(ack_state){
+        case Status::RESOURCE_UNAVAILABLE:{
+            // should not return, rather be stored
+            return Status::RESOURCE_UNAVAILABLE;
+        } break;
+        case Status::ERROR:{
+            return Status::ERROR;
+        } break;
+    }
+    // If client is not available it should be stored in some file. (much later)
+    Status send_state = sendToClient(client_socket);
+    switch(send_state){
+        case Status::RESOURCE_UNAVAILABLE:{
+            //should not return, rather be stored
+            return Status::RESOURCE_UNAVAILABLE;
+        } break;
+        case Status::ERROR:{
+            return Status::ERROR;
+        } break;
+    }
+    return Status::SUCCESS;
+}
+
+/*
+Process a user registration attempt and reviews credentials structure. Registers the user.
+
+SUCCESS - The registration request was valid.
+INVALID_MESSAGE - Client sent an invalid registration request.
+EXCEEDED_CLIENT_MAX - The server cannnot register more users.
+RESOURCE_UNAVAILABLE - Unexpected error.
+ERROR - An unhandled error ocurred.
+*/
+Status Server::actOnRegister(int client_socket, Client *client){
+    if(client->logged_in){
+        info_message_[8] = info::ALREADY_LOGGED_IN;
+        return Status::INVALID_MESSAGE;
+    }
+
+    if(client->payload_length < config::HOSTNAME_LENGTH + config::MIN_PASSWORD_LENGTH
+    || client->payload_length > config::HOSTNAME_LENGTH + config::MAX_PASSWORD_LENGTH){
+        info_message_[8] = info::INVALID_CREDENTIAL;
+        return Status::INVALID_MESSAGE;
+    }
+
+    //CHECK CREDENTIALS
+    uint8_t username [config::HOSTNAME_LENGTH];
+    uint32_t usr_ctr = 0;
+    for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
+        username[i] = buffer_pool_[client->reading_pointer];
+        if((username[i] > 0 && username[i] < 48)
+        || (username[i] > 57 && username[i] < 65)
+        || (username[i] > 90 && username[i] < 95)
+        || (username[i] > 95 && username[i] < 97)
+        || username[i] > 122){
+            info_message_[8] = info::INVALID_CREDENTIAL;
+            return Status::INVALID_MESSAGE;
+        }
+        usr_ctr += username[i] != 0 ? 1 : 0;
+        client->advanceReadingPointer();
+    }
+    if(usr_ctr < 1){
+        info_message_[8] = info::INVALID_CREDENTIAL;
+        return Status::INVALID_MESSAGE;
+    }
+    uint8_t password [client->payload_length - config::HOSTNAME_LENGTH];
+    uint32_t psw_ctr = 0;
+    for(int i = 0; i < client->payload_length - config::HOSTNAME_LENGTH; i++){
+        password[i] = buffer_pool_[client->reading_pointer];
+        if(password[i] < 48
+        || (password[i] > 57 && password[i] < 65)
+        || (password[i] > 90 && password[i] < 95)
+        || (password[i] > 95 && password[i] < 97)
+        || password[i] > 122){
+            info_message_[8] = info::INVALID_CREDENTIAL;
+            return Status::INVALID_MESSAGE;
+        }
+        psw_ctr++;
+        client->advanceReadingPointer();
+    }
+
+    if(psw_ctr < config::MIN_PASSWORD_LENGTH || psw_ctr > config::MAX_PASSWORD_LENGTH){
+        info_message_[8] = info::INVALID_CREDENTIAL;
+        return Status::INVALID_MESSAGE;
+    }
+
+    // unique username
+    if(username_to_client_key_.getDataCount() != 0){
+        username_to_client_key_.resetNodeIndex();
+        while(username_to_client_key_.hasNodes()){
+            if(username_to_client_key_.hasNode()){
+                bool equal_usernames = true;
+                char *ref_username = username_to_client_key_.getNode()->data_.username;
+                for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
+                    if(ref_username[i] != username[i]){
+                        equal_usernames = false;
+                        break;
+                    }
+                }
+                if(equal_usernames){
+                    info_message_[8] = info::NOT_UNIQUE;
+                    return Status::INVALID_MESSAGE;
+                }
+            }
+            username_to_client_key_.advanceNode();
+        }
+    }
+    // get key
+    client->sender_key = next_client_key_;
+    if(next_client_key_ >= UINT32_MAX){
+        return Status::EXCEEDED_CLIENT_MAX;
+    }
+    next_client_key_++;
+    UsernameMapping userMapping;
+    for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
+        client->name[i] = username[i];
+        userMapping.username[i] = username[i];
+    }
+    userMapping.key = client->sender_key;
+
+    if(!username_to_client_key_.insertNode(stringHash(client->name), userMapping)){
+        return Status::ERROR;
+    }
+    if(!client_key_to_socket_.insertNode(client->sender_key, client_socket)){
+        return Status::ERROR;
+    }
+    client->logged_in = true;
+
+    LinkedList<uint32_t> *known_users = new(std::nothrow) LinkedList<uint32_t>;
+    if(known_users == nullptr){
+        return Status::ERROR;
+    }
+    client_key_to_known_keys_.insertNode(client->sender_key, known_users);
+    LinkedList<uint32_t> *requests_to_users = new(std::nothrow) LinkedList<uint32_t>;
+    if(requests_to_users == nullptr){
+        return Status::ERROR;
+    }
+    client_key_to_requested_keys_.insertNode(client->sender_key, requests_to_users);
+    if(!printClientInformation(client_socket)){
+        return Status::ERROR;
+    }
+    authentication_message_[8] = info::VALID;
+    return sendMessage(
+        client_socket,
+        authentication_message_,
+        config::AUTH_MESSAGE_LENGTH
+    );
+}
+
+/*
+Process a user registration attempt and reviews credentials structure. Registers the user.
+
+SUCCESS - The request was valid and was sent to the receiver.
+INVALID_CLIENT - Client sent an invalid connection request.
+INVALID_MESSAGE - Client sent an invalid message.
+RESOURCE_UNAVAILABLE - Unexpected error.
+ERROR - An unhandled error ocurred.
+*/
+Status Server::actOnSendRequest(int client_socket, Client *client){
+    // search username. Verify that the connection is not established, if yes, just return true without doing anything.
+    if(client->payload_length != config::HOSTNAME_LENGTH){
+        info_message_[8] = info::INVALID_MESSAGE;
+        return Status::INVALID_MESSAGE;
+    }
+    uint8_t target_username [config::HOSTNAME_LENGTH];
+    uint32_t usr_ctr = 0;
+    for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
+        target_username[i] = buffer_pool_[client->reading_pointer];
+        if((target_username[i] > 0 && target_username[i] < 48)
+        || (target_username[i] > 57 && target_username[i] < 65)
+        || (target_username[i] > 90 && target_username[i] < 95)
+        || (target_username[i] > 95 && target_username[i] < 97)
+        || target_username[i] > 122){
+            info_message_[8] = info::INVALID_MESSAGE;
+            return Status::INVALID_MESSAGE;
+        }
+        usr_ctr++;
+        client->advanceReadingPointer();
+    }
+    if(usr_ctr < 1){
+        return Status::INVALID_CLIENT;
+    }
+    if(username_to_client_key_.getDataCount() == 0){
+        return Status::INVALID_CLIENT;
+    }
+    char *client_username;
+    uint32_t client_key;
+    username_to_client_key_.resetNodeIndex();
+    while(username_to_client_key_.hasNodes()){
+        if(username_to_client_key_.hasNode()){
+            bool equal_usernames = true;
+            client_username = username_to_client_key_.getNode()->data_.username;
+            client_key = username_to_client_key_.getNode()->data_.key;
+            client->receiver_key = client_key;
+            for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
+                if(client_username[i] != target_username[i]){
+                    equal_usernames = false;
+                    break;
+                }
+            }
+            if(equal_usernames){
+                int *client_fd = client_key_to_socket_.getNode(client_key);
+                if(client_fd == nullptr){
+                    return Status::ERROR;
+                }
+                client->receiver_fd = *client_fd;
+
+                if(!client_key_to_known_keys_.searchNode(client->sender_key)){
+                    return Status::ERROR;
+                }
+                LinkedList<uint32_t> *known_clients = *client_key_to_known_keys_.getNode(client->sender_key);
+                if(known_clients->searchNode(client->receiver_key)){
+                    info_message_[8] = info::ALREADY_KNOWN_CLIENT;
+                    return Status::INVALID_MESSAGE;
+                }
+
+                if(!client_key_to_requested_keys_.searchNode(client->sender_key)){
+                    return Status::ERROR;
+                }
+                LinkedList<uint32_t> *requests = *client_key_to_requested_keys_.getNode(client->sender_key);
+                if(requests->searchNode(client->receiver_key)){
+                    info_message_[8] = info::ALREADY_SENT_REQUEST;
+                    return Status::INVALID_MESSAGE;
+                }
+
+                for(int i = 0; i < config::CLIENT_KEY_LENGTH; i++){
+                    request_communication_message_[i + 2] = client->sender_key << ((config::CLIENT_KEY_LENGTH - 1 - i) * 8);
+                }
+                for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
+                    request_communication_message_[i + config::HEADER_SIZE] = client->name[i];
+                }
+                return sendMessage(
+                    client->receiver_fd,
+                    request_communication_message_,
+                    config::HEADER_SIZE + config::HOSTNAME_LENGTH
+                );
+            }
+        }
+        username_to_client_key_.advanceNode();
+    }
+    return Status::INVALID_CLIENT;
+}
+
+/*
+Process a user registration attempt and reviews credentials structure. Registers the user.
+
+SUCCESS - The response was valid and was sent to the receiver.
+INVALID_CLIENT - Client sent an invalid response.
+INVALID_MESSAGE - Client sent an invalid message.
+RESOURCE_UNAVAILABLE - Unexpected error.
+ERROR - An unhandled error ocurred.
+*/
+Status Server::actOnRespondToRequest(int client_socket, Client *client){
+    //validate if request exist
+    if(client->payload_length != config::HOSTNAME_LENGTH){
+        info_message_[8] = info::INVALID_MESSAGE;
+        return Status::INVALID_MESSAGE;
+    }
+    if(!clients_.searchNode(client->receiver_fd)){
+        return Status::INVALID_CLIENT;
+    }
+
+    if(!client_key_to_known_keys_.searchNode(client->sender_key)){
+        return Status::ERROR;
+    }
+    LinkedList<uint32_t> *known_clients = *client_key_to_known_keys_.getNode(client->sender_key);
+    if(known_clients->searchNode(client->receiver_key)){
+        info_message_[8] = info::ALREADY_KNOWN_CLIENT;
+        return Status::INVALID_MESSAGE;
+    }
+
+    if(!client_key_to_requested_keys_.searchNode(client->receiver_key)){
+        return Status::ERROR;
+    }
+    LinkedList<uint32_t> *requests = *client_key_to_requested_keys_.getNode(client->receiver_key);
+    if(!requests->searchNode(client->sender_key)){
+        return Status::INVALID_CLIENT;
+    }
+
+    Status send_state = sendToClient(client_socket);
+
+    switch(send_state){
+        case Status::RESOURCE_UNAVAILABLE:{
+            //should not return, rather be stored
+            return Status::RESOURCE_UNAVAILABLE;
+        } break;
+        case Status::ERROR:{
+            return Status::ERROR;
+        } break;
+    }
+    if(client->type == types::ACCEPT_REQUEST){
+        known_clients->insertHead(client->receiver_key);
+
+        if(!client_key_to_known_keys_.searchNode(client->receiver_key)){
+            return Status::ERROR;
+        }
+        known_clients = *client_key_to_known_keys_.getNode(client->receiver_key);
+        known_clients->insertHead(client->sender_key);
+    }
+    return Status::SUCCESS;
+}
+
+/*
+Process a user registration attempt and reviews credentials structure. Registers the user.
+
+SUCCESS - The acknowledgement was valid and was sent to the receiver.
+INVALID_CLIENT - Client sent an invalid acknowledgement.
+INVALID_MESSAGE - Client sent an invalid acknowledgement.
+RESOURCE_UNAVAILABLE - Unexpected error.
+ERROR - An unhandled error ocurred.
+*/
+Status Server::actOnAcknowledgement(int client_socket, Client *client){
+    if(client->payload_length != 0){
+        info_message_[8] = info::INVALID_MESSAGE;
+        return Status::INVALID_MESSAGE;
+    }
+    if(client_key_to_known_keys_.searchNode(client->sender_key)){
+        LinkedList<uint32_t> *known_users = *client_key_to_known_keys_.getNode(client->sender_key);
+        if(!known_users->searchNode(client->receiver_key)){
+            return Status::INVALID_CLIENT;
+        }
+    } else{
+        return Status::ERROR;
+    }
+    if(!clients_.searchNode(client->receiver_fd)){
+        return Status::INVALID_CLIENT;
+    }
+    delivered_ack_message_[2] = client->sender_key >> 24;
+    delivered_ack_message_[3] = client->sender_key >> 16;
+    delivered_ack_message_[4] = client->sender_key >> 8;
+    delivered_ack_message_[5] = client->sender_key;
+    Status ack_state = sendMessage(
+        client->receiver_fd,
+        delivered_ack_message_,
+        config::HEADER_SIZE
+    );
+    switch(ack_state){
+        case Status::RESOURCE_UNAVAILABLE:{
+            // should not return, rather be stored
+            return Status::RESOURCE_UNAVAILABLE;
+        } break;
+        case Status::ERROR:{
+            return Status::ERROR;
+        } break;
+    }
+    return Status::SUCCESS;
+}
+
+/*
 Sends different status messages to clients.
-Returns:
 
 SUCCESS - The entire status message has been sent.
 RESOURCE_UNAVAILABLE - Unexpected error.
@@ -1177,7 +1233,6 @@ Status Server::sendMessage(int receiver_fd, uint8_t *buffer, int bytes_to_send){
 
 /*
 Sends message from one client to another.
-Returns:
 
 SUCCESS - The entire message has been sent.
 RESOURCE_UNAVAILABLE - Unexpected error.
@@ -1207,7 +1262,6 @@ Status Server::sendToClient(int client_socket){
 
 /*
 Resets client buffers after an invalid message has been received.
-Returns:
 
 SUCCESS - The entire message has been sent.
 INSUFFICIENT_BUFFER_SPACE - Non available client buffer segments. Error in server code.

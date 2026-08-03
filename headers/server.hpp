@@ -42,9 +42,11 @@ class Server{
         Status checkHeader(int client_socket);
         Status actOnMessage(int client_socket);
 
-        Status actOnUserMessage(int client_socket);
-        //Status actOnRegister(int client_socket);
-
+        Status actOnUserMessage(int client_socket, Client *client);
+        Status actOnRegister(int client_socket, Client *client);
+        Status actOnSendRequest(int client_socket, Client *client);
+        Status actOnRespondToRequest(int client_socket, Client *client);
+        Status actOnAcknowledgement(int client_socket, Client *client);
 
         // sending data
 
