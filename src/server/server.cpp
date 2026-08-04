@@ -21,7 +21,6 @@ Server::Server(){
     memset(&delivered_ack_message_, 0, sizeof(delivered_ack_message_));
     memset(&request_communication_message_, 0, sizeof(request_communication_message_));
     memset(&accept_communication_message_, 0, sizeof(accept_communication_message_));
-    memset(&authentication_message_, 0, sizeof(authentication_message_));
 }
 
 Server::~Server(){
@@ -69,7 +68,7 @@ bool Server::setupServer(){
     }
 
     try{
-        setupBuffer();
+        setupBuffers();
     } catch(const std::bad_alloc&){
         std::cout << "Error: insuficcient memory space!" << std::endl;
         return false;
@@ -100,7 +99,7 @@ bool Server::setupHashTables(){
     return true;
 }
 
-void Server::setupBuffer(){
+void Server::setupBuffers(){
     buffer_pool_ = new uint8_t[config::BUFFER_SIZE];
     receiver_buffer_ = new uint8_t[config::BUFFER_READING_SIZE];
     sending_buffer_ = new uint8_t[config::READING_BUFFER_SIZE];
@@ -139,16 +138,6 @@ void Server::setupHeaderTypes(){
     delivered_ack_message_[5] = UINT8_MAX;
     delivered_ack_message_[6] = 0;
     delivered_ack_message_[7] = 0;
-
-    authentication_message_[0] = UINT8_MAX;
-    authentication_message_[1] = types::REGISTER;
-    authentication_message_[2] = UINT8_MAX;
-    authentication_message_[3] = UINT8_MAX;
-    authentication_message_[4] = UINT8_MAX;
-    authentication_message_[5] = UINT8_MAX;
-    authentication_message_[6] = 0;
-    authentication_message_[7] = config::AUTH_MESSAGE_LENGTH - config::HEADER_SIZE;
-    authentication_message_[8] = 0;
 
     request_communication_message_[0] = UINT8_MAX;
     request_communication_message_[1] = types::SEND_REQUEST;
@@ -252,10 +241,12 @@ void Server::centralLoop(){
                     Status rcvf_state = receiveFromClient(client_socket);
                     switch(rcvf_state){
                         case Status::SUCCESS:{
-                            Status check_state = messageProcessor(client_socket);
+                            Status check_state;
+                            do{
+                                check_state = messageProcessor(client_socket);
+                            }while (check_state == Status::SUCCESS);
+
                             switch(check_state){
-                                case Status::SUCCESS:{
-                                } break;
                                 case Status::INCOMPLETE_MESSAGE:{
                                 } break;
                                 case Status::RESOURCE_UNAVAILABLE:{
@@ -299,10 +290,38 @@ void Server::centralLoop(){
                             }
                         } break;
                         case Status::EXCEEDED_CLIENT_BUFFER_SIZE:{
+                            bool valid_message = false;
+
                             Status check_state = messageProcessor(client_socket);
+                            while (check_state == Status::SUCCESS){
+                                valid_message = true;
+                                check_state = messageProcessor(client_socket);
+                                switch(check_state){
+                                    case Status::INCOMPLETE_MESSAGE:{
+                                    } break;
+                                    case Status::RESOURCE_UNAVAILABLE:{
+                                        receive_loop = false;
+                                    } break;
+                                    case Status::EXCEEDED_CLIENT_MAX:{
+                                        std::cout << "Message protocol requires upgrade! Capacity of registers users exceeded!";
+                                        return;
+                                    } break;
+                                    case Status::INSUFFICIENT_BUFFER_SPACE:{
+                                        std::cout << "Error in distribution of buffer segments found on messageProcessor!" << std::endl;
+                                        return;
+                                    } break;
+                                    case Status::INSUFFICIENT_MEMORY:{
+                                        return;
+                                    } break;
+                                    case Status::ERROR:{
+                                        return;
+                                    } break;
+                                }
+                            }
+                            if(valid_message){
+                                break;
+                            }
                             switch(check_state){
-                                case Status::SUCCESS:{
-                                } break;
                                 case Status::INCOMPLETE_MESSAGE:{
                                     info_message_[8] = info::INVALID_MESSAGE;
                                     Status send_state = sendMessage(
@@ -363,7 +382,7 @@ void Server::centralLoop(){
             }
         }
         if(ready_polls == 0){
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
     }
 }
@@ -487,11 +506,13 @@ Status Server::closeConnection(int client_socket){
             buffers_erased++;
         }
     }
-    if(!client_key_to_socket_.deleteNode(client->sender_key)){
-        return Status::PROGRAMMING_ERROR;
-    }
-    if(!username_to_client_key_.deleteNode(stringHash(client->name))){
-        return Status::PROGRAMMING_ERROR;
+    if(client->sender_key != UINT32_MAX){
+        if(!client_key_to_socket_.deleteNode(client->sender_key)){
+            return Status::PROGRAMMING_ERROR;
+        }
+        if(!username_to_client_key_.deleteNode(stringHash(client->name))){
+            return Status::PROGRAMMING_ERROR;
+        }
     }
     if(!clients_.deleteNode(client_socket)){
         return Status::PROGRAMMING_ERROR;
@@ -994,11 +1015,11 @@ Status Server::actOnRegister(int client_socket, Client *client){
     if(!printClientInformation(client_socket)){
         return Status::ERROR;
     }
-    authentication_message_[8] = info::VALID;
+    info_message_[8] = info::VALID_REGISTER;
     return sendMessage(
         client_socket,
-        authentication_message_,
-        config::AUTH_MESSAGE_LENGTH
+        info_message_,
+        config::INFO_MESSAGE_LENGTH
     );
 }
 
@@ -1077,6 +1098,7 @@ Status Server::actOnSendRequest(int client_socket, Client *client){
                     info_message_[8] = info::ALREADY_SENT_REQUEST;
                     return Status::INVALID_MESSAGE;
                 }
+                requests->insertHead(client->receiver_key);
 
                 for(int i = 0; i < config::CLIENT_KEY_LENGTH; i++){
                     request_communication_message_[i + 2] = client->sender_key << ((config::CLIENT_KEY_LENGTH - 1 - i) * 8);

@@ -17,10 +17,7 @@ class ClientProcessor{
     public:
         ClientProcessor();
         ~ClientProcessor();
-
-        //setup
         bool setupClientService();
-        //central
         void centralLoop();
         void inputLoop();
     private:
@@ -32,44 +29,58 @@ class ClientProcessor{
             }
         };
 
-        // setup
+        // setup methods
+
         bool setupHashTables();
+        bool setupBuffers();
         bool setupHeaderTypes();
         bool setupSocket();
 
-        // central loop
+        // --- Central loop ---
         // outgoing data
-        Status sendMessage(int bytes_to_send, uint8_t *buffer);
+
+        Status sendMessage(uint8_t *buffer, int bytes_to_send);
 
         // incoming data
+
         Status receiveFromServer();
+        Status messageProcessor();
         Status checkMessage();
         Status checkHeader();
         Status actOnMessage();
 
         // buffer managament
+
+        void resetIncomingBuffer();
         void cleanIncomingBuffer();
         void advanceReadingPointer();
 
         // printing
+
         bool printMessage();
 
-        //input loop
+
+        // ---- Input loop ----
+
         bool welcomeInputLoop();
         bool messageInputLoop();
 
         // message input loop
+
         Status setMessage();
         Status setReceiver();
 
-        // helper methods
+        // extra
+
         bool validateCredential(const std::string &credential, uint8_t min_length, uint8_t max_length);
 
         bool addUser(uint32_t key, const std::string &username);
         uint32_t getUserKey(const std::string &temp_username);
         char *getUserFromKey(uint32_t key);
 
-        int validateInputIsNumeric();
+        // helper methods
+
+        int userNumericInput();
         bool integerCheck(const std::string &string);
         unsigned long stringHash(const char *str);
 
@@ -91,7 +102,6 @@ class ClientProcessor{
         int epoll_fd_{-1};
         int msg_len_{-1};
 
-        //uint32_t pending_messages_{0};
         uint8_t credentials_length_{0};
 
         uint32_t starting_pointer_{0};
@@ -112,7 +122,7 @@ class ClientProcessor{
         std::atomic<bool> respond_request_{false};
         std::atomic<bool> send_register_{false};
 
-        struct epoll_event events_[config::MAX_EVENTS];
+        //struct epoll_event events_[config::MAX_EVENTS];
 
         uint8_t auth_message_[config::HEADER_SIZE + config::HOSTNAME_LENGTH + config::MAX_PASSWORD_LENGTH];
         uint8_t ack_message_[config::HEADER_SIZE];

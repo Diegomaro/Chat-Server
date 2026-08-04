@@ -12,10 +12,7 @@
 
 #include "../../headers/client_processor.hpp"
 
-ClientProcessor::ClientProcessor(){
-    incoming_buffer_ = new(std::nothrow) uint8_t[config::READING_BUFFER_SIZE];
-    outgoing_buffer_ = new(std::nothrow) uint8_t[config::READING_BUFFER_SIZE];
-}
+ClientProcessor::ClientProcessor(){}
 
 ClientProcessor::~ClientProcessor(){
     if(incoming_buffer_){
@@ -31,6 +28,7 @@ ClientProcessor::~ClientProcessor(){
 
 bool ClientProcessor::setupClientService(){
     if(!setupHashTables()
+    || !setupBuffers()
     || !setupHeaderTypes()
     || !setupSocket()){
         return false;
@@ -40,6 +38,17 @@ bool ClientProcessor::setupClientService(){
 
 bool ClientProcessor::setupHashTables(){
     if(!username_to_key_.createTable(config::INITIAL_HASHTABLE_SIZE)){
+        return false;
+    }
+    return true;
+}
+
+bool ClientProcessor::setupBuffers(){
+    try{
+        incoming_buffer_ = new uint8_t[config::READING_BUFFER_SIZE];
+        outgoing_buffer_ = new uint8_t[config::READING_BUFFER_SIZE];
+    } catch(const std::bad_alloc&){
+        std::cout << "Error: insuficcient memory space!" << std::endl;
         return false;
     }
     return true;
@@ -139,67 +148,40 @@ bool ClientProcessor::setupSocket(){
 // Central loop that handles message receiving and sending.
 void ClientProcessor::centralLoop(){
     while(program_running_){
-        int ready_polls = 0;
-        if((ready_polls = epoll_wait(epoll_fd_, events_, 10, 1000)) == -1){
-            perror("epoll wait failed");
-            return;
-        }
-        for (int i = 0; i < ready_polls; i++){
-            if(events_[i].data.fd == client_socket_){
-                if (events_[i].events & EPOLLIN){
-                    bool receive_loop = true;
-                    while(receive_loop){
-                        Status rcvf_state = receiveFromServer();
-                        /*
-                        Add receive state that means that the buffer is complete,
-                        and requests a checkMessage before erasing the buffer and sending an error message
-                        */
-                        switch(rcvf_state){
-                            case Status::SUCCESS:{
-                                while(checkMessage() == Status::SUCCESS){
-                                    Status check_state = actOnMessage();
-                                    switch(check_state){
-                                        case Status::INVALID_MESSAGE:{
-                                            // handle later
-                                        } break;
-                                        case Status::RESOURCE_UNAVAILABLE:{
-                                            // handle later
-                                        } break;
-                                        case Status::ERROR:{
-                                            return;
-                                        } break;
-                                    }
-                                    cleanIncomingBuffer();
-                                }
-                            //if missing timeout
-                            } break;
-                            case Status::NOTHING_TO_READ:{
-                                receive_loop = false;
-                            } break;
-                            case Status::ERROR:{
-                                return;
-                            } break;
-                            case Status::CLOSED_CONVERSATION:{
-                                return;
-                            } break;
-                            case Status::INSUFFICIENT_BUFFER_SPACE:{
-                                //send fail message to server
-                                byte_counter_ = 0;
-                                starting_pointer_ = 0;
-                                reading_pointer_ = 0;
-                                writing_pointer_ = 0;
-                                sender_key_ = UINT32_MAX;
-                                type_ = 0;
-                                payload_length_ = UINT16_MAX;
-                                receive_loop = false;
-                            } break;
-                        }
-                    }
-                }
+        bool receive_loop = true;
+        while(receive_loop){
+            Status rcvf_state = receiveFromServer();
+            switch(rcvf_state){
+                case Status::SUCCESS:{
+                    Status check_state;
+                    do{
+                        check_state = messageProcessor();
+                    }while (check_state == Status::SUCCESS);
+                } break;
+                case Status::NOTHING_TO_READ:{
+                    receive_loop = false;
+                } break;
+                case Status::ERROR:{
+                    return;
+                } break;
+                case Status::CLOSED_CONVERSATION:{
+                    return;
+                } break;
+                case Status::INSUFFICIENT_BUFFER_SPACE:{
+                    //send fail message to server
+                    byte_counter_ = 0;
+                    starting_pointer_ = 0;
+                    reading_pointer_ = 0;
+                    writing_pointer_ = 0;
+                    sender_key_ = UINT32_MAX;
+                    type_ = 0;
+                    payload_length_ = UINT16_MAX;
+                    receive_loop = false;
+                } break;
             }
         }
         if(send_register_){
-            switch(sendMessage(credentials_length_ + config::HEADER_SIZE, auth_message_)){
+            switch(sendMessage(auth_message_, credentials_length_ + config::HEADER_SIZE)){
                 case Status::SUCCESS:{
                 } break;
                 case Status::RESOURCE_UNAVAILABLE:{
@@ -212,7 +194,7 @@ void ClientProcessor::centralLoop(){
             send_register_ = false;
         }
         if(send_request_){
-            switch(sendMessage(config::HEADER_SIZE + config::HOSTNAME_LENGTH, request_communication_)){
+            switch(sendMessage(request_communication_, config::HEADER_SIZE + config::HOSTNAME_LENGTH)){
                 case Status::SUCCESS:{
                     std::cout << "Request sent correctly!" << std::endl << ">";
                 } break;
@@ -226,7 +208,7 @@ void ClientProcessor::centralLoop(){
             send_request_ = false;
         }
         if(respond_request_){
-            switch(sendMessage(config::HEADER_SIZE + config::HOSTNAME_LENGTH, respond_communication_)){
+            switch(sendMessage(respond_communication_, config::HEADER_SIZE + config::HOSTNAME_LENGTH)){
                 case Status::SUCCESS:{
                 } break;
                 case Status::RESOURCE_UNAVAILABLE:{
@@ -241,7 +223,7 @@ void ClientProcessor::centralLoop(){
         if(send_message_){
             {
                 std::unique_lock<std::mutex> lock_message(read_mutex_);
-                switch(sendMessage(msg_len_, outgoing_buffer_)){
+                switch(sendMessage(outgoing_buffer_, msg_len_)){
                     case Status::SUCCESS:{
                     } break;
                     case Status::RESOURCE_UNAVAILABLE:{
@@ -254,17 +236,18 @@ void ClientProcessor::centralLoop(){
                 send_message_ = false;
             }
         }
-        if(ready_polls == 0){
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 }
 
 /*
 Sends message from a buffer.
-Returns RESOURCE_UNAVAILABLE, ERROR, SUCCESS.
+
+SUCCESS - Message sent correctly.
+RESOURCE_UNAVAILABLE - Could not send message.
+ERROR - An unhandled error ocurred.
 */
-Status ClientProcessor::sendMessage(int bytes_to_send, uint8_t *buffer){
+Status ClientProcessor::sendMessage(uint8_t *buffer, int bytes_to_send){
     int total_bytes_sent = 0;
     int sent_bytes = 0;
 
@@ -289,7 +272,11 @@ Status ClientProcessor::sendMessage(int bytes_to_send, uint8_t *buffer){
 
 /*
 Copies data received from the server to a buffer until there is nothing else to read.
-Returns INSUFFICIENT_BUFFER_SPACE, ERROR, CLOSED CONVERSATION, SUCCESS.
+
+SUCCESS - All bytes were received and copied to the incming buffer.
+CLOSED_CONVERSATION - The server closed the conversation.
+INSUFFICIENT_BUFFER_SPACE - The server sent more bytes than the client can handle.
+ERROR - An unhandled error ocurred.
 */
 Status ClientProcessor::receiveFromServer(){
     int total_bytes_received = 0;
@@ -331,9 +318,54 @@ Status ClientProcessor::receiveFromServer(){
     return Status::SUCCESS;
 }
 
+Status ClientProcessor::messageProcessor(){
+    Status check_state = checkMessage();
+    switch(check_state){
+        case Status::INCOMPLETE_MESSAGE:{
+            return Status::INCOMPLETE_MESSAGE;
+        } break;
+        case Status::INVALID_MESSAGE:{
+            std::cout << "Invalid message received!" << std::endl;
+            resetIncomingBuffer();
+            //report back to server
+            return Status::SUCCESS;
+        } break;
+    }
+
+    Status act_state = actOnMessage();
+    switch(act_state){
+        case Status::SUCCESS:{
+            cleanIncomingBuffer();
+            return Status::SUCCESS;
+        }
+        case Status::INVALID_CLIENT:{
+            std::cout << "Invalid message received!" << std::endl;
+            cleanIncomingBuffer();
+            return Status::SUCCESS;
+        }
+        case Status::INVALID_MESSAGE:{
+            std::cout << "Invalid message received!" << std::endl;
+            cleanIncomingBuffer();
+            return Status::SUCCESS;
+        } break;
+        case Status::RESOURCE_UNAVAILABLE:{
+            std::cout << "Resource unavailable error on messageProcessor!" << std::endl;
+            cleanIncomingBuffer();
+            return Status::RESOURCE_UNAVAILABLE;
+        } break;
+        case Status::ERROR:{
+            return Status::ERROR;
+        } break;
+    }
+    return Status::ERROR;
+}
+
 /*
 Checks if the entire message header + payload have been received.
-Returns INCOMPLETE_MESSAGE, INVALID_MESSAGE, SUCCESS.
+
+SUCCESS - Message header is complete and valid.
+INCOMPLETE_MESSAGE - The entire message has not been received.
+INVALID_MESSAGE - The message does not follow the protocol rules.
 */
 Status ClientProcessor::checkMessage(){
     if(!valid_header_){
@@ -351,7 +383,10 @@ Status ClientProcessor::checkMessage(){
 
 /*
 Checks if the entire message header have been received.
-Returns INCOMPLETE_MESSAGE, INVALID_MESSAGE, SUCCESS.
+
+SUCCESS - Message header is complete and valid.
+INCOMPLETE_MESSAGE - The entire message has not been received.
+INVALID_MESSAGE - The message does not follow the protocol rules.
 */
 Status ClientProcessor::checkHeader(){
     if(byte_counter_ < config::HEADER_SIZE){
@@ -395,7 +430,14 @@ Status ClientProcessor::checkHeader(){
 }
 
 /*
-Returns INVALID_MESSAGE, RESOURCE_UNAVAILABLE, ERROR, SUCCESS.
+/*
+Performs different tasks depending on the type of message received.
+
+SUCCESS - The message was valid and was handled correctly.
+INVALID_CLIENT -
+INVALID_MESSAGE -
+RESOURCE_UNAVAILABLE - Unexpected error.
+ERROR - An unhandled error ocurred.
 */
 Status ClientProcessor::actOnMessage(){
     switch(type_){
@@ -409,7 +451,7 @@ Status ClientProcessor::actOnMessage(){
             for(int i = 0; i < config::CLIENT_KEY_LENGTH; i++){
                 ack_message_[i + 2] = sender_key_ >> ((config::CLIENT_KEY_LENGTH - i - 1) * 8);
             }
-            Status ack_state = sendMessage(config::HEADER_SIZE, ack_message_);
+            Status ack_state = sendMessage(ack_message_, config::HEADER_SIZE);
             switch(ack_state){
                 case Status::RESOURCE_UNAVAILABLE:{
                     // should not return, rather be stored
@@ -419,28 +461,6 @@ Status ClientProcessor::actOnMessage(){
                     return Status::ERROR;
                 } break;
             }
-        } break;
-        case types::REGISTER:{
-            uint8_t register_type = incoming_buffer_[reading_pointer_];
-            advanceReadingPointer();
-            switch(register_type){
-                case info::VALID:{
-                    std::cout << "Logged in!" << std::endl;
-                    logged_in_ = true;
-                } break;
-                case info::INVALID_CREDENTIAL:{
-                    std::cout << "Invalid credentials. Please try again!" << std::endl;
-                } break;
-                case info::NOT_UNIQUE:{
-                    std::cout << "\"" << username_ << "\" is not available!" << std::endl;
-                } break;
-                case info::ALREADY_LOGGED_IN:{
-                    std::cout << "Already logged in!" << std::endl;
-                } break;
-            }
-        } break;
-        case types::LOGIN:{
-            // implement much later
         } break;
         case types::SEND_REQUEST:
         case types::REJECT_REQUEST:
@@ -474,7 +494,51 @@ Status ClientProcessor::actOnMessage(){
                     }
                     incoming_requests_.insertTail(usernameMapping);
                 }
-                // remove from outgoing requests
+            }
+        } break;
+        case types::INFO:{
+            if(payload_length_ != config::INFO_MESSAGE_LENGTH - config::HEADER_SIZE){
+                return Status::INVALID_MESSAGE;
+            }
+            uint8_t info_type = incoming_buffer_[reading_pointer_];
+            advanceReadingPointer();
+            switch(info_type){
+                case info::VALID_REGISTER:{
+                    std::cout << "Info: Logged in!" << std::endl;
+                    logged_in_ = true;
+                } break;
+                case info::INVALID_CREDENTIAL:{
+                    std::cout << "Info: Invalid credentials. Please try again!" << std::endl;
+                } break;
+                case info::NOT_UNIQUE:{
+                    std::cout << "Info: " << "\"" << username_ << "\" is not available!" << std::endl;
+                } break;
+                case info::ALREADY_LOGGED_IN:{
+                    std::cout << "Info: Already logged in!" << std::endl;
+                } break;
+                case info::INVALID_MESSAGE:{
+                    std::cout << "Info: Message sent, was invalid!" << std::endl;
+                } break;
+                case info::INVALID_CLIENT:{
+                    std::cout << "Info: The targeted receiver was invalid!!" << std::endl;
+                } break;
+                case info::ALREADY_SENT_REQUEST:{
+                    std::cout << "Info: Already sent request to that user!" << std::endl;
+                } break;
+                case info::ALREADY_KNOWN_CLIENT:{
+                    std::cout << "Info: You already know this client!" << std::endl;
+                    // add them back if lost other user credential
+                } break;
+                case info::UNAUTHENTICATED_USER:{
+                    std::cout << "Info: You must authenticate first!" << std::endl;
+                } break;
+                case info::SEND_ERROR:{
+                    std::cout << "Info: message could not be delivered!" << std::endl;
+                } break;
+                case info::COULD_NOT_REGISTER:{
+                    std::cout << "Info: Server cannot register more users :(" << std::endl;
+                    return Status::ERROR;
+                } break;
             }
         } break;
         case types::ACK:{
@@ -524,7 +588,19 @@ bool ClientProcessor::printMessage(){
     return true;
 }
 
-// Resets values to prepare to receive new messages.
+// Resets incoming buffer after an invalid message has been received.
+void ClientProcessor::resetIncomingBuffer(){
+    valid_header_ = false;
+    starting_pointer_ = 0;
+    writing_pointer_ = 0;
+    reading_pointer_ = 0;
+    byte_counter_ = 0;
+    payload_length_ = UINT16_MAX;
+    type_ =types::INVALID_TYPE;
+    sender_key_ = UINT32_MAX;
+}
+
+// Resets incoming buffer indicators to process new messages.
 void ClientProcessor::cleanIncomingBuffer(){
     valid_header_ = false;
     starting_pointer_ = reading_pointer_;
@@ -558,7 +634,7 @@ bool ClientProcessor::welcomeInputLoop(){
             << "3) Enter Main Menu." << std::endl
             << "4) Exit." << std::endl
             << "> ";
-        ans = validateInputIsNumeric();
+        ans = userNumericInput();
         switch(ans){
             case 1:{
             } break;
@@ -625,30 +701,6 @@ bool ClientProcessor::welcomeInputLoop(){
     return true;
 }
 
-// Validates if a credential contains valid characters and is of allowed size.
-bool ClientProcessor::validateCredential(const std::string &credential, uint8_t min_length, uint8_t max_length){
-    if(credential.size() < min_length || credential.size() > max_length){
-        std::cout << "Credential is too long or too short!"  << std::endl;
-        return false;
-    }
-    bool valid_credential = true;
-    for(int i = 0; i < credential.size(); i++){
-        if((credential[i] > 0 && credential[i] < 48)
-            || (credential[i] > 57 && credential[i] < 65)
-            || (credential[i] > 90 && credential[i] < 95)
-            || (credential[i] > 95 && credential[i] < 97)
-            || credential[i] > 122){
-                std::cout << "Invalid character: " << credential[i] << std::endl;
-                valid_credential = false;
-                break;
-        }
-    }
-    if(valid_credential){
-        return true;
-    }
-    return false;
-}
-
 // Message loop to handle user messaging.
 bool ClientProcessor::messageInputLoop(){
     int main_ans = -1;
@@ -676,20 +728,17 @@ bool ClientProcessor::messageInputLoop(){
                 << "7) Exit" << std::endl
                 << "> ";
         }
-        main_ans = validateInputIsNumeric();
+        main_ans = userNumericInput();
         switch(main_ans){
             case 1:{
             Status result = setMessage();
             switch(result){
                 case Status::SUCCESS:{
-                    std::cout << "Message updated!" << std::endl;
+                    std::cout << "Message set!" << std::endl;
                 } break;
                 case Status::INVALID_MESSAGE:{
                     std::cout << "Invalid message, please try again!" << std::endl;
                 } break;
-                case Status::ERROR:{
-                    return false;
-                }
             }
             } break;
             case 2:{
@@ -697,12 +746,11 @@ bool ClientProcessor::messageInputLoop(){
                 switch(result){
                     case Status::SUCCESS:{
                     } break;
+                    case Status::NOTHING_TO_DO:{
+                    } break;
                     case Status::INVALID_MESSAGE:{
                         std::cout << "Invalid client, please try again!" << std::endl;
                     } break;
-                    case Status::ERROR:{
-                        return false;
-                    }
                 }
             } break;
             case 3:{
@@ -725,7 +773,7 @@ bool ClientProcessor::messageInputLoop(){
                     }
                     send_request_ = true;
                 } else{
-                    break;
+                    std::cout << "Invalid username!" << std::endl;
                 }
             } break;
             case 5:{
@@ -741,7 +789,7 @@ bool ClientProcessor::messageInputLoop(){
                     std::cout << ctr++ << ": " << incoming_requests_.getNode().username << std::endl;
                     incoming_requests_.advanceNode();
                 }
-                int ans = validateInputIsNumeric();
+                int ans = userNumericInput();
                 if(ans == 0){
                     break;
                 }
@@ -761,7 +809,7 @@ bool ClientProcessor::messageInputLoop(){
                 << "1. Accept" << std::endl
                 << "2. Reject" << std::endl
                 << "3. Exit" << std::endl;
-                ans = validateInputIsNumeric();
+                ans = userNumericInput();
                 if(ans == 1 || ans == 2){
                     char *ref_username = incoming_requests_.getNode().username;
                     UsernameMapping usernameMapping;
@@ -792,9 +840,6 @@ bool ClientProcessor::messageInputLoop(){
                 program_running_ = false;
                 return false;
             } break;
-            default:{
-                std::cout << "Incorrect input!" << std::endl;
-            }
         }
     }
     return true;
@@ -802,15 +847,13 @@ bool ClientProcessor::messageInputLoop(){
 
 /*
 Sets message to send in a buffer.
-Returns INVALID_MESSAGE, SUCCESS.
+
+SUCCESS - Message was set correctly.
+INVALID_MESSAGE - Message was not set.
 */
 Status ClientProcessor::setMessage(){
-    if(!outgoing_buffer_){
-        return Status::ERROR;
-    }
     std::cout << "Message: ";
     std::getline(std::cin, message_);
-
     if(message_.length() == 0 || message_.length() > config::MAX_MESSAGE_SIZE){
         message_.clear();
         return Status::INVALID_MESSAGE;
@@ -825,7 +868,6 @@ Status ClientProcessor::setMessage(){
         outgoing_buffer_[6] = message_length >> 8;
         outgoing_buffer_[7] = message_length;
 
-
         for(int i = 0; i < message_length; i++){
             outgoing_buffer_[8 + i] = message_[i];
         }
@@ -836,12 +878,12 @@ Status ClientProcessor::setMessage(){
 
 /*
 Sets destinatory from a list of known users.
-REturns ERROR, NOTHING_TO_DO, INVALID_CLIENT, SUCCESS.
+
+SUCCESS - Receiver was set correctly.
+NOTHING_TO_DO - No known users.
+INVALID_CLIENT - Receiver was not set.
 */
 Status ClientProcessor::setReceiver(){
-    if(!outgoing_buffer_){
-        return Status::ERROR;
-    }
     int ctr = 1;
     if(username_to_key_.getDataCount() == 0){
         std::cout << "No known users, request a user to establish a connection first!" << std::endl;
@@ -856,11 +898,13 @@ Status ClientProcessor::setReceiver(){
         }
         username_to_key_.advanceNode();
     }
+    std::cout << ">";
 
     std::string temp_username(config::HOSTNAME_LENGTH, '\0');
     std::getline(std::cin, temp_username);
-    while(temp_username.length() == 0 || temp_username.length() > 16){
+    while(!validateCredential(temp_username, 1, config::HOSTNAME_LENGTH)){
         std::cout << "Please input a valid username. It cannot be longer than 16 characters." << std::endl;
+        std::cout << ">";
         std::getline(std::cin, temp_username);
     }
     uint32_t temp_key;
@@ -876,6 +920,27 @@ Status ClientProcessor::setReceiver(){
     outgoing_buffer_[4] = receiver_key_ >> 8;
     outgoing_buffer_[5] = receiver_key_;
     return Status::SUCCESS;
+}
+
+// Validates if a credential contains valid characters and is of allowed size.
+bool ClientProcessor::validateCredential(const std::string &credential, uint8_t min_length, uint8_t max_length){
+    if(credential.size() < min_length || credential.size() > max_length){
+        std::cout << "Credential is too long or too short!"  << std::endl;
+        return false;
+    }
+    bool valid_credential = true;
+    for(int i = 0; i < credential.size(); i++){
+        if((credential[i] > 0 && credential[i] < 48)
+            || (credential[i] > 57 && credential[i] < 65)
+            || (credential[i] > 90 && credential[i] < 95)
+            || (credential[i] > 95 && credential[i] < 97)
+            || credential[i] > 122){
+                std::cout << "Invalid character: " << credential[i] << std::endl;
+                valid_credential = false;
+                break;
+        }
+    }
+    return valid_credential;
 }
 
 // Add a user to the "list" of known users.
@@ -931,7 +996,7 @@ char* ClientProcessor::getUserFromKey(uint32_t key){
     return nullptr;
 }
 
-int ClientProcessor::validateInputIsNumeric(){
+int ClientProcessor::userNumericInput(){
     std::string ans;
     int parsed_ans = -1;
     while(parsed_ans == -1){

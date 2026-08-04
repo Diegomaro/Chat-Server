@@ -1,5 +1,5 @@
 namespace info{
-    inline constexpr uint8_t VALID = 1;
+    inline constexpr uint8_t VALID_REGISTER = 1;
     inline constexpr uint8_t INVALID_CREDENTIAL = 2;
     inline constexpr uint8_t NOT_UNIQUE = 3;
     inline constexpr uint8_t ALREADY_LOGGED_IN = 4;

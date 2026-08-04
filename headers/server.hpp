@@ -24,7 +24,7 @@ class Server{
 
         // Setup methods
         bool setupHashTables();
-        void setupBuffer();
+        void setupBuffers();
         void setupHeaderTypes();
         bool setupListenerSocket();
 
@@ -90,5 +90,4 @@ class Server{
         uint8_t delivered_ack_message_[config::HEADER_SIZE];
         uint8_t request_communication_message_[config::HEADER_SIZE + config::HOSTNAME_LENGTH];
         uint8_t accept_communication_message_[config::HEADER_SIZE + config::HOSTNAME_LENGTH];
-        uint8_t authentication_message_[config::AUTH_MESSAGE_LENGTH];
 };
