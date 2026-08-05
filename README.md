@@ -4,7 +4,7 @@ A TCP chat server written in C++ to explore networking, protocol design, systems
 ## Getting Started
 ### Prerequisites
 - Linux
-- gcc compiler with C++17 support
+- gcc compiler with C++14 support
 
 ### Installation
 1. Clone the repository and enter the project directory:

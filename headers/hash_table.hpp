@@ -40,7 +40,7 @@ class HashTable{
         unsigned int size_{0};
         unsigned int power_{0};
         unsigned int data_count_{0};
-        int current_node_{0};
+        unsigned int current_node_{0};
 };
 
 #include "hash_table.tpp"

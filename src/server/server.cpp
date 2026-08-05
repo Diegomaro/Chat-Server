@@ -121,7 +121,7 @@ void Server::setupBuffers(){
     receiver_buffer_ = new uint8_t[config::BUFFER_READING_SIZE];
     sending_buffer_ = new uint8_t[config::READING_BUFFER_SIZE];
     uint32_t current_address = 0;
-    for(int i = 0; i < config::TOTAL_BUFFER_SEGMENTS; i++){
+    for(uint32_t i = 0; i < config::TOTAL_BUFFER_SEGMENTS; i++){
         available_buffers_.insertTail(current_address);
         current_address += config::BUFFER_SEGMENT_SIZE;
     }
@@ -249,6 +249,10 @@ void Server::centralLoop(){
                             std::cout << "Unhandled error." << std::endl;
                             return;
                         } break;
+                        default:{
+                            std::cout << "Invalid return type!" << std::endl;
+                            return;
+                        }
                     }
                 }
             } else if (events_[i].events & EPOLLIN){
@@ -283,6 +287,10 @@ void Server::centralLoop(){
                                 case Status::ERROR:{
                                     return;
                                 } break;
+                                default:{
+                                   std::cout << "Invalid return type!" << std::endl;
+                                    return;
+                                }
                             }
                         } break;
                         case Status::NOTHING_TO_READ:{
@@ -304,6 +312,10 @@ void Server::centralLoop(){
                                 case Status::ERROR:{
                                     return;
                                 } break;
+                                default:{
+                                   std::cout << "Invalid return type!" << std::endl;
+                                    return;
+                                }
                             }
                         } break;
                         case Status::EXCEEDED_CLIENT_BUFFER_SIZE:{
@@ -314,6 +326,8 @@ void Server::centralLoop(){
                                 valid_message = true;
                                 check_state = messageProcessor(client_socket);
                                 switch(check_state){
+                                    case Status::SUCCESS:{
+                                    } break;
                                     case Status::INCOMPLETE_MESSAGE:{
                                     } break;
                                     case Status::RESOURCE_UNAVAILABLE:{
@@ -333,6 +347,10 @@ void Server::centralLoop(){
                                     case Status::ERROR:{
                                         return;
                                     } break;
+                                    default:{
+                                       std::cout << "Invalid return type!" << std::endl;
+                                        return;
+                                    }
                                 }
                             }
                             if(valid_message){
@@ -347,15 +365,23 @@ void Server::centralLoop(){
                                         config::INFO_MESSAGE_LENGTH
                                     );
                                     switch(send_state){
+                                        case Status::SUCCESS:{
+                                        } break;
                                         case Status::RESOURCE_UNAVAILABLE:{
                                             //
                                         }
                                         case Status::ERROR:{
                                             return;
                                         }
+                                        default:{
+                                           std::cout << "Invalid return type!" << std::endl;
+                                            return;
+                                        }
                                     }
                                     Status reset_client_status = resetClientBuffer(client_socket);
                                     switch(reset_client_status){
+                                        case Status::SUCCESS:{
+                                        } break;
                                         case Status::INSUFFICIENT_BUFFER_SPACE:{
                                             std::cout << "Error in distribution of buffer segments found on messageProcessor!" << std::endl;
                                             return;
@@ -366,6 +392,10 @@ void Server::centralLoop(){
                                         case Status::ERROR:{
                                             return;
                                         } break;
+                                        default:{
+                                           std::cout << "Invalid return type!" << std::endl;
+                                            return;
+                                        }
                                     }
                                 } break;
                                 case Status::RESOURCE_UNAVAILABLE:{
@@ -385,6 +415,10 @@ void Server::centralLoop(){
                                 case Status::ERROR:{
                                     return;
                                 } break;
+                                default:{
+                                   std::cout << "Invalid return type!" << std::endl;
+                                    return;
+                                }
                             }
                         } break;
                         case Status::INSUFFICIENT_BUFFER_SPACE:{
@@ -394,6 +428,10 @@ void Server::centralLoop(){
                         case Status::ERROR:{
                             return;
                         } break;
+                        default:{
+                            std::cout << "Invalid return type!" << std::endl;
+                            return;
+                        }
                     }
                 }
             }
@@ -422,7 +460,11 @@ Status Server::acceptConnection(){
     sockaddr_storage client_sockaddr;
     socklen_t client_sockaddr_len = sizeof(client_sockaddr);
 
-    if((pending_client_fd_ = accept(listener_fd_, (struct sockaddr *)&client_sockaddr, &client_sockaddr_len)) == -1){
+    if((pending_client_fd_ = accept(
+        listener_fd_,
+        reinterpret_cast<sockaddr *>(&client_sockaddr),
+        &client_sockaddr_len)
+    ) == -1){
         int error = errno;
         if(error == EAGAIN || error == EWOULDBLOCK){
             return Status::NOTHING_TO_DO;
@@ -460,14 +502,14 @@ INSUFFICIENT_MEMORY - No memory available.
 Status Server::addClient(const sockaddr_storage& client_sockaddr){
     Client new_client;
     new_client.name[0] = '\0';
-    void* addr;
+    const void* addr;
     if(client_sockaddr.ss_family == AF_INET){
-        sockaddr_in* ipv4 = (sockaddr_in*)&client_sockaddr;
+        const sockaddr_in* ipv4 = reinterpret_cast<const sockaddr_in*>(&client_sockaddr);
         addr = &(ipv4->sin_addr);
         new_client.port = ntohs(ipv4->sin_port);
     }
     else{
-        sockaddr_in6* ipv6 = (sockaddr_in6*)&client_sockaddr;
+        const sockaddr_in6* ipv6 = reinterpret_cast<const sockaddr_in6*>(&client_sockaddr);
         addr = &(ipv6->sin6_addr);
         new_client.port = ntohs(ipv6->sin6_port);
     }
@@ -510,7 +552,7 @@ Status Server::closeConnection(int client_socket){
         return Status::ERROR;
     }
     int8_t buffers_erased = 0;
-    for(int i = 0; i < config::BUFFER_SEGMENTS_PER_CLIENT; i++){
+    for(uint32_t i = 0; i < config::BUFFER_SEGMENTS_PER_CLIENT; i++){
         if(buffers_erased >= client->buffer_pointers_count){
             break;
         }
@@ -554,7 +596,7 @@ Status Server::receiveFromClient(int client_socket){
         return Status::ERROR;
     }
     receiver_buffer_[0] = '\0';
-    int bytes_received = 0;
+    ssize_t bytes_received = 0;
     if((bytes_received = recv(client_socket, receiver_buffer_, config::BUFFER_READING_SIZE, 0)) == -1){
         int error = errno;
         if(error == EAGAIN || error == EWOULDBLOCK){
@@ -568,7 +610,7 @@ Status Server::receiveFromClient(int client_socket){
         return Status::CLOSED_CONVERSATION;
     }
     //copy received messages to client buffers.
-    int bytes_remaining = bytes_received;
+    uint32_t bytes_remaining = static_cast<uint32_t>(bytes_received);
     int msg_buffer_offset = 0;
     while(bytes_remaining > 0){
         uint32_t available_segment_bytes = client->getRemainingBytesWriting();
@@ -592,7 +634,7 @@ Status Server::receiveFromClient(int client_socket){
             client->buffer_pointers[(client->writing_buffer + 1) % 128] = new_buffer_segment;
             available_buffers_.deleteHead();
             client->buffer_pointers_count++;
-            client->writing_buffer = (client->writing_buffer + 1) % 128;
+            client->writing_buffer = static_cast<uint8_t>((client->writing_buffer + 1) % 128);
             client->writing_pointer = new_buffer_segment;
         }
     }
@@ -617,6 +659,8 @@ Status Server::messageProcessor(int client_socket){
     }
     Status check_state = checkMessage(client_socket);
     switch(check_state){
+        case Status::SUCCESS:{
+        } break;
         case Status::INCOMPLETE_MESSAGE:{
             return Status::INCOMPLETE_MESSAGE;
         } break;
@@ -634,6 +678,8 @@ Status Server::messageProcessor(int client_socket){
             );
             Status reset_client_status = resetClientBuffer(client_socket);
             switch(reset_client_status){
+                case Status::SUCCESS:{
+                } break;
                 case Status::INSUFFICIENT_BUFFER_SPACE:{
                     return Status::INSUFFICIENT_BUFFER_SPACE;
                 } break;
@@ -643,12 +689,20 @@ Status Server::messageProcessor(int client_socket){
                 case Status::ERROR:{
                     return Status::ERROR;
                 } break;
+                default:{
+                    std::cout << "Invalid return type!" << std::endl;
+                    return Status::ERROR;
+                }
             }
             return Status::SUCCESS;
         } break;
         case Status::ERROR:{
             return Status::ERROR;
         } break;
+        default:{
+            std::cout << "Invalid return type!" << std::endl;
+            return Status::ERROR;
+        }
     }
 
     Status act_state = actOnMessage(client_socket);
@@ -689,6 +743,9 @@ Status Server::messageProcessor(int client_socket){
                 info_message_,
                 config::INFO_MESSAGE_LENGTH
             );
+            if(send_status == Status::ERROR){
+                return Status::ERROR;
+            }
             if(!cleanClientBuffer(client_socket)){
                 return Status::ERROR;
             }
@@ -701,6 +758,9 @@ Status Server::messageProcessor(int client_socket){
                 info_message_,
                 config::INFO_MESSAGE_LENGTH
             );
+            if(send_status == Status::ERROR){
+                return Status::ERROR;
+            }
             if(!cleanClientBuffer(client_socket)){
                 return Status::ERROR;
             }
@@ -709,6 +769,10 @@ Status Server::messageProcessor(int client_socket){
         case Status::ERROR:{
             return Status::ERROR;
         } break;
+        default:{
+            std::cout << "Invalid return type!" << std::endl;
+            return Status::ERROR;
+        }
     }
     return Status::ERROR;
 }
@@ -733,7 +797,7 @@ Status Server::checkMessage(int client_socket){
             return header_state;
         }
     }
-    if(client->byte_counter < client->payload_length + config::HEADER_SIZE){
+    if(client->byte_counter < static_cast<uint32_t>(client->payload_length + config::HEADER_SIZE)){
         return Status::INCOMPLETE_MESSAGE;
     }
     return Status::SUCCESS;
@@ -790,7 +854,7 @@ Status Server::checkHeader(int client_socket){
             client->reading_pointer = tmp_pointer;
             client->reading_buffer = tmp_buffer;
             for(int i = 0; i < config::CLIENT_KEY_LENGTH; i++){
-                buffer_pool_[client->reading_pointer] = client->sender_key << ((config::CLIENT_KEY_LENGTH - 1 - i) * 8);
+                buffer_pool_[client->reading_pointer] = static_cast<uint8_t>(client->sender_key << ((config::CLIENT_KEY_LENGTH - 1 - i) * 8));
                 client->advanceReadingPointer();
             }
         }
@@ -843,14 +907,14 @@ Status Server::actOnMessage(int client_socket){
             return actOnRegister(client_socket, client);
         } break;
         case types::SEND_REQUEST:{
-            return actOnSendRequest(client_socket, client);
+            return actOnSendRequest(client);
         } break;
         case types::ACCEPT_REQUEST:
         case types::REJECT_REQUEST:{
             return actOnRespondToRequest(client_socket, client);
         } break;
         case types::ACK:{
-            return actOnAcknowledgement(client_socket, client);
+            return actOnAcknowledgement(client);
         } break;
         default:{
             info_message_[8] = info::INVALID_MESSAGE;
@@ -893,6 +957,8 @@ Status Server::actOnUserMessage(int client_socket, Client *client){
         config::HEADER_SIZE
     );
     switch(ack_state){
+        case Status::SUCCESS:{
+        } break;
         case Status::RESOURCE_UNAVAILABLE:{
             // should not return, rather be stored
             return Status::RESOURCE_UNAVAILABLE;
@@ -900,10 +966,16 @@ Status Server::actOnUserMessage(int client_socket, Client *client){
         case Status::ERROR:{
             return Status::ERROR;
         } break;
+        default:{
+            std::cout << "Invalid return type!" << std::endl;
+            return Status::ERROR;
+        }
     }
     // If client is not available it should be stored in some file. (much later)
     Status send_state = sendToClient(client_socket);
     switch(send_state){
+        case Status::SUCCESS:{
+        } break;
         case Status::RESOURCE_UNAVAILABLE:{
             //should not return, rather be stored
             return Status::RESOURCE_UNAVAILABLE;
@@ -911,6 +983,10 @@ Status Server::actOnUserMessage(int client_socket, Client *client){
         case Status::ERROR:{
             return Status::ERROR;
         } break;
+        default:{
+            std::cout << "Invalid return type!" << std::endl;
+            return Status::ERROR;
+        }
     }
     return Status::SUCCESS;
 }
@@ -956,7 +1032,11 @@ Status Server::actOnRegister(int client_socket, Client *client){
         info_message_[8] = info::INVALID_CREDENTIAL;
         return Status::INVALID_MESSAGE;
     }
-    uint8_t password [client->payload_length - config::HOSTNAME_LENGTH];
+    uint8_t password [config::MAX_PASSWORD_LENGTH];
+    if(client->payload_length - config::HOSTNAME_LENGTH > config::MAX_PASSWORD_LENGTH){
+        info_message_[8] = info::INVALID_CREDENTIAL;
+        return Status::INVALID_MESSAGE;
+    }
     uint32_t psw_ctr = 0;
     for(int i = 0; i < client->payload_length - config::HOSTNAME_LENGTH; i++){
         password[i] = buffer_pool_[client->reading_pointer];
@@ -1041,7 +1121,7 @@ Status Server::actOnRegister(int client_socket, Client *client){
 }
 
 /*
-Process a user registration attempt and reviews credentials structure. Registers the user.
+Processes a user request and determines whether to forward it.
 
 SUCCESS - The request was valid and was sent to the receiver.
 INVALID_CLIENT - Client sent an invalid connection request.
@@ -1049,7 +1129,7 @@ INVALID_MESSAGE - Client sent an invalid message.
 RESOURCE_UNAVAILABLE - Unexpected error.
 ERROR - An unhandled error ocurred.
 */
-Status Server::actOnSendRequest(int client_socket, Client *client){
+Status Server::actOnSendRequest(Client *client){
     // search username. Verify that the connection is not established, if yes, just return true without doing anything.
     if(client->payload_length != config::HOSTNAME_LENGTH){
         info_message_[8] = info::INVALID_MESSAGE;
@@ -1118,7 +1198,7 @@ Status Server::actOnSendRequest(int client_socket, Client *client){
                 requests->insertHead(client->receiver_key);
 
                 for(int i = 0; i < config::CLIENT_KEY_LENGTH; i++){
-                    request_communication_message_[i + 2] = client->sender_key << ((config::CLIENT_KEY_LENGTH - 1 - i) * 8);
+                    request_communication_message_[i + 2] = static_cast<uint8_t>(client->sender_key << ((config::CLIENT_KEY_LENGTH - 1 - i) * 8));
                 }
                 for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
                     request_communication_message_[i + config::HEADER_SIZE] = client->name[i];
@@ -1136,7 +1216,7 @@ Status Server::actOnSendRequest(int client_socket, Client *client){
 }
 
 /*
-Process a user registration attempt and reviews credentials structure. Registers the user.
+Process a user communication response. Based on the type, it accepts or rejects it.
 
 SUCCESS - The response was valid and was sent to the receiver.
 INVALID_CLIENT - Client sent an invalid response.
@@ -1170,10 +1250,11 @@ Status Server::actOnRespondToRequest(int client_socket, Client *client){
     if(!requests->searchNode(client->sender_key)){
         return Status::INVALID_CLIENT;
     }
-
     Status send_state = sendToClient(client_socket);
 
     switch(send_state){
+        case Status::SUCCESS:{
+        } break;
         case Status::RESOURCE_UNAVAILABLE:{
             //should not return, rather be stored
             return Status::RESOURCE_UNAVAILABLE;
@@ -1181,6 +1262,10 @@ Status Server::actOnRespondToRequest(int client_socket, Client *client){
         case Status::ERROR:{
             return Status::ERROR;
         } break;
+        default:{
+            std::cout << "Invalid return type!" << std::endl;
+            return Status::ERROR;
+        }
     }
     if(client->type == types::ACCEPT_REQUEST){
         known_clients->insertHead(client->receiver_key);
@@ -1203,7 +1288,7 @@ INVALID_MESSAGE - Client sent an invalid acknowledgement.
 RESOURCE_UNAVAILABLE - Unexpected error.
 ERROR - An unhandled error ocurred.
 */
-Status Server::actOnAcknowledgement(int client_socket, Client *client){
+Status Server::actOnAcknowledgement(Client *client){
     if(client->payload_length != 0){
         info_message_[8] = info::INVALID_MESSAGE;
         return Status::INVALID_MESSAGE;
@@ -1219,16 +1304,18 @@ Status Server::actOnAcknowledgement(int client_socket, Client *client){
     if(!clients_.searchNode(client->receiver_fd)){
         return Status::INVALID_CLIENT;
     }
-    delivered_ack_message_[2] = client->sender_key >> 24;
-    delivered_ack_message_[3] = client->sender_key >> 16;
-    delivered_ack_message_[4] = client->sender_key >> 8;
-    delivered_ack_message_[5] = client->sender_key;
+    delivered_ack_message_[2] = static_cast<uint8_t>(client->sender_key >> 24);
+    delivered_ack_message_[3] = static_cast<uint8_t>(client->sender_key >> 16);
+    delivered_ack_message_[4] = static_cast<uint8_t>(client->sender_key >> 8);
+    delivered_ack_message_[5] = static_cast<uint8_t>(client->sender_key);
     Status ack_state = sendMessage(
         client->receiver_fd,
         delivered_ack_message_,
         config::HEADER_SIZE
     );
     switch(ack_state){
+        case Status::SUCCESS:{
+        } break;
         case Status::RESOURCE_UNAVAILABLE:{
             // should not return, rather be stored
             return Status::RESOURCE_UNAVAILABLE;
@@ -1236,6 +1323,11 @@ Status Server::actOnAcknowledgement(int client_socket, Client *client){
         case Status::ERROR:{
             return Status::ERROR;
         } break;
+        default:{
+            std::cout << "Invalid return type!" << std::endl;
+            return Status::ERROR;
+        }
+
     }
     return Status::SUCCESS;
 }
@@ -1248,8 +1340,8 @@ RESOURCE_UNAVAILABLE - Unexpected error.
 ERROR - An unhandled error ocurred.
 */
 Status Server::sendMessage(int receiver_fd, uint8_t *buffer, int bytes_to_send){
-    int total_bytes_sent = 0;
-    int bytes_sent = 0;
+    ssize_t total_bytes_sent = 0;
+    ssize_t bytes_sent = 0;
 
     while(total_bytes_sent < bytes_to_send){
         if((bytes_sent = send(
@@ -1383,11 +1475,11 @@ bool Server::printClientInformation(int client_socket){
     return true;
 }
 
-unsigned long Server::stringHash(const char *str){
+ int Server::stringHash(const char *str){
     unsigned long hash = 5381;
     int c;
-    while (c = *str++){
+    while ((c = *str++)){
         hash = ((hash << 5) + hash) + c;
     }
-    return hash;
+    return static_cast<int>(hash);
 }

@@ -29,10 +29,10 @@ ClientProcessor::~ClientProcessor(){
 bool ClientProcessor::setupClientService(){
     if(!setupHashTables()
     || !setupBuffers()
-    || !setupHeaderTypes()
     || !setupSocket()){
         return false;
     }
+    setupHeaderTypes();
     return true;
 }
 
@@ -54,10 +54,7 @@ bool ClientProcessor::setupBuffers(){
     return true;
 }
 
-bool ClientProcessor::setupHeaderTypes(){
-    if(!ack_message_){
-        return false;
-    }
+void ClientProcessor::setupHeaderTypes(){
     ack_message_[0] = UINT8_MAX;
     ack_message_[1] = types::ACK;
     ack_message_[2] = UINT8_MAX;
@@ -67,9 +64,6 @@ bool ClientProcessor::setupHeaderTypes(){
     ack_message_[6] = 0;
     ack_message_[7] = 0;
 
-    if(!request_communication_){
-        return false;
-    }
     request_communication_[0] = UINT8_MAX;
     request_communication_[1] = types::SEND_REQUEST;
     request_communication_[2] = UINT8_MAX;
@@ -79,9 +73,6 @@ bool ClientProcessor::setupHeaderTypes(){
     request_communication_[6] = 0;
     request_communication_[7] = config::HOSTNAME_LENGTH;
 
-    if(!respond_communication_){
-        return false;
-    }
     respond_communication_[0] = UINT8_MAX;
     respond_communication_[1] = types::REJECT_REQUEST;
     respond_communication_[2] = UINT8_MAX;
@@ -91,9 +82,6 @@ bool ClientProcessor::setupHeaderTypes(){
     respond_communication_[6] = 0;
     respond_communication_[7] = config::HOSTNAME_LENGTH;
 
-    if(!auth_message_){
-        return false;
-    }
     auth_message_[0] = UINT8_MAX;
     auth_message_[1] = UINT8_MAX;
     auth_message_[2] = UINT8_MAX;
@@ -102,8 +90,6 @@ bool ClientProcessor::setupHeaderTypes(){
     auth_message_[5] = UINT8_MAX;
     auth_message_[6] = 0;
     auth_message_[7] = 0;
-
-    return true;
 }
 
 bool ClientProcessor::setupSocket(){
@@ -178,6 +164,10 @@ void ClientProcessor::centralLoop(){
                     payload_length_ = UINT16_MAX;
                     receive_loop = false;
                 } break;
+                default:{
+                    std::cout << "Invalid return type!" << std::endl;
+                    return;
+                }
             }
         }
         if(send_register_){
@@ -185,26 +175,36 @@ void ClientProcessor::centralLoop(){
                 case Status::SUCCESS:{
                 } break;
                 case Status::RESOURCE_UNAVAILABLE:{
-                    std::cout << "Could not sent message!" << std::endl << "> ";
+                    std::cout << "Could not sent message!" << std::endl;
                 } break;
                 case Status::ERROR:{
-                    std::cout << "Could not sent message!" << std::endl << "> ";
+                    std::cout << "Could not sent message!" << std::endl;
                 } break;
+                default:{
+                    std::cout << "Invalid return type!" << std::endl;
+                    return;
+                }
             }
+            std::cout << "> " << std::flush;
             send_register_ = false;
         }
         if(send_request_){
             switch(sendMessage(request_communication_, config::HEADER_SIZE + config::HOSTNAME_LENGTH)){
                 case Status::SUCCESS:{
-                    std::cout << "Request sent correctly!" << std::endl << "> ";
+                    std::cout << "Request sent correctly!" << std::endl;
                 } break;
                 case Status::RESOURCE_UNAVAILABLE:{
-                    std::cout << "Could not sent message!" << std::endl << "> ";
+                    std::cout << "Could not sent message!" << std::endl;
                 } break;
                 case Status::ERROR:{
-                    std::cout << "Could not sent message!" << std::endl << "> ";
+                    std::cout << "Could not sent message!" << std::endl;
                 } break;
+                default:{
+                    std::cout << "Invalid return type!" << std::endl;
+                    return;
+                }
             }
+            std::cout << "> " << std::flush;
             send_request_ = false;
         }
         if(respond_request_){
@@ -212,12 +212,17 @@ void ClientProcessor::centralLoop(){
                 case Status::SUCCESS:{
                 } break;
                 case Status::RESOURCE_UNAVAILABLE:{
-                    std::cout << "Could not sent message!" << std::endl << "> ";
+                    std::cout << "Could not sent message!" << std::endl;
                 } break;
                 case Status::ERROR:{
-                    std::cout << "Could not sent message!" << std::endl << "> ";
+                    std::cout << "Could not sent message!" << std::endl;
                 } break;
+                default:{
+                    std::cout << "Invalid return type!" << std::endl;
+                    return;
+                }
             }
+            std::cout << "> " << std::flush;
             respond_request_ = false;
         }
         if(send_message_){
@@ -227,12 +232,17 @@ void ClientProcessor::centralLoop(){
                     case Status::SUCCESS:{
                     } break;
                     case Status::RESOURCE_UNAVAILABLE:{
-                        std::cout << "Could not sent message!" << std::endl << "> ";
+                        std::cout << "Could not sent message!" << std::endl ;
                     } break;
                     case Status::ERROR:{
-                        std::cout << "Could not sent message!" << std::endl << "> ";
+                        std::cout << "Could not sent message!" << std::endl;
                     } break;
+                    default:{
+                        std::cout << "Invalid return type!" << std::endl;
+                        return;
+                    }
                 }
+                std::cout << "> " << std::flush;
                 send_message_ = false;
             }
         }
@@ -248,8 +258,8 @@ RESOURCE_UNAVAILABLE - Could not send message.
 ERROR - An unhandled error ocurred.
 */
 Status ClientProcessor::sendMessage(uint8_t *buffer, int bytes_to_send){
-    int total_bytes_sent = 0;
-    int sent_bytes = 0;
+    ssize_t total_bytes_sent = 0;
+    ssize_t sent_bytes = 0;
 
     while(total_bytes_sent < bytes_to_send){
         if((sent_bytes = send(
@@ -279,8 +289,8 @@ INSUFFICIENT_BUFFER_SPACE - The server sent more bytes than the client can handl
 ERROR - An unhandled error ocurred.
 */
 Status ClientProcessor::receiveFromServer(){
-    int total_bytes_received = 0;
-    int bytes_received = 0;
+    ssize_t total_bytes_received = 0;
+    ssize_t bytes_received = 0;
     if(byte_counter_ >= config::READING_BUFFER_SIZE){
         return Status::INSUFFICIENT_BUFFER_SPACE;
     }
@@ -313,14 +323,19 @@ Status ClientProcessor::receiveFromServer(){
     if(total_bytes_received == 0){
         return Status::NOTHING_TO_READ;
     }
-    byte_counter_ += total_bytes_received;
-    writing_pointer_ = (writing_pointer_ + total_bytes_received) % config::READING_BUFFER_SIZE;
+    if(total_bytes_received > UINT32_MAX){
+        return Status::ERROR;
+    }
+    byte_counter_ += static_cast<uint32_t>(total_bytes_received);
+    writing_pointer_ = static_cast<uint8_t>((writing_pointer_ + total_bytes_received) % config::READING_BUFFER_SIZE);
     return Status::SUCCESS;
 }
 
 Status ClientProcessor::messageProcessor(){
     Status check_state = checkMessage();
     switch(check_state){
+        case Status::SUCCESS:{
+        } break;
         case Status::INCOMPLETE_MESSAGE:{
             return Status::INCOMPLETE_MESSAGE;
         } break;
@@ -330,6 +345,10 @@ Status ClientProcessor::messageProcessor(){
             //report back to server
             return Status::SUCCESS;
         } break;
+        default:{
+            std::cout << "Invalid return type!" << std::endl;
+            return Status::ERROR;
+        }
     }
 
     Status act_state = actOnMessage();
@@ -356,6 +375,10 @@ Status ClientProcessor::messageProcessor(){
         case Status::ERROR:{
             return Status::ERROR;
         } break;
+        default:{
+            std::cout << "Invalid return type!" << std::endl;
+            return Status::ERROR;
+        }
     }
     return Status::ERROR;
 }
@@ -375,7 +398,7 @@ Status ClientProcessor::checkMessage(){
         }
     }
     // PAYLOAD
-    if(byte_counter_ < payload_length_ + config::HEADER_SIZE){
+    if(byte_counter_ < static_cast<uint32_t>(payload_length_ + config::HEADER_SIZE)){
         return Status::INCOMPLETE_MESSAGE;
     }
     return Status::SUCCESS;
@@ -430,7 +453,6 @@ Status ClientProcessor::checkHeader(){
 }
 
 /*
-/*
 Performs different tasks depending on the type of message received.
 
 SUCCESS - The message was valid and was handled correctly.
@@ -449,10 +471,12 @@ Status ClientProcessor::actOnMessage(){
                 return Status::ERROR;
             }
             for(int i = 0; i < config::CLIENT_KEY_LENGTH; i++){
-                ack_message_[i + 2] = sender_key_ >> ((config::CLIENT_KEY_LENGTH - i - 1) * 8);
+                ack_message_[i + 2] = static_cast<uint8_t>(sender_key_ >> ((config::CLIENT_KEY_LENGTH - i - 1) * 8));
             }
             Status ack_state = sendMessage(ack_message_, config::HEADER_SIZE);
             switch(ack_state){
+                case Status::SUCCESS:{
+                } break;
                 case Status::RESOURCE_UNAVAILABLE:{
                     // should not return, rather be stored
                     return Status::RESOURCE_UNAVAILABLE;
@@ -460,6 +484,10 @@ Status ClientProcessor::actOnMessage(){
                 case Status::ERROR:{
                     return Status::ERROR;
                 } break;
+                default:{
+                    std::cout << "Invalid return type!" << std::endl;
+                    return Status::ERROR;
+                }
             }
         } break;
         case types::SEND_REQUEST:
@@ -477,7 +505,7 @@ Status ClientProcessor::actOnMessage(){
                 std::cout << "Invalid username received!" << std::endl;
                 return Status::INVALID_CLIENT;
             }
-            int temp_key = UINT32_MAX;
+            uint32_t temp_key = UINT32_MAX;
             if((temp_key = getUserKey(temp_username)) != UINT32_MAX){
                 std::cout << "already known client" << std::endl;
                 return Status::INVALID_CLIENT;
@@ -645,7 +673,9 @@ bool ClientProcessor::welcomeInputLoop(){
                 << std::endl << "The maximum size is "
                 << static_cast<uint>(config::HOSTNAME_LENGTH) << " characters."
                 << std::endl << "Username: ";
-                std::getline(std::cin, tmp_username);
+                while(tmp_username.length() == 0){
+                    std::getline(std::cin, tmp_username);
+                }
                 if(!validateCredential(tmp_username, 1, config::HOSTNAME_LENGTH)){
                     std::cout << "Try a different username!"  << std::endl;
                     break;
@@ -657,7 +687,9 @@ bool ClientProcessor::welcomeInputLoop(){
                 << std::endl << "The maximum size is "
                 << static_cast<uint>(config::MAX_PASSWORD_LENGTH) << " characters."
                 << std::endl << "Password: ";
-                std::getline(std::cin, tmp_password);
+                while(tmp_password.length() == 0){
+                    std::getline(std::cin, tmp_password);
+                }
                 if(!validateCredential(tmp_password, config::MIN_PASSWORD_LENGTH, config::MAX_PASSWORD_LENGTH)){
                     break;
                 }
@@ -666,17 +698,19 @@ bool ClientProcessor::welcomeInputLoop(){
 
                 username_ = tmp_username;
                 password_ = tmp_password;
-                credentials_length_ = config::HOSTNAME_LENGTH + password_.length();
+                credentials_length_ = config::HOSTNAME_LENGTH + static_cast<uint8_t>(password_.length());
+                uint32_t username_length = static_cast<uint32_t>(username_.length());
+                uint32_t password_length = static_cast<uint32_t>(password_.length());
 
                 auth_message_[1] = types::REGISTER;
                 auth_message_[7] = credentials_length_;
-                for(int i = 0; i < username_.length(); i++){
+                for(uint32_t i = 0; i < username_length; i++){
                     auth_message_[i + config::HEADER_SIZE] = username_[i];
                 }
-                for(int i = username_.length(); i < config::HOSTNAME_LENGTH; i++){
+                for(uint32_t i = username_length; i < config::HOSTNAME_LENGTH; i++){
                     auth_message_[i + config::HEADER_SIZE] = 0;
                 }
-                for(int i = 0; i < password_.length(); i++){
+                for(uint32_t i = 0; i < password_length; i++){
                     auth_message_[i + config::HOSTNAME_LENGTH + config::HEADER_SIZE] = password_[i];
                 }
 
@@ -740,6 +774,10 @@ bool ClientProcessor::messageInputLoop(){
                 case Status::INVALID_MESSAGE:{
                     std::cout << "Invalid message, please try again!" << std::endl;
                 } break;
+                default:{
+                    std::cout << "Invalid return type!" << std::endl;
+                    return false;
+                }
             }
             } break;
             case 2:{
@@ -756,6 +794,10 @@ bool ClientProcessor::messageInputLoop(){
                         std::cout << "There's a code error on setReceiver!" << std::endl;
                         return false;
                     }
+                    default:{
+                        std::cout << "Invalid return type!" << std::endl;
+                        return false;
+                    }
                 }
             } break;
             case 3:{
@@ -770,10 +812,11 @@ bool ClientProcessor::messageInputLoop(){
                 std::cout << "Input the username of the user you want to establish a communication with: ";
                 std::getline(std::cin, temp_username);
                 if(validateCredential(temp_username, 1, config::HOSTNAME_LENGTH)){
-                    for(int i = 0; i < temp_username.length(); i++){
+                    uint32_t username_length = static_cast<uint32_t>(temp_username.length());
+                    for(uint32_t i = 0; i < username_length; i++){
                         request_communication_[i + config::HEADER_SIZE] = temp_username[i];
                     }
-                    for(int i = temp_username.length(); i < config::HOSTNAME_LENGTH; i++){
+                    for(uint32_t i = username_length; i < config::HOSTNAME_LENGTH; i++){
                         request_communication_[i + config::HEADER_SIZE] = 0;
                     }
                     send_request_ = true;
@@ -810,10 +853,11 @@ bool ClientProcessor::messageInputLoop(){
                     incoming_requests_.advanceNode();
                 }
                 std::cout << "Select one option." << std::endl
-                << "Request from : " << incoming_requests_.getNode().username << std::endl
+                << "Request from: " << incoming_requests_.getNode().username << std::endl
                 << "1. Accept" << std::endl
                 << "2. Reject" << std::endl
-                << "3. Exit" << std::endl;
+                << "3. Exit" << std::endl
+                << "> ";
                 ans = userNumericInput();
                 if(ans == 1 || ans == 2){
                     char *ref_username = incoming_requests_.getNode().username;
@@ -834,7 +878,7 @@ bool ClientProcessor::messageInputLoop(){
                         return false;
                     }
                     for(int i = 0; i < 4; i++){
-                        respond_communication_[i + 2] = usernameMapping.key << ((3 - i) * 8);
+                        respond_communication_[i + 2] = static_cast<uint8_t>(usernameMapping.key << ((3 - i) * 8));
                     }
                     respond_request_ = true;
                 }
@@ -866,12 +910,12 @@ Status ClientProcessor::setMessage(){
 
     {
         std::unique_lock<std::mutex> lock_message(read_mutex_);
-        uint16_t message_length = message_.length();
+        uint16_t message_length = static_cast<uint16_t>(message_.length());
 
         outgoing_buffer_[0] = 255;
         outgoing_buffer_[1] = types::USER;
-        outgoing_buffer_[6] = message_length >> 8;
-        outgoing_buffer_[7] = message_length;
+        outgoing_buffer_[6] = static_cast<uint8_t>(message_length >> 8);
+        outgoing_buffer_[7] = static_cast<uint8_t>(message_length);
 
         for(int i = 0; i < message_length; i++){
             outgoing_buffer_[8 + i] = message_[i];
@@ -934,10 +978,10 @@ Status ClientProcessor::setReceiver(){
     receiving_username_ = username_to_key_.getNode()->data_.username;
     receiver_key_ = username_to_key_.getNode()->data_.key;
 
-    outgoing_buffer_[2] = receiver_key_ >> 24;
-    outgoing_buffer_[3] = receiver_key_ >> 16;
-    outgoing_buffer_[4] = receiver_key_ >> 8;
-    outgoing_buffer_[5] = receiver_key_;
+    outgoing_buffer_[2] = static_cast<uint8_t>(receiver_key_ >> 24);
+    outgoing_buffer_[3] = static_cast<uint8_t>(receiver_key_ >> 16);
+    outgoing_buffer_[4] = static_cast<uint8_t>(receiver_key_ >> 8);
+    outgoing_buffer_[5] = static_cast<uint8_t>(receiver_key_);
     return Status::SUCCESS;
 }
 
@@ -948,7 +992,8 @@ bool ClientProcessor::validateCredential(const std::string &credential, uint8_t 
         return false;
     }
     bool valid_credential = true;
-    for(int i = 0; i < credential.size(); i++){
+    uint32_t credential_length = static_cast<uint32_t>(credential.length());
+    for(uint32_t i = 0; i < credential_length; i++){
         if((credential[i] > 0 && credential[i] < 48)
             || (credential[i] > 57 && credential[i] < 65)
             || (credential[i] > 90 && credential[i] < 95)
@@ -967,7 +1012,7 @@ bool ClientProcessor::addUser(uint32_t key, const std::string &username){
     UsernameMapping user;
     user.key = key;
     std::memcpy(user.username, username.data(), config::HOSTNAME_LENGTH);
-    unsigned long hash_key = stringHash(user.username);
+    int hash_key = stringHash(user.username);
     if(!username_to_key_.insertNode(hash_key, user)){
         return false;
     }
@@ -978,7 +1023,7 @@ bool ClientProcessor::addUser(uint32_t key, const std::string &username){
 uint32_t ClientProcessor::getUserKey(const std::string &temp_username){
     char username [config::HOSTNAME_LENGTH + 1] = {0};
     std::strcpy(username, temp_username.c_str());
-    unsigned long hash_key = stringHash(username);
+    int hash_key = stringHash(username);
     if(!username_to_key_.searchNode(hash_key)){
         return UINT32_MAX;
     }
@@ -1019,22 +1064,26 @@ int ClientProcessor::userNumericInput(){
     std::string ans;
     int parsed_ans = -1;
     while(parsed_ans == -1){
-        std::getline(std::cin, ans);
-        if(integerCheck(ans)){
-            if(ans.length() < config::MAX_LENGTH_OF_INT_CHOICE){
+        while(ans.length() == 0){
+            std::getline(std::cin, ans);
+        }
+        if(ans.length() < config::MAX_LENGTH_OF_INT_CHOICE){
+            if(integerCheck(ans, static_cast<uint32_t>(ans.length()))){
                 parsed_ans = std::stoi(ans);
             } else{
-            std::cout << "Invalid input, please enter a number from the selection." << std::endl;
+                std::cout << "Invalid input, please enter a number." << std::endl;
+                ans.clear();
             }
         } else{
-            std::cout << "Invalid input, please enter a number." << std::endl;
+        std::cout << "Invalid input, please enter a number from the selection." << std::endl;
+        ans.clear();
         }
     }
     return parsed_ans;
 }
 
-bool ClientProcessor::integerCheck(const std::string &string){
-    for(int i = 0; i < (int)string.size(); i++){
+bool ClientProcessor::integerCheck(const std::string &string, uint32_t length){
+    for(uint32_t i = 0; i < length; i++){
         if(string[i] == '0' || string[i] == '1' ||
             string[i] == '2' || string[i] == '3' ||
             string[i] == '4' || string[i] == '5' ||
@@ -1047,11 +1096,11 @@ bool ClientProcessor::integerCheck(const std::string &string){
     return true;
 }
 
-unsigned long ClientProcessor::stringHash(const char *str){
+int ClientProcessor::stringHash(const char *str){
     unsigned long hash = 5381;
     int c;
-    while (c = *str++){
+    while ((c = *str++)){
         hash = ((hash << 5) + hash) + c;
     }
-    return hash;
+    return static_cast<int>(hash);
 }

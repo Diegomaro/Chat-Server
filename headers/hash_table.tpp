@@ -21,10 +21,10 @@ bool HashTable<T>::createTable(unsigned int desiredSize){
     }
     table_ = new LinkedList<HashData> [desiredSize];
     double tmpPower = std::log2(desiredSize);
-    if(tmpPower  - (int)tmpPower != 0.f){
+    if(tmpPower  - static_cast<int>(tmpPower) != 0.f){
         return false;
     }
-    power_ = (int) tmpPower;
+    power_ = static_cast<int>(tmpPower);
     size_ = desiredSize;
     return true;
 }
@@ -126,7 +126,7 @@ bool HashTable<T>::advanceNode(){
 
 template <typename T>
 void HashTable<T>::resetNodeIndex(){
-    for(int i = 0; i < size_; i++){
+    for(unsigned int i = 0; i < size_; i++){
         table_[i].resetNodeIndex();
     }
     current_node_ = 0;
@@ -142,7 +142,7 @@ bool HashTable<T>::checkRehash(){
     if(size_ == 0){
         return false;
     }
-    float loadFactor = (float) data_count_ / size_;
+    float loadFactor = static_cast<float>(data_count_ / size_);
     if(loadFactor >= LOAD_FACTOR){
         if(!rehash()){
             return false;
@@ -154,7 +154,7 @@ bool HashTable<T>::checkRehash(){
 template <typename T>
 bool HashTable<T>::rehash(){
     is_rehashing_ = true;
-    int oldDataCount = data_count_;
+    unsigned int oldDataCount = data_count_;
     if(!table_) {
         return false;
     }
@@ -174,6 +174,7 @@ bool HashTable<T>::rehash(){
     }
     delete [] oldTable;
     is_rehashing_ = false;
+    data_count_ = oldDataCount;
     return true;
 }
 
@@ -185,7 +186,7 @@ unsigned int HashTable<T>::hash(int key){
 
 template <typename T>
 unsigned int HashTable<T>::hashFunction(int key){
-    return (key * 0x9E3779B97F4A7C15) >> (64 - power_);
+    return static_cast<int>((key * 0x9E3779B97F4A7C15) >> (64 - power_));
 }
 
 template <typename T>

@@ -7,7 +7,7 @@ Client::Client(){
     memset(&name, 0, sizeof(name));
     memset(&ip, 0, sizeof(ip));
 
-    for(int i = 0; i < config::BUFFER_SEGMENTS_PER_CLIENT; i++){
+    for(uint32_t i = 0; i < config::BUFFER_SEGMENTS_PER_CLIENT; i++){
         buffer_pointers[i] = UINT32_MAX;
     }
 }

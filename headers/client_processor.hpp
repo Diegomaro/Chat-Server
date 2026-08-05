@@ -13,6 +13,7 @@
 #include "constants/types.hpp"
 #include "constants/info.hpp"
 
+
 class ClientProcessor{
     public:
         ClientProcessor();
@@ -33,7 +34,7 @@ class ClientProcessor{
 
         bool setupHashTables();
         bool setupBuffers();
-        bool setupHeaderTypes();
+        void setupHeaderTypes();
         bool setupSocket();
 
         // --- Central loop ---
@@ -81,13 +82,13 @@ class ClientProcessor{
         // helper methods
 
         int userNumericInput();
-        bool integerCheck(const std::string &string);
-        unsigned long stringHash(const char *str);
+        bool integerCheck(const std::string &string, uint32_t length);
+        int stringHash(const char *str);
 
         // attributes
         HashTable<UsernameMapping> username_to_key_;
         LinkedList<UsernameMapping> incoming_requests_;
-        LinkedList<UsernameMapping> outgoing_requests_; // implement later
+        //LinkedList<UsernameMapping> outgoing_requests_; // implement later
 
         uint8_t *incoming_buffer_{nullptr};
         uint8_t *outgoing_buffer_{nullptr};
@@ -109,7 +110,7 @@ class ClientProcessor{
         uint32_t reading_pointer_{0};
 
         bool valid_header_{false};
-        uint16_t byte_counter_{0}; // missing checking what happens when exceeds 65k
+        uint32_t byte_counter_{0};
         uint16_t payload_length_{UINT16_MAX};
         uint8_t type_{0};
         uint32_t sender_key_{UINT32_MAX};

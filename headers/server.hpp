@@ -44,9 +44,9 @@ class Server{
 
         Status actOnUserMessage(int client_socket, Client *client);
         Status actOnRegister(int client_socket, Client *client);
-        Status actOnSendRequest(int client_socket, Client *client);
+        Status actOnSendRequest(Client *client);
         Status actOnRespondToRequest(int client_socket, Client *client);
-        Status actOnAcknowledgement(int client_socket, Client *client);
+        Status actOnAcknowledgement(Client *client);
 
         // sending data
 
@@ -63,7 +63,7 @@ class Server{
 
         // helper method
 
-        unsigned long stringHash(const char *str);
+        int stringHash(const char *str);
 
         // server attributes
 
