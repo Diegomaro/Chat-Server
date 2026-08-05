@@ -185,10 +185,10 @@ void ClientProcessor::centralLoop(){
                 case Status::SUCCESS:{
                 } break;
                 case Status::RESOURCE_UNAVAILABLE:{
-                    std::cout << "Could not sent message!" << std::endl << ">";
+                    std::cout << "Could not sent message!" << std::endl << "> ";
                 } break;
                 case Status::ERROR:{
-                    std::cout << "Could not sent message!" << std::endl << ">";
+                    std::cout << "Could not sent message!" << std::endl << "> ";
                 } break;
             }
             send_register_ = false;
@@ -196,13 +196,13 @@ void ClientProcessor::centralLoop(){
         if(send_request_){
             switch(sendMessage(request_communication_, config::HEADER_SIZE + config::HOSTNAME_LENGTH)){
                 case Status::SUCCESS:{
-                    std::cout << "Request sent correctly!" << std::endl << ">";
+                    std::cout << "Request sent correctly!" << std::endl << "> ";
                 } break;
                 case Status::RESOURCE_UNAVAILABLE:{
-                    std::cout << "Could not sent message!" << std::endl << ">";
+                    std::cout << "Could not sent message!" << std::endl << "> ";
                 } break;
                 case Status::ERROR:{
-                    std::cout << "Could not sent message!" << std::endl << ">";
+                    std::cout << "Could not sent message!" << std::endl << "> ";
                 } break;
             }
             send_request_ = false;
@@ -212,10 +212,10 @@ void ClientProcessor::centralLoop(){
                 case Status::SUCCESS:{
                 } break;
                 case Status::RESOURCE_UNAVAILABLE:{
-                    std::cout << "Could not sent message!" << std::endl << ">";
+                    std::cout << "Could not sent message!" << std::endl << "> ";
                 } break;
                 case Status::ERROR:{
-                    std::cout << "Could not sent message!" << std::endl << ">";
+                    std::cout << "Could not sent message!" << std::endl << "> ";
                 } break;
             }
             respond_request_ = false;
@@ -227,10 +227,10 @@ void ClientProcessor::centralLoop(){
                     case Status::SUCCESS:{
                     } break;
                     case Status::RESOURCE_UNAVAILABLE:{
-                        std::cout << "Could not sent message!" << std::endl << ">";
+                        std::cout << "Could not sent message!" << std::endl << "> ";
                     } break;
                     case Status::ERROR:{
-                        std::cout << "Could not sent message!" << std::endl << ">";
+                        std::cout << "Could not sent message!" << std::endl << "> ";
                     } break;
                 }
                 send_message_ = false;
@@ -520,7 +520,7 @@ Status ClientProcessor::actOnMessage(){
                     std::cout << "Info: Message sent, was invalid!" << std::endl;
                 } break;
                 case info::INVALID_CLIENT:{
-                    std::cout << "Info: The targeted receiver was invalid!!" << std::endl;
+                    std::cout << "Info: The targeted receiver was invalid!" << std::endl;
                 } break;
                 case info::ALREADY_SENT_REQUEST:{
                     std::cout << "Info: Already sent request to that user!" << std::endl;
@@ -540,6 +540,7 @@ Status ClientProcessor::actOnMessage(){
                     return Status::ERROR;
                 } break;
             }
+            std::cout << "> " << std::flush;
         } break;
         case types::ACK:{
             if(sender_key_ != UINT32_MAX){
@@ -751,6 +752,10 @@ bool ClientProcessor::messageInputLoop(){
                     case Status::INVALID_MESSAGE:{
                         std::cout << "Invalid client, please try again!" << std::endl;
                     } break;
+                    case Status::PROGRAMMING_ERROR:{
+                        std::cout << "There's a code error on setReceiver!" << std::endl;
+                        return false;
+                    }
                 }
             } break;
             case 3:{
@@ -793,7 +798,7 @@ bool ClientProcessor::messageInputLoop(){
                 if(ans == 0){
                     break;
                 }
-                if(ans < 0 || ans > ctr){
+                if(ans > ctr){
                     std::cout << "Invalid request selected!" << std::endl;
                      break;
                 }
@@ -838,11 +843,11 @@ bool ClientProcessor::messageInputLoop(){
             } break;
             case 7:{
                 program_running_ = false;
-                return false;
+                return true;
             } break;
         }
     }
-    return true;
+    return false;
 }
 
 /*
@@ -880,17 +885,18 @@ Status ClientProcessor::setMessage(){
 Sets destinatory from a list of known users.
 
 SUCCESS - Receiver was set correctly.
-NOTHING_TO_DO - No known users.
+NOTHING_TO_DO - No known users or none selected.
 INVALID_CLIENT - Receiver was not set.
+PROGRAMMING_ERROR - There's an issue with how the receiver is set.
 */
 Status ClientProcessor::setReceiver(){
-    int ctr = 1;
     if(username_to_key_.getDataCount() == 0){
         std::cout << "No known users, request a user to establish a connection first!" << std::endl;
         return Status::NOTHING_TO_DO;
     }
-    std::cout << "Please input the receiver username. " << std::endl
-    << "Known users: " << std::endl;
+    std::cout << "Input a number corresponding to a user to select a recipient. Input 0 to exit." << std::endl;
+    std::cout << "Known users: " << std::endl;
+    int ctr = 1;
     username_to_key_.resetNodeIndex();
     while(username_to_key_.hasNodes()){
         if(username_to_key_.hasNode()){
@@ -898,22 +904,35 @@ Status ClientProcessor::setReceiver(){
         }
         username_to_key_.advanceNode();
     }
-    std::cout << ">";
+    std::cout << "> ";
 
-    std::string temp_username(config::HOSTNAME_LENGTH, '\0');
-    std::getline(std::cin, temp_username);
-    while(!validateCredential(temp_username, 1, config::HOSTNAME_LENGTH)){
-        std::cout << "Please input a valid username. It cannot be longer than 16 characters." << std::endl;
-        std::cout << ">";
-        std::getline(std::cin, temp_username);
+    int ans = userNumericInput();
+    if(ans == 0){
+        return Status::NOTHING_TO_DO;
     }
-    uint32_t temp_key;
-    if((temp_key = getUserKey(temp_username)) == UINT32_MAX){
-        std::cout << "Invalid username!" << std::endl;
-        return Status::INVALID_CLIENT;
+
+    if(ans > ctr){
+        std::cout << "Invalid request selected!" << std::endl;
+            return Status::INVALID_CLIENT;
     }
-    receiver_key_ = temp_key;
-    receiving_username_ = temp_username;
+    ctr = 1;
+    username_to_key_.resetNodeIndex();
+    while(username_to_key_.hasNodes()){
+        if(username_to_key_.hasNode()){
+            ctr++;
+        }
+        if(ctr > ans){
+            break;
+        }
+        username_to_key_.advanceNode();
+    }
+
+    if(!username_to_key_.hasNode()){
+        return Status::PROGRAMMING_ERROR;
+    }
+
+    receiving_username_ = username_to_key_.getNode()->data_.username;
+    receiver_key_ = username_to_key_.getNode()->data_.key;
 
     outgoing_buffer_[2] = receiver_key_ >> 24;
     outgoing_buffer_[3] = receiver_key_ >> 16;

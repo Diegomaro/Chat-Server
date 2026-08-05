@@ -42,6 +42,23 @@ Server::~Server(){
         }
         clients_.advanceNode();
     }
+
+    client_key_to_known_keys_.resetNodeIndex();
+    while(client_key_to_known_keys_.hasNodes()){
+        if(client_key_to_known_keys_.hasNode()){
+            delete client_key_to_known_keys_.getNode()->data_;
+        }
+        client_key_to_known_keys_.advanceNode();
+    }
+
+    client_key_to_requested_keys_.resetNodeIndex();
+    while(client_key_to_requested_keys_.hasNodes()){
+        if(client_key_to_requested_keys_.hasNode()){
+            delete client_key_to_requested_keys_.getNode()->data_;
+        }
+        client_key_to_requested_keys_.advanceNode();
+    }
+
     if(buffer_pool_){
         delete [] buffer_pool_;
         buffer_pool_ = nullptr;
