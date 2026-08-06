@@ -1,6 +1,6 @@
 ![C++](https://img.shields.io/badge/C%2B%2B-14-blue)
-![Release](https://img.shields.io/github/v/release/Diegomaro/Chat-Server)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+![Release](https://img.shields.io/github/v/release/Diegomaro/Chat-Server?include_prereleases)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
 ## About The Project
 A TCP chat server written in C++ to explore networking, protocol design, systems programming and scalable client-server architecture. This repository serves as a long-term systems programming project that incrementally explores concepts in networking, security, system design, testing and performance.
