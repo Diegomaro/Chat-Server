@@ -1,15 +1,19 @@
+![C++](https://img.shields.io/badge/C%2B%2B-14-blue)
+![Release](https://img.shields.io/github/v/release/Diegomaro/Chat-Server)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+
 ## About The Project
-A TCP chat server written in C++ to explore networking, protocol design, systems programming and client-server architecture. This repository serves as a long-term systems programming project that incrementally explores concepts in networking, security, system design, testing and performance.
+A TCP chat server written in C++ to explore networking, protocol design, systems programming and scalable client-server architecture. This repository serves as a long-term systems programming project that incrementally explores concepts in networking, security, system design, testing and performance.
 
 ## Features
-The current implemented features:
+Current features:
 - Message protocol.
 - Input validation.
 - Simple user menu to authenticate and send messages.
-- Simple auhentication.
+- Simple authentication.
 - Simultaneous client connectivity.
-- One-to-one communications with connection request/accept/reject.
-- Dedicated memory space for shared message buffering.
+- One-to-one communication with connection request/accept/reject.
+- Dedicated memory space for message storage.
 - Handling of malformed client messages.
 - Delivered message acknowledgements.
 
@@ -45,13 +49,17 @@ In other terminals, start one or more clients:
 
 ## Program structure
 docs/
-- Includes all documentation.
+- [Architecture](docs/architecture.md)
+- [Protocol](docs/protocol.md)
+- [Roadmap](docs/roadmap.md)
+- ...
+
 headers/
-- Includes hpp and tpp files.
 - constants/
-  - Includes system configuration, return types, protocol header types and status types.
+
 src/
-- Includes cpp files in two directories, one for client and one for server.
+- client/
+- server/
 
 ## Resources
  * [Beej’s Guide to Network Programming](https://beej.us/guide/bgnet/)
