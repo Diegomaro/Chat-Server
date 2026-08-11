@@ -122,7 +122,7 @@ void Server::setupBuffers(){
     sending_buffer_ = new uint8_t[config::READING_BUFFER_SIZE];
     uint32_t current_address = 0;
     for(uint32_t i = 0; i < config::TOTAL_BUFFER_SEGMENTS; i++){
-        available_buffers_.insertTail(current_address);
+        available_buffers_.push_back(current_address);
         current_address += config::BUFFER_SEGMENT_SIZE;
     }
 }
@@ -514,11 +514,11 @@ Status Server::addClient(const sockaddr_storage& client_sockaddr){
         new_client.port = ntohs(ipv6->sin6_port);
     }
     inet_ntop(client_sockaddr.ss_family, addr, new_client.ip, sizeof(new_client.ip));
-    if(available_buffers_.isEmpty()){
+    if(available_buffers_.empty()){
         return Status::INSUFFICIENT_BUFFER_SPACE;
     }
-    new_client.buffer_pointers[0] = available_buffers_.getHead();
-    available_buffers_.deleteHead();
+    new_client.buffer_pointers[0] = available_buffers_.front();
+    available_buffers_.pop_back();
     new_client.buffer_pointers_count = 1;
     new_client.starting_pointer = new_client.buffer_pointers[0];
     new_client.reading_pointer = new_client.buffer_pointers[0];
@@ -558,7 +558,7 @@ Status Server::closeConnection(int client_socket){
         }
         if(client->buffer_pointers[i] != UINT32_MAX){
             try{
-                available_buffers_.insertHead(client->buffer_pointers[i]);
+                available_buffers_.push_front(client->buffer_pointers[i]);
             } catch(const std::bad_alloc&){
                 return Status::INSUFFICIENT_MEMORY;
             }
@@ -627,12 +627,12 @@ Status Server::receiveFromClient(int client_socket){
             if(client->buffer_pointers_count + 1 >= config::BUFFER_SEGMENTS_PER_CLIENT){
                 return Status::EXCEEDED_CLIENT_BUFFER_SIZE;
             }
-            if(available_buffers_.isEmpty()){
+            if(available_buffers_.empty()){
                 return Status::INSUFFICIENT_BUFFER_SPACE;
             }
-            uint32_t new_buffer_segment = available_buffers_.getHead();
+            uint32_t new_buffer_segment = available_buffers_.front();
             client->buffer_pointers[(client->writing_buffer + 1) % 128] = new_buffer_segment;
-            available_buffers_.deleteHead();
+            available_buffers_.pop_front();
             client->buffer_pointers_count++;
             client->writing_buffer = static_cast<uint8_t>((client->writing_buffer + 1) % 128);
             client->writing_pointer = new_buffer_segment;
@@ -942,8 +942,15 @@ Status Server::actOnUserMessage(int client_socket, Client *client){
     if(!client_key_to_known_keys_.searchNode(client->sender_key)){
         return Status::ERROR;
     }
-    LinkedList<uint32_t> *known_users = *client_key_to_known_keys_.getNode(client->sender_key);
-    if(!known_users->searchNode(client->receiver_key)){
+    bool found = false;
+    std::list<uint32_t> *known_users = *client_key_to_known_keys_.getNode(client->sender_key);
+    for(auto it = known_users->begin(); it != known_users->end(); it++){
+        if(*it == client->receiver_key){
+            found = true;
+            break;
+        }
+    }
+    if(!found){
         return Status::INVALID_CLIENT;
     }
 
@@ -1099,12 +1106,13 @@ Status Server::actOnRegister(int client_socket, Client *client){
     }
     client->logged_in = true;
 
-    LinkedList<uint32_t> *known_users = new(std::nothrow) LinkedList<uint32_t>;
+    std::list<uint32_t> *known_users = new(std::nothrow) std::list<uint32_t>;
     if(known_users == nullptr){
         return Status::ERROR;
     }
     client_key_to_known_keys_.insertNode(client->sender_key, known_users);
-    LinkedList<uint32_t> *requests_to_users = new(std::nothrow) LinkedList<uint32_t>;
+    known_users = nullptr;
+    std::list<uint32_t> *requests_to_users = new(std::nothrow) std::list<uint32_t>;
     if(requests_to_users == nullptr){
         return Status::ERROR;
     }
@@ -1181,21 +1189,25 @@ Status Server::actOnSendRequest(Client *client){
                 if(!client_key_to_known_keys_.searchNode(client->sender_key)){
                     return Status::ERROR;
                 }
-                LinkedList<uint32_t> *known_clients = *client_key_to_known_keys_.getNode(client->sender_key);
-                if(known_clients->searchNode(client->receiver_key)){
-                    info_message_[8] = info::ALREADY_KNOWN_CLIENT;
-                    return Status::INVALID_MESSAGE;
+                std::list<uint32_t> *known_clients = *client_key_to_known_keys_.getNode(client->sender_key);
+                for(auto it = known_clients->begin(); it != known_clients->end(); it++){
+                    if(*it == client->receiver_key){
+                        info_message_[8] = info::ALREADY_KNOWN_CLIENT;
+                        return Status::INVALID_MESSAGE;
+                    }
                 }
 
                 if(!client_key_to_requested_keys_.searchNode(client->sender_key)){
                     return Status::ERROR;
                 }
-                LinkedList<uint32_t> *requests = *client_key_to_requested_keys_.getNode(client->sender_key);
-                if(requests->searchNode(client->receiver_key)){
-                    info_message_[8] = info::ALREADY_SENT_REQUEST;
-                    return Status::INVALID_MESSAGE;
+                std::list<uint32_t> *requests = *client_key_to_requested_keys_.getNode(client->sender_key);
+                for(auto it = requests->begin(); it != requests->end(); it++){
+                    if(*it == client->receiver_key){
+                        info_message_[8] = info::ALREADY_SENT_REQUEST;
+                        return Status::INVALID_MESSAGE;
+                    }
                 }
-                requests->insertHead(client->receiver_key);
+                requests->push_front(client->receiver_key);
 
                 for(int i = 0; i < config::CLIENT_KEY_LENGTH; i++){
                     request_communication_message_[i + 2] = static_cast<uint8_t>(client->sender_key << ((config::CLIENT_KEY_LENGTH - 1 - i) * 8));
@@ -1237,17 +1249,27 @@ Status Server::actOnRespondToRequest(int client_socket, Client *client){
     if(!client_key_to_known_keys_.searchNode(client->sender_key)){
         return Status::ERROR;
     }
-    LinkedList<uint32_t> *known_clients = *client_key_to_known_keys_.getNode(client->sender_key);
-    if(known_clients->searchNode(client->receiver_key)){
-        info_message_[8] = info::ALREADY_KNOWN_CLIENT;
-        return Status::INVALID_MESSAGE;
+    std::list<uint32_t> *known_clients = *client_key_to_known_keys_.getNode(client->sender_key);
+    for(auto it = known_clients->begin(); it != known_clients->end(); it++){
+        if(*it == client->receiver_key){
+            info_message_[8] = info::ALREADY_KNOWN_CLIENT;
+            return Status::INVALID_MESSAGE;
+        }
     }
 
     if(!client_key_to_requested_keys_.searchNode(client->receiver_key)){
         return Status::ERROR;
     }
-    LinkedList<uint32_t> *requests = *client_key_to_requested_keys_.getNode(client->receiver_key);
-    if(!requests->searchNode(client->sender_key)){
+
+    bool found = false;
+    std::list<uint32_t> *requests = *client_key_to_requested_keys_.getNode(client->receiver_key);
+    for(auto it = requests->begin(); it != requests->end(); it++){
+        if(*it == client->sender_key){
+            found = true;
+            break;
+        }
+    }
+    if(!found){
         return Status::INVALID_CLIENT;
     }
     Status send_state = sendToClient(client_socket);
@@ -1268,13 +1290,13 @@ Status Server::actOnRespondToRequest(int client_socket, Client *client){
         }
     }
     if(client->type == types::ACCEPT_REQUEST){
-        known_clients->insertHead(client->receiver_key);
+        known_clients->push_front(client->receiver_key);
 
         if(!client_key_to_known_keys_.searchNode(client->receiver_key)){
             return Status::ERROR;
         }
-        known_clients = *client_key_to_known_keys_.getNode(client->receiver_key);
-        known_clients->insertHead(client->sender_key);
+        std::list<uint32_t> * known_clients_receiver = *client_key_to_known_keys_.getNode(client->receiver_key);
+        known_clients_receiver->push_front(client->sender_key);
     }
     return Status::SUCCESS;
 }
@@ -1294,8 +1316,16 @@ Status Server::actOnAcknowledgement(Client *client){
         return Status::INVALID_MESSAGE;
     }
     if(client_key_to_known_keys_.searchNode(client->sender_key)){
-        LinkedList<uint32_t> *known_users = *client_key_to_known_keys_.getNode(client->sender_key);
-        if(!known_users->searchNode(client->receiver_key)){
+        std::list<uint32_t> *known_users = *client_key_to_known_keys_.getNode(client->sender_key);
+        bool found = false;
+        for(auto it = known_users->begin(); it != known_users->end(); it++){
+            if(*it == client->receiver_key){
+                found = true;
+                break;
+            }
+        }
+
+        if(!found){
             return Status::INVALID_CLIENT;
         }
     } else{
@@ -1410,7 +1440,7 @@ Status Server::resetClientBuffer(int client_socket){
         }
         if(client->buffer_pointers[i] != UINT32_MAX){
             try{
-                available_buffers_.insertHead(client->buffer_pointers[i]);
+                available_buffers_.push_front(client->buffer_pointers[i]);
                 client->buffer_pointers[i] = UINT32_MAX;
                 client->buffer_pointers_count--;
             } catch(const std::bad_alloc&){
@@ -1418,11 +1448,11 @@ Status Server::resetClientBuffer(int client_socket){
             }
         }
     }
-    if(available_buffers_.isEmpty()){
+    if(available_buffers_.empty()){
         return Status::INSUFFICIENT_BUFFER_SPACE;
     }
-    client->buffer_pointers[0] = available_buffers_.getHead();
-    available_buffers_.deleteHead();
+    client->buffer_pointers[0] = available_buffers_.front();
+    available_buffers_.pop_front();
     client->buffer_pointers_count = 1;
     client->starting_buffer = 0;
     client->writing_buffer = 0;
@@ -1446,7 +1476,7 @@ bool Server::cleanClientBuffer(int client_socket){
         dif *= -1;
     }
     for(int i = 0; i < dif; i++){
-        available_buffers_.insertHead(client->buffer_pointers[(client->starting_buffer + i) % config::BUFFER_SEGMENTS_PER_CLIENT]);
+        available_buffers_.push_front(client->buffer_pointers[(client->starting_buffer + i) % config::BUFFER_SEGMENTS_PER_CLIENT]);
         client->buffer_pointers[(client->starting_buffer + i) % config::BUFFER_SEGMENTS_PER_CLIENT] = UINT32_MAX;
         client->buffer_pointers_count--;
     }

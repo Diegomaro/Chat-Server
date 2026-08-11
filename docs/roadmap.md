@@ -14,6 +14,12 @@
 11. [x] Handle edge cases and system failures.
 
 ## Milestone 2
+1. [ ] Protocol versioning.
+2. [ ] ID system of messages.
+3. [ ] Timestamps.
+4. [ ] Priority message queue.
+
+## Milestone 3
 1. [ ] Allow clients to login instead of registering.
 2. [ ] Store credentials locally and on server storage (username + hash of password).
 3. [ ] Store data in local files. Server stores messages until they have been received and acknowledged by receiving party.
@@ -21,11 +27,6 @@
 5. [ ] Configuration file.
 6. [ ] Event logging.
 7. [ ] Unit testing.
-
-## Milestone 3
-1. [ ] ID system of messages.
-2. [ ] Timestamps.
-2. [ ] Priority message queue.
 
 ## Milestone 4
 1. [ ] Graceful shutdown and server system restore.

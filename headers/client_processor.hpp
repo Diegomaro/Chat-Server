@@ -13,6 +13,7 @@
 #include "constants/types.hpp"
 #include "constants/info.hpp"
 
+#include <list>
 
 class ClientProcessor{
     public:
@@ -87,7 +88,7 @@ class ClientProcessor{
 
         // attributes
         HashTable<UsernameMapping> username_to_key_;
-        LinkedList<UsernameMapping> incoming_requests_;
+        std::list<UsernameMapping> incoming_requests_;
         //LinkedList<UsernameMapping> outgoing_requests_; // implement later
 
         uint8_t *incoming_buffer_{nullptr};
@@ -122,8 +123,6 @@ class ClientProcessor{
         std::atomic<bool> send_request_{false};
         std::atomic<bool> respond_request_{false};
         std::atomic<bool> send_register_{false};
-
-        //struct epoll_event events_[config::MAX_EVENTS];
 
         uint8_t auth_message_[config::HEADER_SIZE + config::HOSTNAME_LENGTH + config::MAX_PASSWORD_LENGTH];
         uint8_t ack_message_[config::HEADER_SIZE];

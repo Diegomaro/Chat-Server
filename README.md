@@ -1,4 +1,4 @@
-![C++](https://img.shields.io/badge/C%2B%2B-14-blue)
+![C++](https://img.shields.io/badge/C%2B%2B-17-blue)
 ![Release](https://img.shields.io/github/v/release/Diegomaro/Chat-Server?include_prereleases)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
@@ -24,7 +24,7 @@ https://github.com/user-attachments/assets/1785b745-a3d2-4328-a1b2-71022ad7f0b5
 ## Getting Started
 ### Prerequisites
 - Linux
-- gcc compiler with C++14 support
+- gcc compiler with C++17 support
 
 ### Installation
 1. Clone the repository and enter the project directory:

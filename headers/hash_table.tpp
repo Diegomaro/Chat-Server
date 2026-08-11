@@ -97,6 +97,14 @@ T *HashTable<T>::getNode(int key){
 }
 
 template <typename T>
+LinkedList<typename HashTable<T>::HashData> *HashTable<T>::getLinkedList(int key){
+    if(!table_){
+        return nullptr;
+    }
+    return &table_[hash(key)];
+}
+
+template <typename T>
 bool HashTable<T>::hasNodes(){
     if(current_node_ >= size_){
         return false;

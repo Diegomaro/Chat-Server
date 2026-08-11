@@ -520,7 +520,7 @@ Status ClientProcessor::actOnMessage(){
                     for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
                         usernameMapping.username[i] = temp_username[i];
                     }
-                    incoming_requests_.insertTail(usernameMapping);
+                    incoming_requests_.push_back(usernameMapping);
                 }
             }
         } break;
@@ -758,7 +758,7 @@ bool ClientProcessor::messageInputLoop(){
                 << "2) Choose recipient" << std::endl
                 << "3) Send message" << std::endl
                 << "4) Send request" << std::endl
-                << "5) Requests (" << static_cast<uint>(incoming_requests_.getSize()) << ")" << std::endl
+                << "5) Requests (" << static_cast<std::size_t>(incoming_requests_.size()) << ")" << std::endl
                 << "6) Reload" << std::endl
                 << "7) Exit" << std::endl
                 << "> ";
@@ -825,18 +825,18 @@ bool ClientProcessor::messageInputLoop(){
                 }
             } break;
             case 5:{
-                if(incoming_requests_.isEmpty()){
+                if(incoming_requests_.empty()){
                     std::cout << "No requests available!" << std::endl;
                     break;
                 }
                 std::cout << "Input a number corresponding to a request to decide what to do with it. Input 0 to exit." << std::endl;
                 std::cout << "Requests: " << std::endl;
-                incoming_requests_.resetNodeIndex();
+
                 int ctr = 1;
-                while(incoming_requests_.hasNode()){
-                    std::cout << ctr++ << ": " << incoming_requests_.getNode().username << std::endl;
-                    incoming_requests_.advanceNode();
+                for(auto it = incoming_requests_.begin(); it != incoming_requests_.end(); it++){
+                    std::cout << ctr++ << ": " << it->username << std::endl;
                 }
+
                 int ans = userNumericInput();
                 if(ans == 0){
                     break;
@@ -845,38 +845,37 @@ bool ClientProcessor::messageInputLoop(){
                     std::cout << "Invalid request selected!" << std::endl;
                      break;
                 }
-                incoming_requests_.resetNodeIndex();
+
+                auto requester_user = incoming_requests_.begin();
                 for(int i = 0; i < ans - 1; i++){
-                    if(!incoming_requests_.hasNode()){
-                        break;
-                    }
-                    incoming_requests_.advanceNode();
+                    requester_user++;
+                }
+                if(requester_user == incoming_requests_.end()){
+                    break;
                 }
                 std::cout << "Select one option." << std::endl
-                << "Request from: " << incoming_requests_.getNode().username << std::endl
+                << "Request from: " << requester_user->username << std::endl
                 << "1. Accept" << std::endl
                 << "2. Reject" << std::endl
                 << "3. Exit" << std::endl
                 << "> ";
                 ans = userNumericInput();
                 if(ans == 1 || ans == 2){
-                    char *ref_username = incoming_requests_.getNode().username;
+                    char *ref_username = requester_user->username;
                     UsernameMapping usernameMapping;
-                    usernameMapping.key = incoming_requests_.getNode().key;
+                    usernameMapping.key = requester_user->key;
                     for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
                         usernameMapping.username[i] = ref_username[i];
                     }
                     if(ans == 1){
-                        if(!username_to_key_.insertNode(stringHash(incoming_requests_.getNode().username), usernameMapping)){
+                        if(!username_to_key_.insertNode(stringHash(requester_user->username), usernameMapping)){
                             return false;
                         }
                         respond_communication_[1] = types::ACCEPT_REQUEST;
                     } else{
                         respond_communication_[1] = types::REJECT_REQUEST;
                     }
-                    if(!incoming_requests_.deleteNode(usernameMapping)){
-                        return false;
-                    }
+                    incoming_requests_.erase(requester_user);
                     for(int i = 0; i < 4; i++){
                         respond_communication_[i + 2] = static_cast<uint8_t>(usernameMapping.key << ((3 - i) * 8));
                     }
@@ -1027,6 +1026,29 @@ uint32_t ClientProcessor::getUserKey(const std::string &temp_username){
     if(!username_to_key_.searchNode(hash_key)){
         return UINT32_MAX;
     }
+    /*
+    LinkedList<HashTable<UsernameMapping>::HashData> *list = username_to_key_.getLinkedList(hash_key);
+    if(!list){
+        return UINT32_MAX;
+    }
+    list->resetNodeIndex();
+    int ctr = 1;
+    while(list->hasNode()){
+        if(list->hasNode()){
+            bool equal_usernames = true;
+            for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
+                if(list->getNode().data_.username[i] != temp_username[i]){
+                    equal_usernames = false;
+                    break;
+                }
+            }
+            if(equal_usernames){
+                return username_to_key_.getNode()->data_.key;
+            }
+        }
+        list->advanceNode();
+    }
+    */
     username_to_key_.resetNodeIndex();
     while(username_to_key_.hasNodes()){
         if(username_to_key_.hasNode()){

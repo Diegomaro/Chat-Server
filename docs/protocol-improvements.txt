@@ -2,9 +2,10 @@ Improvements to protocol
 
 Improved Message Protocol (20 bytes)
 
-HEAD_BITS  TYPE     RECEIVER_KEY    MESSAGE_ID      TIMESTAMP       PAYLOAD_LENGTH
-1 byte     1 byte   4 bytes         8 bytes         4 bytes         2 bytes
+VERSION  TYPE     RECEIVER_KEY    MESSAGE_ID      TIMESTAMP       PAYLOAD_LENGTH
+1 byte   1 byte   4 bytes         8 bytes         4 bytes         2 bytes
 
+Protocol version is needed because how would the server know how to parse two distinct headers.
 
 Considerations about ACK:
 What happens when acknowledgements are not received.

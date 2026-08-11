@@ -20,6 +20,7 @@ class HashTable{
         bool deleteNode(int key);
         bool searchNode(int key);
         T *getNode(int key);
+        LinkedList<HashData> *getLinkedList(int key);
 
         bool hasNodes();
         bool hasNode();
