@@ -1,3 +1,5 @@
+#pragma once
+
 namespace types{
     constexpr uint8_t INVALID_TYPE = 0;
     constexpr uint8_t USER = 1;

@@ -1,3 +1,5 @@
+#pragma once
+
 namespace info{
     constexpr uint8_t VALID_REGISTER = 1;
     constexpr uint8_t INVALID_CREDENTIAL = 2;
@@ -7,7 +9,8 @@ namespace info{
     constexpr uint8_t INVALID_CLIENT = 6;
     constexpr uint8_t ALREADY_SENT_REQUEST = 7;
     constexpr uint8_t ALREADY_KNOWN_CLIENT = 8;
-    constexpr uint8_t UNAUTHENTICATED_USER = 9;
-    constexpr uint8_t SEND_ERROR = 10;
-    constexpr uint8_t COULD_NOT_REGISTER = 11;
+    constexpr uint8_t REQUEST_ALREADY_RECEIVED = 9;
+    constexpr uint8_t UNAUTHENTICATED_USER = 10;
+    constexpr uint8_t SEND_ERROR = 11;
+    constexpr uint8_t COULD_NOT_REGISTER = 12;
 }

@@ -12,6 +12,7 @@
 #include "constants/status.hpp"
 #include "constants/types.hpp"
 #include "constants/info.hpp"
+#include "constants/header.hpp"
 
 #include <list>
 

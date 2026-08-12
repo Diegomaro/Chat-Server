@@ -55,41 +55,41 @@ bool ClientProcessor::setupBuffers(){
 }
 
 void ClientProcessor::setupHeaderTypes(){
-    ack_message_[0] = UINT8_MAX;
-    ack_message_[1] = types::ACK;
-    ack_message_[2] = UINT8_MAX;
-    ack_message_[3] = UINT8_MAX;
-    ack_message_[4] = UINT8_MAX;
-    ack_message_[5] = UINT8_MAX;
-    ack_message_[6] = 0;
-    ack_message_[7] = 0;
+    ack_message_[header::HEAD_BITS_OFFSET] = UINT8_MAX;
+    ack_message_[header::TYPE_OFFSET] = types::ACK;
+    ack_message_[header::RECEIVER_OFFSET] = UINT8_MAX;
+    ack_message_[header::RECEIVER_OFFSET + 1] = UINT8_MAX;
+    ack_message_[header::RECEIVER_OFFSET + 2] = UINT8_MAX;
+    ack_message_[header::RECEIVER_OFFSET + 3] = UINT8_MAX;
+    ack_message_[header::PAYLOAD_LENGTH_OFFSET] = 0;
+    ack_message_[header::PAYLOAD_LENGTH_OFFSET + 1] = 0;
 
-    request_communication_[0] = UINT8_MAX;
-    request_communication_[1] = types::SEND_REQUEST;
-    request_communication_[2] = UINT8_MAX;
-    request_communication_[3] = UINT8_MAX;
-    request_communication_[4] = UINT8_MAX;
-    request_communication_[5] = UINT8_MAX;
-    request_communication_[6] = 0;
-    request_communication_[7] = config::HOSTNAME_LENGTH;
+    request_communication_[header::HEAD_BITS_OFFSET] = UINT8_MAX;
+    request_communication_[header::TYPE_OFFSET] = types::SEND_REQUEST;
+    request_communication_[header::RECEIVER_OFFSET] = UINT8_MAX;
+    request_communication_[header::RECEIVER_OFFSET + 1] = UINT8_MAX;
+    request_communication_[header::RECEIVER_OFFSET + 2] = UINT8_MAX;
+    request_communication_[header::RECEIVER_OFFSET + 3] = UINT8_MAX;
+    request_communication_[header::PAYLOAD_LENGTH_OFFSET] = 0;
+    request_communication_[header::PAYLOAD_LENGTH_OFFSET + 1] = config::HOSTNAME_LENGTH;
 
-    respond_communication_[0] = UINT8_MAX;
-    respond_communication_[1] = types::REJECT_REQUEST;
-    respond_communication_[2] = UINT8_MAX;
-    respond_communication_[3] = UINT8_MAX;
-    respond_communication_[4] = UINT8_MAX;
-    respond_communication_[5] = UINT8_MAX;
-    respond_communication_[6] = 0;
-    respond_communication_[7] = config::HOSTNAME_LENGTH;
+    respond_communication_[header::HEAD_BITS_OFFSET] = UINT8_MAX;
+    respond_communication_[header::TYPE_OFFSET] = types::REJECT_REQUEST;
+    respond_communication_[header::RECEIVER_OFFSET] = UINT8_MAX;
+    respond_communication_[header::RECEIVER_OFFSET + 1] = UINT8_MAX;
+    respond_communication_[header::RECEIVER_OFFSET + 2] = UINT8_MAX;
+    respond_communication_[header::RECEIVER_OFFSET + 3] = UINT8_MAX;
+    respond_communication_[header::PAYLOAD_LENGTH_OFFSET] = 0;
+    respond_communication_[header::PAYLOAD_LENGTH_OFFSET + 1] = config::HOSTNAME_LENGTH;
 
-    auth_message_[0] = UINT8_MAX;
-    auth_message_[1] = UINT8_MAX;
-    auth_message_[2] = UINT8_MAX;
-    auth_message_[3] = UINT8_MAX;
-    auth_message_[4] = UINT8_MAX;
-    auth_message_[5] = UINT8_MAX;
-    auth_message_[6] = 0;
-    auth_message_[7] = 0;
+    auth_message_[header::HEAD_BITS_OFFSET] = UINT8_MAX;
+    auth_message_[header::TYPE_OFFSET] = UINT8_MAX;
+    auth_message_[header::RECEIVER_OFFSET] = UINT8_MAX;
+    auth_message_[header::RECEIVER_OFFSET + 1] = UINT8_MAX;
+    auth_message_[header::RECEIVER_OFFSET + 2] = UINT8_MAX;
+    auth_message_[header::RECEIVER_OFFSET + 3] = UINT8_MAX;
+    auth_message_[header::PAYLOAD_LENGTH_OFFSET] = 0;
+    auth_message_[header::PAYLOAD_LENGTH_OFFSET + 1] = 0;
 }
 
 bool ClientProcessor::setupSocket(){
@@ -99,7 +99,7 @@ bool ClientProcessor::setupSocket(){
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     struct addrinfo *server_info;
-    if((status = getaddrinfo("127.0.0.1", config::SERVER_PORT, &hints, &server_info)) != 0){
+    if((status = getaddrinfo(config::DEFAULT_IP, config::SERVER_PORT, &hints, &server_info)) != 0){
         fprintf(stderr, "gai error: %s\n", gai_strerror(status));
         return false;
     }
@@ -246,7 +246,7 @@ void ClientProcessor::centralLoop(){
                 send_message_ = false;
             }
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(config::LOOP_TIMER));
     }
 }
 
@@ -397,7 +397,6 @@ Status ClientProcessor::checkMessage(){
             return header_state;
         }
     }
-    // PAYLOAD
     if(byte_counter_ < static_cast<uint32_t>(payload_length_ + config::HEADER_SIZE)){
         return Status::INCOMPLETE_MESSAGE;
     }
@@ -417,7 +416,7 @@ Status ClientProcessor::checkHeader(){
     }
     reading_pointer_ = starting_pointer_;
     // HEAD_BITS
-    if((incoming_buffer_[reading_pointer_] ^ 0xFF) != 0){
+    if((incoming_buffer_[reading_pointer_] ^ 0b11111111) != 0){
         return Status::INVALID_MESSAGE;
     }
     advanceReadingPointer();
@@ -467,7 +466,7 @@ Status ClientProcessor::actOnMessage(){
             if(payload_length_ == 0 || payload_length_ > config::MAX_MESSAGE_SIZE){
                 return Status::INVALID_MESSAGE;
             }
-            if(!printMessage()){ // should not just print, handle later
+            if(!printMessage()){
                 return Status::ERROR;
             }
             for(int i = 0; i < config::CLIENT_KEY_LENGTH; i++){
@@ -557,6 +556,9 @@ Status ClientProcessor::actOnMessage(){
                     std::cout << "Info: You already know this client!" << std::endl;
                     // add them back if lost other user credential
                 } break;
+                case info::REQUEST_ALREADY_RECEIVED:{
+                    std::cout << "Info: This client sent you a request!" << std::endl;
+                } break;
                 case info::UNAUTHENTICATED_USER:{
                     std::cout << "Info: You must authenticate first!" << std::endl;
                 } break;
@@ -639,7 +641,7 @@ void ClientProcessor::cleanIncomingBuffer(){
     sender_key_ = UINT32_MAX;
 }
 
-// Central loop that handles login/register and user input to communicate to other clients.
+// Central loop handler that contains the authentication loop and central menu loop.
 void ClientProcessor::inputLoop(){
     if(!welcomeInputLoop()){
         return;
@@ -868,16 +870,20 @@ bool ClientProcessor::messageInputLoop(){
                         usernameMapping.username[i] = ref_username[i];
                     }
                     if(ans == 1){
+                        if(username_to_key_.searchNode(stringHash(requester_user->username))){
+                            std::cout << "Info: You already know this client!" << std::endl;
+                            break;
+                        }
                         if(!username_to_key_.insertNode(stringHash(requester_user->username), usernameMapping)){
                             return false;
                         }
-                        respond_communication_[1] = types::ACCEPT_REQUEST;
+                        respond_communication_[header::TYPE_OFFSET] = types::ACCEPT_REQUEST;
                     } else{
-                        respond_communication_[1] = types::REJECT_REQUEST;
+                        respond_communication_[header::TYPE_OFFSET] = types::REJECT_REQUEST;
                     }
                     incoming_requests_.erase(requester_user);
                     for(int i = 0; i < 4; i++){
-                        respond_communication_[i + 2] = static_cast<uint8_t>(usernameMapping.key << ((3 - i) * 8));
+                        respond_communication_[header::RECEIVER_OFFSET + i] = static_cast<uint8_t>(usernameMapping.key << ((3 - i) * 8));
                     }
                     respond_request_ = true;
                 }
@@ -917,7 +923,7 @@ Status ClientProcessor::setMessage(){
         outgoing_buffer_[7] = static_cast<uint8_t>(message_length);
 
         for(int i = 0; i < message_length; i++){
-            outgoing_buffer_[8 + i] = message_[i];
+            outgoing_buffer_[header::PAYLOAD_OFFSET + i] = message_[i];
         }
         msg_len_ = 8 + message_length;
     }
@@ -977,10 +983,10 @@ Status ClientProcessor::setReceiver(){
     receiving_username_ = username_to_key_.getNode()->data_.username;
     receiver_key_ = username_to_key_.getNode()->data_.key;
 
-    outgoing_buffer_[2] = static_cast<uint8_t>(receiver_key_ >> 24);
-    outgoing_buffer_[3] = static_cast<uint8_t>(receiver_key_ >> 16);
-    outgoing_buffer_[4] = static_cast<uint8_t>(receiver_key_ >> 8);
-    outgoing_buffer_[5] = static_cast<uint8_t>(receiver_key_);
+    outgoing_buffer_[header::RECEIVER_OFFSET] = static_cast<uint8_t>(receiver_key_ >> 24);
+    outgoing_buffer_[header::RECEIVER_OFFSET + 1] = static_cast<uint8_t>(receiver_key_ >> 16);
+    outgoing_buffer_[header::RECEIVER_OFFSET + 2] = static_cast<uint8_t>(receiver_key_ >> 8);
+    outgoing_buffer_[header::RECEIVER_OFFSET + 3] = static_cast<uint8_t>(receiver_key_);
     return Status::SUCCESS;
 }
 

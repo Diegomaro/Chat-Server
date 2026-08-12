@@ -1,3 +1,5 @@
+#pragma once
+
 enum class Status : uint8_t{
     // INFORMATIONAL
     SUCCESS,

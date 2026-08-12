@@ -1,5 +1,10 @@
+#pragma once
+
 namespace config{
+    constexpr const char DEFAULT_IP[] = "127.0.0.1";
     constexpr const char SERVER_PORT[] = "60000";
+
+    constexpr int LOOP_TIMER = 100;
 
     constexpr int MAX_EVENTS = 256;
     constexpr int BACKLOG = 10;
