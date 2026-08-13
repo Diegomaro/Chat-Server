@@ -42,7 +42,7 @@ class ClientProcessor{
         // --- Central loop ---
         // outgoing data
 
-        Status sendMessage(uint8_t *buffer, int bytes_to_send);
+        Status sendMessage(const uint8_t *buffer, int bytes_to_send);
 
         // incoming data
 

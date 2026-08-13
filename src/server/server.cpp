@@ -942,7 +942,7 @@ Status Server::actOnUserMessage(int client_socket, Client *client){
     if(!client_key_to_known_keys_.searchNode(client->sender_key)){
         return Status::ERROR;
     }
-    std::list<uint32_t> *known_users = *client_key_to_known_keys_.getNode(client->sender_key);
+    auto *known_users = *client_key_to_known_keys_.getNode(client->sender_key);
     if(!searchValueList(known_users, client->receiver_key)){
         return Status::INVALID_CLIENT;
     }
@@ -1203,7 +1203,7 @@ Status Server::actOnSendRequest(Client *client){
     if(!client_key_to_known_keys_.searchNode(client->sender_key)){
         return Status::ERROR;
     }
-    std::list<uint32_t> *known_clients = *client_key_to_known_keys_.getNode(client->sender_key);
+    auto *known_clients = *client_key_to_known_keys_.getNode(client->sender_key);
     if(searchValueList(known_clients, client->receiver_key)){
         info_message_[header::PAYLOAD_OFFSET] = info::ALREADY_KNOWN_CLIENT;
         return Status::INVALID_MESSAGE;
@@ -1212,7 +1212,7 @@ Status Server::actOnSendRequest(Client *client){
     if(!client_key_to_requested_keys_.searchNode(client->sender_key)){
         return Status::ERROR;
     }
-    std::list<uint32_t> *requests = *client_key_to_requested_keys_.getNode(client->sender_key);
+    auto *requests = *client_key_to_requested_keys_.getNode(client->sender_key);
     if(searchValueList(requests, client->receiver_key)){
         info_message_[header::PAYLOAD_OFFSET] = info::ALREADY_SENT_REQUEST;
         return Status::INVALID_MESSAGE;
@@ -1221,7 +1221,7 @@ Status Server::actOnSendRequest(Client *client){
     if(!client_key_to_requested_keys_.searchNode(client->receiver_key)){
         return Status::ERROR;
     }
-    std::list<uint32_t> *receiver_requests = *client_key_to_requested_keys_.getNode(client->receiver_key);
+    auto *receiver_requests = *client_key_to_requested_keys_.getNode(client->receiver_key);
     if(searchValueList(receiver_requests, client->sender_key)){
         info_message_[header::PAYLOAD_OFFSET] = info::REQUEST_ALREADY_RECEIVED;
         return Status::INVALID_MESSAGE;
@@ -1264,7 +1264,7 @@ Status Server::actOnRespondToRequest(int client_socket, Client *client){
     if(!client_key_to_known_keys_.searchNode(client->sender_key)){
         return Status::ERROR;
     }
-    std::list<uint32_t> *known_clients = *client_key_to_known_keys_.getNode(client->sender_key);
+    auto *known_clients = *client_key_to_known_keys_.getNode(client->sender_key);
     if(searchValueList(known_clients, client->receiver_key)){
         info_message_[header::PAYLOAD_OFFSET] = info::ALREADY_KNOWN_CLIENT;
         return Status::INVALID_MESSAGE;
@@ -1274,7 +1274,7 @@ Status Server::actOnRespondToRequest(int client_socket, Client *client){
         return Status::ERROR;
     }
 
-    std::list<uint32_t> *requests = *client_key_to_requested_keys_.getNode(client->receiver_key);
+    auto *requests = *client_key_to_requested_keys_.getNode(client->receiver_key);
     if(!searchValueList(requests, client->sender_key)){
         return Status::INVALID_CLIENT;
     }
@@ -1301,7 +1301,7 @@ Status Server::actOnRespondToRequest(int client_socket, Client *client){
         if(!client_key_to_known_keys_.searchNode(client->receiver_key)){
             return Status::ERROR;
         }
-        std::list<uint32_t> * known_clients_receiver = *client_key_to_known_keys_.getNode(client->receiver_key);
+        auto * known_clients_receiver = *client_key_to_known_keys_.getNode(client->receiver_key);
         known_clients_receiver->push_front(client->sender_key);
     }
     return Status::SUCCESS;
@@ -1322,7 +1322,7 @@ Status Server::actOnAcknowledgement(Client *client){
         return Status::INVALID_MESSAGE;
     }
     if(client_key_to_known_keys_.searchNode(client->sender_key)){
-        std::list<uint32_t> *known_users = *client_key_to_known_keys_.getNode(client->sender_key);
+        auto *known_users = *client_key_to_known_keys_.getNode(client->sender_key);
         if(!searchValueList(known_users, client->receiver_key)){
             return Status::INVALID_CLIENT;
         }

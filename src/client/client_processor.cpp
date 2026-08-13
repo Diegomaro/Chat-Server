@@ -257,7 +257,7 @@ SUCCESS - Message sent correctly.
 RESOURCE_UNAVAILABLE - Could not send message.
 ERROR - An unhandled error ocurred.
 */
-Status ClientProcessor::sendMessage(uint8_t *buffer, int bytes_to_send){
+Status ClientProcessor::sendMessage(const uint8_t *buffer, int bytes_to_send){
     ssize_t total_bytes_sent = 0;
     ssize_t sent_bytes = 0;
 
