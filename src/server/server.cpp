@@ -1064,7 +1064,7 @@ Status Server::actOnRegister(int client_socket, Client *client){
             auto *list = username_to_client_key_.getListPtr();
             for(auto it = list->begin(); it != list->end(); it++){
                 bool equal_usernames = true;
-                uint8_t *ref_username = it->data_.username;
+                char *ref_username = it->data_.username;
                 for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
                     if(ref_username[i] != username[i]){
                         equal_usernames = false;
@@ -1137,7 +1137,7 @@ Status Server::actOnSendRequest(Client *client){
         info_message_[header::PAYLOAD_OFFSET] = info::INVALID_MESSAGE;
         return Status::INVALID_MESSAGE;
     }
-    uint8_t target_username [config::HOSTNAME_LENGTH];
+    char target_username [config::HOSTNAME_LENGTH];
     uint32_t usr_ctr = 0;
     for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
         target_username[i] = buffer_pool_[client->reading_pointer];
@@ -1169,7 +1169,7 @@ Status Server::actOnSendRequest(Client *client){
         return Status::INVALID_CLIENT;
     }
 
-    uint8_t *client_username;
+    char *client_username;
     uint32_t client_key;
     bool equal_usernames = false;
 
@@ -1511,7 +1511,7 @@ bool Server::searchValueList(std::list<uint32_t> *list, uint32_t target){
     return false;
 }
 
-uint32_t Server::stringHash(const uint8_t *str){
+uint32_t Server::stringHash(const char *str){
     uint32_t hash = 5381;
     int c;
     while ((c = *str++)){

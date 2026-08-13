@@ -21,7 +21,7 @@ class Server{
         void centralLoop();
     private:
         struct UsernameMapping{
-            uint8_t username[config::HOSTNAME_LENGTH + 1] = {0};
+            char username[config::HOSTNAME_LENGTH + 1] = {0};
             uint32_t key{UINT32_MAX};
         };
 
@@ -68,7 +68,7 @@ class Server{
         // helper method
 
         bool searchValueList(std::list<uint32_t> *list, uint32_t target);
-        uint32_t stringHash(const uint8_t *str);
+        uint32_t stringHash(const char *str);
 
         // server attributes
 

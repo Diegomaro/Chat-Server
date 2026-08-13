@@ -1034,7 +1034,10 @@ bool ClientProcessor::addUser(uint32_t key, const std::string &username){
 // Gets a key corresponding to a specific user. Returns UINT32_MAX if the user does not exist.
 uint32_t ClientProcessor::getUserKey(const std::string &temp_username){
     char username [config::HOSTNAME_LENGTH + 1] = {0};
-    std::strcpy(username, temp_username.c_str());
+    if(temp_username.size() > config::HOSTNAME_LENGTH + 1){
+        return UINT32_MAX;
+    }
+    std::strncpy(username, temp_username.c_str(), config::HOSTNAME_LENGTH);
     int hash_key = stringHash(username);
     if(!username_to_key_.searchNode(hash_key)){
         return UINT32_MAX;
