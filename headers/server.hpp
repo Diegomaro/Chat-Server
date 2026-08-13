@@ -9,7 +9,7 @@
 
 #include "constants/status.hpp"
 #include "constants/info.hpp"
-#include "constants/header.hpp"
+#include "constants/protocol.hpp"
 
 #include <list>
 
@@ -21,7 +21,7 @@ class Server{
         void centralLoop();
     private:
         struct UsernameMapping{
-            char username[config::HOSTNAME_LENGTH + 1] = {0};
+            char username[protocol::HOSTNAME_LENGTH + 1] = {0};
             uint32_t key{UINT32_MAX};
         };
 
@@ -90,9 +90,9 @@ class Server{
 
         struct epoll_event events_[config::MAX_EVENTS];
 
-        uint8_t info_message_[config::INFO_MESSAGE_LENGTH];
-        uint8_t processed_ack_message_[config::HEADER_SIZE];
-        uint8_t delivered_ack_message_[config::HEADER_SIZE];
-        uint8_t request_communication_message_[config::HEADER_SIZE + config::HOSTNAME_LENGTH];
-        uint8_t accept_communication_message_[config::HEADER_SIZE + config::HOSTNAME_LENGTH];
+        uint8_t info_message_[protocol::INFO_MESSAGE_LENGTH];
+        uint8_t processed_ack_message_[protocol::HEADER_SIZE];
+        uint8_t delivered_ack_message_[protocol::HEADER_SIZE];
+        uint8_t request_communication_message_[protocol::HEADER_SIZE + protocol::HOSTNAME_LENGTH];
+        uint8_t accept_communication_message_[protocol::HEADER_SIZE + protocol::HOSTNAME_LENGTH];
 };
