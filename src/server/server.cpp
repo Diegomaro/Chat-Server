@@ -31,33 +31,33 @@ Server::~Server(){
         close(epoll_fd_);
     }
 
-    clients_.resetNodeIndex();
-    while(clients_.hasNodes()){
-        if(clients_.hasNode()){
-            int socket = (clients_.getNode()->key_);
+    clients_.resetListPtr();
+    do{
+        auto *list = clients_.getListPtr();
+        for(auto it = list->begin(); it != list->end(); it++){
+            int socket = (it->key_);
             if(socket != -1){
                 std::cout << "closing socket " << socket << std::endl;
                 close(socket);
             }
         }
-        clients_.advanceNode();
-    }
+    } while (clients_.advanceListPtr());
 
-    client_key_to_known_keys_.resetNodeIndex();
-    while(client_key_to_known_keys_.hasNodes()){
-        if(client_key_to_known_keys_.hasNode()){
-            delete client_key_to_known_keys_.getNode()->data_;
+    client_key_to_known_keys_.resetListPtr();
+    do{
+        auto *list = client_key_to_known_keys_.getListPtr();
+        for(auto it = list->begin(); it != list->end(); it++){
+            delete it->data_;
         }
-        client_key_to_known_keys_.advanceNode();
-    }
+    } while (client_key_to_known_keys_.advanceListPtr());
 
-    client_key_to_requested_keys_.resetNodeIndex();
-    while(client_key_to_requested_keys_.hasNodes()){
-        if(client_key_to_requested_keys_.hasNode()){
-            delete client_key_to_requested_keys_.getNode()->data_;
+    client_key_to_requested_keys_.resetListPtr();
+    do{
+        auto *list = client_key_to_requested_keys_.getListPtr();
+        for(auto it = list->begin(); it != list->end(); it++){
+            delete it->data_;
         }
-        client_key_to_requested_keys_.advanceNode();
-    }
+    } while (client_key_to_requested_keys_.advanceListPtr());
 
     if(buffer_pool_){
         delete [] buffer_pool_;
@@ -942,15 +942,8 @@ Status Server::actOnUserMessage(int client_socket, Client *client){
     if(!client_key_to_known_keys_.searchNode(client->sender_key)){
         return Status::ERROR;
     }
-    bool found = false;
     std::list<uint32_t> *known_users = *client_key_to_known_keys_.getNode(client->sender_key);
-    for(auto it = known_users->begin(); it != known_users->end(); it++){
-        if(*it == client->receiver_key){
-            found = true;
-            break;
-        }
-    }
-    if(!found){
+    if(!searchValueList(known_users, client->receiver_key)){
         return Status::INVALID_CLIENT;
     }
 
@@ -1066,11 +1059,12 @@ Status Server::actOnRegister(int client_socket, Client *client){
 
     // unique username
     if(username_to_client_key_.getDataCount() != 0){
-        username_to_client_key_.resetNodeIndex();
-        while(username_to_client_key_.hasNodes()){
-            if(username_to_client_key_.hasNode()){
+        username_to_client_key_.resetListPtr();
+        do{
+            auto *list = username_to_client_key_.getListPtr();
+            for(auto it = list->begin(); it != list->end(); it++){
                 bool equal_usernames = true;
-                char *ref_username = username_to_client_key_.getNode()->data_.username;
+                uint8_t *ref_username = it->data_.username;
                 for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
                     if(ref_username[i] != username[i]){
                         equal_usernames = false;
@@ -1082,9 +1076,9 @@ Status Server::actOnRegister(int client_socket, Client *client){
                     return Status::INVALID_MESSAGE;
                 }
             }
-            username_to_client_key_.advanceNode();
-        }
+        } while (username_to_client_key_.advanceListPtr());
     }
+
     // get key
     client->sender_key = next_client_key_;
     if(next_client_key_ >= UINT32_MAX){
@@ -1175,78 +1169,77 @@ Status Server::actOnSendRequest(Client *client){
         return Status::INVALID_CLIENT;
     }
 
-    char *client_username;
+    uint8_t *client_username;
     uint32_t client_key;
-    username_to_client_key_.resetNodeIndex();
-    while(username_to_client_key_.hasNodes()){
-        if(username_to_client_key_.hasNode()){
-            bool equal_usernames = true;
-            client_username = username_to_client_key_.getNode()->data_.username;
-            client_key = username_to_client_key_.getNode()->data_.key;
-            client->receiver_key = client_key;
-            for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
-                if(client_username[i] != target_username[i]){
-                    equal_usernames = false;
-                    break;
-                }
-            }
-            if(equal_usernames){
-                int *client_fd = client_key_to_socket_.getNode(client_key);
-                if(client_fd == nullptr){
-                    return Status::ERROR;
-                }
-                client->receiver_fd = *client_fd;
+    bool equal_usernames = false;
 
-                if(!client_key_to_known_keys_.searchNode(client->sender_key)){
-                    return Status::ERROR;
-                }
-                std::list<uint32_t> *known_clients = *client_key_to_known_keys_.getNode(client->sender_key);
-                for(auto it = known_clients->begin(); it != known_clients->end(); it++){
-                    if(*it == client->receiver_key){
-                        info_message_[header::PAYLOAD_OFFSET] = info::ALREADY_KNOWN_CLIENT;
-                        return Status::INVALID_MESSAGE;
-                    }
-                }
-
-                if(!client_key_to_requested_keys_.searchNode(client->sender_key)){
-                    return Status::ERROR;
-                }
-                std::list<uint32_t> *requests = *client_key_to_requested_keys_.getNode(client->sender_key);
-                for(auto it = requests->begin(); it != requests->end(); it++){
-                    if(*it == client->receiver_key){
-                        info_message_[header::PAYLOAD_OFFSET] = info::ALREADY_SENT_REQUEST;
-                        return Status::INVALID_MESSAGE;
-                    }
-                }
-                if(!client_key_to_requested_keys_.searchNode(client->receiver_key)){
-                    return Status::ERROR;
-                }
-                std::list<uint32_t> *receiver_requests = *client_key_to_requested_keys_.getNode(client->receiver_key);
-                for(auto it = receiver_requests->begin(); it != receiver_requests->end(); it++){
-                    if(*it == client->sender_key){
-                        info_message_[header::PAYLOAD_OFFSET] = info::REQUEST_ALREADY_RECEIVED;
-                        return Status::INVALID_MESSAGE;
-                    }
-                }
-
-                requests->push_front(client->receiver_key);
-
-                for(int i = 0; i < config::CLIENT_KEY_LENGTH; i++){
-                    request_communication_message_[i + 2] = static_cast<uint8_t>(client->sender_key << ((config::CLIENT_KEY_LENGTH - 1 - i) * 8));
-                }
-                for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
-                    request_communication_message_[i + config::HEADER_SIZE] = client->name[i];
-                }
-                return sendMessage(
-                    client->receiver_fd,
-                    request_communication_message_,
-                    config::HEADER_SIZE + config::HOSTNAME_LENGTH
-                );
+    auto *list = username_to_client_key_.getList(stringHash(target_username));
+    for(auto it = list->begin(); it != list->end(); it++){
+        equal_usernames = true;
+        client_username = it->data_.username;
+        client_key = it->data_.key;
+        client->receiver_key = client_key;
+        for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
+            if(client_username[i] != target_username[i]){
+                equal_usernames = false;
+                break;
             }
         }
-        username_to_client_key_.advanceNode();
+        if(equal_usernames){
+            break;
+        }
     }
-    return Status::INVALID_CLIENT;
+
+    if(!equal_usernames){
+        return Status::INVALID_CLIENT;
+    }
+
+    int *client_fd = client_key_to_socket_.getNode(client_key);
+    if(client_fd == nullptr){
+        return Status::ERROR;
+    }
+    client->receiver_fd = *client_fd;
+
+    if(!client_key_to_known_keys_.searchNode(client->sender_key)){
+        return Status::ERROR;
+    }
+    std::list<uint32_t> *known_clients = *client_key_to_known_keys_.getNode(client->sender_key);
+    if(searchValueList(known_clients, client->receiver_key)){
+        info_message_[header::PAYLOAD_OFFSET] = info::ALREADY_KNOWN_CLIENT;
+        return Status::INVALID_MESSAGE;
+    }
+
+    if(!client_key_to_requested_keys_.searchNode(client->sender_key)){
+        return Status::ERROR;
+    }
+    std::list<uint32_t> *requests = *client_key_to_requested_keys_.getNode(client->sender_key);
+    if(searchValueList(requests, client->receiver_key)){
+        info_message_[header::PAYLOAD_OFFSET] = info::ALREADY_SENT_REQUEST;
+        return Status::INVALID_MESSAGE;
+    }
+
+    if(!client_key_to_requested_keys_.searchNode(client->receiver_key)){
+        return Status::ERROR;
+    }
+    std::list<uint32_t> *receiver_requests = *client_key_to_requested_keys_.getNode(client->receiver_key);
+    if(searchValueList(receiver_requests, client->sender_key)){
+        info_message_[header::PAYLOAD_OFFSET] = info::REQUEST_ALREADY_RECEIVED;
+        return Status::INVALID_MESSAGE;
+    }
+
+    requests->push_front(client->receiver_key);
+
+    for(int i = 0; i < config::CLIENT_KEY_LENGTH; i++){
+        request_communication_message_[i + 2] = static_cast<uint8_t>(client->sender_key << ((config::CLIENT_KEY_LENGTH - 1 - i) * 8));
+    }
+    for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
+        request_communication_message_[i + config::HEADER_SIZE] = client->name[i];
+    }
+    return sendMessage(
+        client->receiver_fd,
+        request_communication_message_,
+        config::HEADER_SIZE + config::HOSTNAME_LENGTH
+    );
 }
 
 /*
@@ -1272,26 +1265,17 @@ Status Server::actOnRespondToRequest(int client_socket, Client *client){
         return Status::ERROR;
     }
     std::list<uint32_t> *known_clients = *client_key_to_known_keys_.getNode(client->sender_key);
-    for(auto it = known_clients->begin(); it != known_clients->end(); it++){
-        if(*it == client->receiver_key){
-            info_message_[header::PAYLOAD_OFFSET] = info::ALREADY_KNOWN_CLIENT;
-            return Status::INVALID_MESSAGE;
-        }
+    if(searchValueList(known_clients, client->receiver_key)){
+        info_message_[header::PAYLOAD_OFFSET] = info::ALREADY_KNOWN_CLIENT;
+        return Status::INVALID_MESSAGE;
     }
 
     if(!client_key_to_requested_keys_.searchNode(client->receiver_key)){
         return Status::ERROR;
     }
 
-    bool found = false;
     std::list<uint32_t> *requests = *client_key_to_requested_keys_.getNode(client->receiver_key);
-    for(auto it = requests->begin(); it != requests->end(); it++){
-        if(*it == client->sender_key){
-            found = true;
-            break;
-        }
-    }
-    if(!found){
+    if(!searchValueList(requests, client->sender_key)){
         return Status::INVALID_CLIENT;
     }
     Status send_state = sendToClient(client_socket);
@@ -1339,15 +1323,7 @@ Status Server::actOnAcknowledgement(Client *client){
     }
     if(client_key_to_known_keys_.searchNode(client->sender_key)){
         std::list<uint32_t> *known_users = *client_key_to_known_keys_.getNode(client->sender_key);
-        bool found = false;
-        for(auto it = known_users->begin(); it != known_users->end(); it++){
-            if(*it == client->receiver_key){
-                found = true;
-                break;
-            }
-        }
-
-        if(!found){
+        if(!searchValueList(known_users, client->receiver_key)){
             return Status::INVALID_CLIENT;
         }
     } else{
@@ -1526,11 +1502,20 @@ bool Server::printClientInformation(int client_socket){
     return true;
 }
 
- int Server::stringHash(const char *str){
-    unsigned long hash = 5381;
+bool Server::searchValueList(std::list<uint32_t> *list, uint32_t target){
+    for(auto it = list->begin(); it != list->end(); it++){
+        if(*it == target){
+            return true;
+        }
+    }
+    return false;
+}
+
+uint32_t Server::stringHash(const uint8_t *str){
+    uint32_t hash = 5381;
     int c;
     while ((c = *str++)){
         hash = ((hash << 5) + hash) + c;
     }
-    return static_cast<int>(hash);
+    return hash;
 }

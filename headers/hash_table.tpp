@@ -15,11 +15,11 @@ bool HashTable<T>::HashData::operator == (const HashTable<T>::HashData &HASHDATA
 }
 
 template <typename T>
-bool HashTable<T>::createTable(unsigned int desiredSize){
+bool HashTable<T>::createTable(uint32_t desiredSize){
     if(table_){
         clear();
     }
-    table_ = new LinkedList<HashData> [desiredSize];
+    table_ = new std::list<HashData> [desiredSize];
     double tmpPower = std::log2(desiredSize);
     if(tmpPower  - static_cast<int>(tmpPower) != 0.f){
         return false;
@@ -30,14 +30,14 @@ bool HashTable<T>::createTable(unsigned int desiredSize){
 }
 
 template <typename T>
-bool HashTable<T>::insertNode(int key, T data){
+bool HashTable<T>::insertNode(uint32_t key, T data){
     if(!table_){
         return false;
     }
     HashData hashData;
     hashData.key_ = key;
     hashData.data_ = data;
-    table_[hash(key)].insertTail(hashData);
+    table_[hash(key)].push_back(hashData);
     if(is_rehashing_){
         return true;
     }
@@ -49,7 +49,7 @@ bool HashTable<T>::insertNode(int key, T data){
 }
 
 template <typename T>
-bool HashTable<T>::deleteNode(int key){
+bool HashTable<T>::deleteNode(uint32_t key){
     if(!table_){
         return false;
     }
@@ -60,44 +60,40 @@ bool HashTable<T>::deleteNode(int key){
     HashData hashData;
     hashData.key_ = key;
     hashData.data_ = *tmpData;
-    if(table_[hash(key)].deleteNode(hashData)){
-        data_count_--;
-        return true;
+    std::size_t old_size = table_[hash(key)].size();
+    table_[hash(key)].remove(hashData);
+    data_count_ -= (old_size - table_[hash(key)].size());
+    return true;
+}
+
+template <typename T>
+bool HashTable<T>::searchNode(uint32_t key){
+    if(!table_){
+        return false;
+    }
+    for(auto it = table_[hash(key)].begin(); it != table_[hash(key)].end(); it++){
+        if(it->key_ == key){
+            return true;
+        }
     }
     return false;
 }
 
 template <typename T>
-bool HashTable<T>::searchNode(int key){
-    if(!table_){
-        return false;
-    }
-    T *tmpData = getNode(key);
-    if(!tmpData){
-        return false;
-    }
-    return true;
-}
-
-template <typename T>
-T *HashTable<T>::getNode(int key){
+T *HashTable<T>::getNode(uint32_t key){
     if(!table_){
         return nullptr;
     }
-    table_[hash(key)].resetNodeIndex();
-
-    while(table_[hash(key)].hasNode()){
-        HashData tmpData = table_[hash(key)].getNode();
-        if(tmpData.key_ == key){
-            return &table_[hash(key)].getNode().data_;
+    for(auto it = table_[hash(key)].begin(); it != table_[hash(key)].end(); it++){
+        if(it->key_ == key){
+            return &it->data_;
         }
-        table_[hash(key)].advanceNode();
     }
     return nullptr;
 }
 
 template <typename T>
-LinkedList<typename HashTable<T>::HashData> *HashTable<T>::getLinkedList(int key){
+std::list<typename HashTable<T>::HashData> *HashTable<T>::getList(uint32_t key){
     if(!table_){
         return nullptr;
     }
@@ -105,44 +101,22 @@ LinkedList<typename HashTable<T>::HashData> *HashTable<T>::getLinkedList(int key
 }
 
 template <typename T>
-bool HashTable<T>::hasNodes(){
-    if(current_node_ >= size_){
-        return false;
-    }
-    return true;
-}
-
-template <typename T>
-bool HashTable<T>::hasNode(){
-    if(!table_[current_node_].hasNode()){
-        return false;
-    }
-    return true;
-}
-
-template <typename T>
-bool HashTable<T>::advanceNode(){
-    if(!table_[current_node_].advanceNode()){
-        if(current_node_ >= size_){
-            return false;
-        } else{
-            current_node_++;
-        }
-    }
-    return true;
-}
-
-template <typename T>
-void HashTable<T>::resetNodeIndex(){
-    for(unsigned int i = 0; i < size_; i++){
-        table_[i].resetNodeIndex();
-    }
+void HashTable<T>::resetListPtr(){
     current_node_ = 0;
 }
 
 template <typename T>
-typename HashTable<T>::HashData* HashTable<T>::getNode(){
-    return &table_[current_node_].getNode();
+bool HashTable<T>::advanceListPtr(){
+    if(current_node_ + 1 >= size_){
+        return false;
+    }
+    current_node_++;
+    return true;
+}
+
+template <typename T>
+std::list <typename HashTable<T>::HashData> *HashTable<T>::getListPtr(){
+    return &table_[current_node_];
 }
 
 template <typename T>
@@ -162,22 +136,20 @@ bool HashTable<T>::checkRehash(){
 template <typename T>
 bool HashTable<T>::rehash(){
     is_rehashing_ = true;
-    unsigned int oldDataCount = data_count_;
+    std::size_t oldDataCount = data_count_;
     if(!table_) {
         return false;
     }
-    LinkedList<HashData> *oldTable = table_;
-    LinkedList<HashData> *newTable = new LinkedList<HashData> [size_ * 2];
-    unsigned int oldSize = size_;
+    std::list<HashData> *oldTable = table_;
+    std::list<HashData> *newTable = new std::list<HashData> [size_ * 2];
+    std::size_t oldSize = size_;
     size_ *= 2;
     power_ ++;
     table_ = newTable;
+
     for(unsigned int i = 0; i < oldSize; i++){
-        oldTable[i].resetNodeIndex();
-        while(oldTable[i].hasNode()){
-            HashData tmpData = oldTable[i].getNode();
-            oldTable[i].advanceNode();
-            insertNode(tmpData.key_, tmpData.data_);
+        for(auto it = oldTable[i].begin(); it != oldTable[i].end(); it++){
+            insertNode(it->key_, it->data_);
         }
     }
     delete [] oldTable;
@@ -187,18 +159,18 @@ bool HashTable<T>::rehash(){
 }
 
 template <typename T>
-unsigned int HashTable<T>::hash(int key){
+unsigned int HashTable<T>::hash(uint32_t key){
     unsigned int hashValue = hashFunction(key);
     return hashValue;
 }
 
 template <typename T>
-unsigned int HashTable<T>::hashFunction(int key){
+unsigned int HashTable<T>::hashFunction(uint32_t key){
     return static_cast<int>((key * 0x9E3779B97F4A7C15) >> (64 - power_));
 }
 
 template <typename T>
-unsigned int HashTable<T>::getSize(){
+std::size_t HashTable<T>::getSize(){
     if(!table_){
         return 0;
     }
@@ -208,7 +180,7 @@ unsigned int HashTable<T>::getSize(){
 }
 
 template <typename T>
-unsigned int HashTable<T>::getDataCount(){
+std::size_t HashTable<T>::getDataCount(){
     return data_count_;
 }
 

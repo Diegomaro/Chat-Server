@@ -946,13 +946,14 @@ Status ClientProcessor::setReceiver(){
     std::cout << "Input a number corresponding to a user to select a recipient. Input 0 to exit." << std::endl;
     std::cout << "Known users: " << std::endl;
     int ctr = 1;
-    username_to_key_.resetNodeIndex();
-    while(username_to_key_.hasNodes()){
-        if(username_to_key_.hasNode()){
-            std::cout  << ctr++ << ": " << username_to_key_.getNode()->data_.username << std::endl;
+    username_to_key_.resetListPtr();
+    do{
+        auto *list = username_to_key_.getListPtr();
+        for(auto it = list->begin(); it != list->end(); it++){
+            std::cout  << ctr++ << ": " << it->data_.username << std::endl;
         }
-        username_to_key_.advanceNode();
-    }
+    } while (username_to_key_.advanceListPtr());
+
     std::cout << "> ";
 
     int ans = userNumericInput();
@@ -965,23 +966,29 @@ Status ClientProcessor::setReceiver(){
             return Status::INVALID_CLIENT;
     }
     ctr = 1;
-    username_to_key_.resetNodeIndex();
-    while(username_to_key_.hasNodes()){
-        if(username_to_key_.hasNode()){
+    UsernameMapping receiver_data;
+    receiver_data.key = UINT32_MAX;
+    username_to_key_.resetListPtr();
+    do{
+        auto *list = username_to_key_.getListPtr();
+        for(auto it = list->begin(); it != list->end(); it++){
             ctr++;
+            if(ctr > ans){
+                receiver_data = it->data_;
+                break;
+            }
         }
         if(ctr > ans){
             break;
         }
-        username_to_key_.advanceNode();
-    }
+    } while(username_to_key_.advanceListPtr());
 
-    if(!username_to_key_.hasNode()){
+    if(receiver_data.key == UINT32_MAX){
         return Status::PROGRAMMING_ERROR;
     }
 
-    receiving_username_ = username_to_key_.getNode()->data_.username;
-    receiver_key_ = username_to_key_.getNode()->data_.key;
+    receiving_username_ = receiver_data.username;
+    receiver_key_ = receiver_data.key;
 
     outgoing_buffer_[header::RECEIVER_OFFSET] = static_cast<uint8_t>(receiver_key_ >> 24);
     outgoing_buffer_[header::RECEIVER_OFFSET + 1] = static_cast<uint8_t>(receiver_key_ >> 16);
@@ -1032,59 +1039,38 @@ uint32_t ClientProcessor::getUserKey(const std::string &temp_username){
     if(!username_to_key_.searchNode(hash_key)){
         return UINT32_MAX;
     }
-    /*
-    LinkedList<HashTable<UsernameMapping>::HashData> *list = username_to_key_.getLinkedList(hash_key);
+
+    auto list = username_to_key_.getList(hash_key);
     if(!list){
         return UINT32_MAX;
     }
-    list->resetNodeIndex();
-    int ctr = 1;
-    while(list->hasNode()){
-        if(list->hasNode()){
-            bool equal_usernames = true;
-            for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
-                if(list->getNode().data_.username[i] != temp_username[i]){
-                    equal_usernames = false;
-                    break;
-                }
-            }
-            if(equal_usernames){
-                return username_to_key_.getNode()->data_.key;
+    for(auto it = list->begin(); it != list->end(); it++){
+        bool equal_usernames = true;
+        for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
+            if(it->data_.username[i] != temp_username[i]){
+                equal_usernames = false;
+                break;
             }
         }
-        list->advanceNode();
-    }
-    */
-    username_to_key_.resetNodeIndex();
-    while(username_to_key_.hasNodes()){
-        if(username_to_key_.hasNode()){
-            bool equal_usernames = true;
-            for(int i = 0; i < config::HOSTNAME_LENGTH; i++){
-                if(username_to_key_.getNode()->data_.username[i] != temp_username[i]){
-                    equal_usernames = false;
-                    break;
-                }
-            }
-            if(equal_usernames){
-                return username_to_key_.getNode()->data_.key;
-            }
+        if(equal_usernames){
+            return it->data_.key;
         }
-        username_to_key_.advanceNode();
     }
+
     return UINT32_MAX;
 }
 
 // Gets a user's username from their key. Returns nullptr if the user does not exist.
 char* ClientProcessor::getUserFromKey(uint32_t key){
-    username_to_key_.resetNodeIndex();
-    while(username_to_key_.hasNodes()){
-        if(username_to_key_.hasNode()){
-            if(username_to_key_.getNode()->data_.key == key){
-                return username_to_key_.getNode()->data_.username;
+    username_to_key_.resetListPtr();
+    do{
+        auto *list = username_to_key_.getListPtr();
+        for(auto it = list->begin(); it != list->end(); it++){
+            if(it->data_.key == key){
+                return it->data_.username;
             }
         }
-        username_to_key_.advanceNode();
-    }
+    } while (username_to_key_.advanceListPtr());
     return nullptr;
 }
 
@@ -1124,11 +1110,11 @@ bool ClientProcessor::integerCheck(const std::string &string, uint32_t length){
     return true;
 }
 
-int ClientProcessor::stringHash(const char *str){
-    unsigned long hash = 5381;
+uint32_t ClientProcessor::stringHash(const char *str){
+    uint32_t hash = 5381;
     int c;
     while ((c = *str++)){
         hash = ((hash << 5) + hash) + c;
     }
-    return static_cast<int>(hash);
+    return hash;
 }

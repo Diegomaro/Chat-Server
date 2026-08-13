@@ -85,7 +85,7 @@ class ClientProcessor{
 
         int userNumericInput();
         bool integerCheck(const std::string &string, uint32_t length);
-        int stringHash(const char *str);
+        uint32_t stringHash(const char *str);
 
         // attributes
         HashTable<UsernameMapping> username_to_key_;

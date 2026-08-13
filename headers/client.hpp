@@ -14,7 +14,7 @@ struct Client{
 
     void advanceReadingPointer();
 
-    char name [config::HOSTNAME_LENGTH + 1] = {0};
+    uint8_t name [config::HOSTNAME_LENGTH + 1] = {0};
     char ip [INET6_ADDRSTRLEN];
     int port{-1};
 
