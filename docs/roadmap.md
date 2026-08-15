@@ -14,11 +14,14 @@
 11. [x] Handle edge cases and system failures.
 
 ## Milestone 2
-1. [ ] Protocol versioning.
-2. [ ] ID system of messages.
-5. [ ] Reworked acknowledgement system to work with message IDs.
-3. [ ] Timestamps.
-4. [ ] Priority message queue.
+1. [ ] Intercommunication for little endian and big endian architectures.
+2. [ ] Improved protocol header.
+3. [ ] ID system of messages.
+4. [ ] Reworked acknowledgement system to work with message IDs.
+5. [ ] Server time synchronization with NTP.
+6. [ ] Timestamps.
+7. [ ] Protocol versioning.
+8. [ ] Priority message queue.
 
 ## Milestone 3
 1. [ ] Allow clients to login instead of registering.

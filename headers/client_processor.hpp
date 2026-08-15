@@ -25,7 +25,7 @@ class ClientProcessor{
         void inputLoop();
     private:
         struct UsernameMapping{
-            char username [protocol::HOSTNAME_LENGTH + 1] = {0};
+            char username [protocol::USERNAME_LENGTH + 1] = {0};
             uint32_t key{UINT32_MAX};
             bool operator==(const UsernameMapping& other) const {
                return key == other.key;
@@ -82,7 +82,7 @@ class ClientProcessor{
         char *getUserFromKey(uint32_t key);
 
         // helper methods
-
+        void copyValueToBuffer(uint8_t *buffer, int position, int size, uint64_t value);
         int userNumericInput();
         bool integerCheck(const std::string &string, uint32_t length);
         uint32_t stringHash(const char *str);
@@ -113,10 +113,13 @@ class ClientProcessor{
 
         bool valid_header_{false};
         uint32_t byte_counter_{0};
-        uint16_t payload_length_{UINT16_MAX};
-        uint8_t type_{0};
         uint32_t sender_key_{UINT32_MAX};
+
+        uint8_t type_{types::INVALID_TYPE};
         uint32_t receiver_key_{UINT32_MAX};
+        uint64_t message_id_{UINT64_MAX};
+        uint32_t timestamp_{UINT32_MAX};
+        uint16_t payload_length_{UINT16_MAX};
 
         std::atomic<bool> program_running_{true};
         std::atomic<bool> logged_in_{false};
@@ -125,8 +128,8 @@ class ClientProcessor{
         std::atomic<bool> respond_request_{false};
         std::atomic<bool> send_register_{false};
 
-        uint8_t auth_message_[protocol::HEADER_SIZE + protocol::HOSTNAME_LENGTH + protocol::MAX_PASSWORD_LENGTH];
+        uint8_t auth_message_[protocol::HEADER_SIZE + protocol::USERNAME_LENGTH + protocol::MAX_PASSWORD_LENGTH];
         uint8_t ack_message_[protocol::HEADER_SIZE];
-        uint8_t request_communication_[protocol::HEADER_SIZE + protocol::HOSTNAME_LENGTH];
-        uint8_t respond_communication_[protocol::HEADER_SIZE + protocol::HOSTNAME_LENGTH];
+        uint8_t request_communication_[protocol::HEADER_SIZE + protocol::USERNAME_LENGTH];
+        uint8_t respond_communication_[protocol::HEADER_SIZE + protocol::USERNAME_LENGTH];
 };

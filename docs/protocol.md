@@ -76,7 +76,7 @@ Figure 4: Timestamp subdivision
 	**Month:** 4 bits
 	**Year:** 12 bits
 **Payload Length:** 16 bits
-	The total length of the message payload. The details of how the length of a payload are determined are reviewed on [[#3.1.2. Payload Format]].
+	The total length of the message payload.
 #### 3.1.2. Payload Format
 The payload length is measured in bytes and is allowed to be empty for certain types of messages. The payload data starts right after payload length. The maximum CMP message size is 65536, including the  20 byte header. The NULL terminator is not included. The contents of the different types of payload are described on [[#3.2 Message Types]].
 #### 3.1.3. Byte Order
@@ -136,21 +136,23 @@ The sender for these messages is the server, the receiver is the client who mess
 **Purpose:** The server tells the client that they credentials were valid, but the selected username has been occupied by another client.
 ###### 3.2.7.1.4. ALREADY_LOGGED_IN
 **Purpose:** The server tells the client that they have have an active session and cannot register again.
-###### 3.2.7.1.5. INVALID_MESSAGE
-**Purpose:** The server tells the client that the message sent does not follow the protocol rules.
+###### 3.2.7.1.5. INVALID_PROTOCOL
+**Purpose:** The server tells the client that the specified protocol is invalid.
 ###### 3.2.7.1.6. INVALID_CLIENT
 **Purpose:** The server tells the client that the specified receiver is invalid. Either because it does not exist, or they are not allowed to communicate to that client.
-###### 3.2.7.1.7. ALREADY_SENT_REQUEST
+###### 3.2.7.1.7. INVALID_MESSAGE
+**Purpose:** The server tells the client that the message sent does not follow the protocol rules.
+###### 3.2.7.1.8. ALREADY_SENT_REQUEST
 **Purpose:** The server tells the client that the specified receiver in a SEND_REQUEST has already a pending request from them.
-###### 3.2.7.1.8. ALREADY_KNOWN_CLIENT
+###### 3.2.7.1.9. ALREADY_KNOWN_CLIENT
 **Purpose:** The server tells the receiver for which they requested communication that they already established a trusted connection.
-###### 3.2.7.1.9. REQUEST_ALREADY_RECEIVED
+###### 3.2.7.1.10. REQUEST_ALREADY_RECEIVED
 **Purpose:** The server tells the client that the specified receiver in a SEND_REQUEST has already sent them a request.
-###### 3.2.7.1.10. UNAUTHENTICATED_USER
+###### 3.2.7.1.11. UNAUTHENTICATED_USER
 **Purpose:** The server tells the client that they must authenticate before sending a message of that type.
-###### 3.2.7.1.11. SEND_ERROR
+###### 3.2.7.1.12. SEND_ERROR
 **Purpose:** The server tells the client that the server could not send their message at that specific moment.
-###### 3.2.7.1.12. COULD_NOT_REGISTER
+###### 3.2.7.1.13. COULD_NOT_REGISTER
 **Purpose:** The server tells the client that they could not register them, the maximum client per server has been reached.
 #### 3.2.8. UPDATE
 To be defined later.
@@ -333,14 +335,15 @@ The following constants define fixed values and limits used by CMPv2.
 | 2     | INVALID_CREDENTIAL       |
 | 3     | NOT_UNIQUE               |
 | 4     | ALREADY_LOGGED_IN        |
-| 5     | INVALID_MESSAGE          |
+| 5     | INVALID_PROTOCOL         |
 | 6     | INVALID_CLIENT           |
-| 7     | ALREADY_SENT_REQUEST     |
-| 8     | ALREADY_KNOWN_CLIENT     |
-| 9     | REQUEST_ALREADY_RECEIVED |
-| 10    | UNAUTHENTICATED_USER     |
-| 11    | SEND_ERROR               |
-| 12    | COULD_NOT_REGISTER       |
+| 7     | INVALID_MESSAGE          |
+| 8     | ALREADY_SENT_REQUEST     |
+| 9     | ALREADY_KNOWN_CLIENT     |
+| 10    | REQUEST_ALREADY_RECEIVED |
+| 11    | UNAUTHENTICATED_USER     |
+| 12    | SEND_ERROR               |
+| 13    | COULD_NOT_REGISTER       |
 ## 6. Implementation Notes
 ### 6.1. Server Shutdown
 The current implementation terminates the server process when a client

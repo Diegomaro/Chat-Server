@@ -14,7 +14,7 @@ struct Client{
 
     void advanceReadingPointer();
 
-    char name [protocol::HOSTNAME_LENGTH + 1] = {0};
+    char name [protocol::USERNAME_LENGTH + 1] = {0};
     char ip [INET6_ADDRSTRLEN];
     int port{-1};
 
@@ -30,10 +30,13 @@ struct Client{
 
     bool valid_header_{false};
     uint32_t byte_counter{0};
-    uint16_t payload_length{UINT16_MAX};
-    uint8_t type{types::INVALID_TYPE};
     uint32_t sender_key{UINT32_MAX};
+
+    uint8_t type{types::INVALID_TYPE};
     uint32_t receiver_key{UINT32_MAX};
+    uint64_t message_id{UINT64_MAX};
+    uint32_t timestamp{UINT32_MAX};
+    uint16_t payload_length{UINT16_MAX};
 
     int receiver_fd{-1};
 

@@ -21,7 +21,7 @@ class Server{
         void centralLoop();
     private:
         struct UsernameMapping{
-            char username[protocol::HOSTNAME_LENGTH + 1] = {0};
+            char username[protocol::USERNAME_LENGTH + 1] = {0};
             uint32_t key{UINT32_MAX};
         };
 
@@ -68,6 +68,7 @@ class Server{
 
         // helper method
 
+        void copyValueToBuffer(uint8_t *buffer, int position, int size, uint64_t value);
         bool searchValueList(std::list<uint32_t> *list, uint32_t target);
         uint32_t stringHash(const char *str);
 
@@ -94,6 +95,5 @@ class Server{
         uint8_t info_message_[protocol::INFO_MESSAGE_LENGTH];
         uint8_t processed_ack_message_[protocol::HEADER_SIZE];
         uint8_t delivered_ack_message_[protocol::HEADER_SIZE];
-        uint8_t request_communication_message_[protocol::HEADER_SIZE + protocol::HOSTNAME_LENGTH];
-        uint8_t accept_communication_message_[protocol::HEADER_SIZE + protocol::HOSTNAME_LENGTH];
+        uint8_t request_communication_message_[protocol::HEADER_SIZE + protocol::USERNAME_LENGTH];
 };

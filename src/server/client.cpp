@@ -14,9 +14,13 @@ Client::Client(){
 
 void Client::resetMessage(){
     valid_header_ = false;
-    payload_length = UINT16_MAX;
+
     type = types::INVALID_TYPE;
     receiver_key = UINT32_MAX;
+    message_id = UINT64_MAX;
+    timestamp = UINT32_MAX;
+    payload_length = UINT16_MAX;
+
     receiver_fd = -1;
 }
 
