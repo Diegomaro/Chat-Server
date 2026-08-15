@@ -16,6 +16,7 @@
 ## Milestone 2
 1. [ ] Protocol versioning.
 2. [ ] ID system of messages.
+5. [ ] Reworked acknowledgement system to work with message IDs.
 3. [ ] Timestamps.
 4. [ ] Priority message queue.
 
