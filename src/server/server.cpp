@@ -839,7 +839,6 @@ Status Server::checkHeader(int client_socket){
         uint8_t tmp_buffer = client->reading_buffer;
 
         client->receiver_key = 0;
-
         for(int i = 0; i < protocol::CLIENT_KEY_LENGTH; i++){
             client->receiver_key += (buffer_pool_[client->reading_pointer]) << ((protocol::CLIENT_KEY_LENGTH - 1 - i) * 8);
             client->advanceReadingPointer();
@@ -854,7 +853,7 @@ Status Server::checkHeader(int client_socket){
             client->reading_pointer = tmp_pointer;
             client->reading_buffer = tmp_buffer;
             for(int i = 0; i < protocol::CLIENT_KEY_LENGTH; i++){
-                buffer_pool_[client->reading_pointer] = static_cast<uint8_t>(client->sender_key << ((protocol::CLIENT_KEY_LENGTH - 1 - i) * 8));
+                buffer_pool_[client->reading_pointer] = static_cast<uint8_t>(client->sender_key >> ((protocol::CLIENT_KEY_LENGTH - 1 - i) * 8));
                 client->advanceReadingPointer();
             }
         }
@@ -869,7 +868,7 @@ Status Server::checkHeader(int client_socket){
         client->payload_length = 0;
         client->payload_length = buffer_pool_[client->reading_pointer] << 8;
         client->advanceReadingPointer();
-        client->payload_length = client->payload_length | (buffer_pool_[client->reading_pointer]);
+        client->payload_length += (buffer_pool_[client->reading_pointer]);
     } else{
         client->advanceReadingPointer();
     }
@@ -1230,7 +1229,7 @@ Status Server::actOnSendRequest(Client *client){
     requests->push_front(client->receiver_key);
 
     for(int i = 0; i < protocol::CLIENT_KEY_LENGTH; i++){
-        request_communication_message_[i + 2] = static_cast<uint8_t>(client->sender_key << ((protocol::CLIENT_KEY_LENGTH - 1 - i) * 8));
+        request_communication_message_[i + 2] = static_cast<uint8_t>(client->sender_key >> ((protocol::CLIENT_KEY_LENGTH - 1 - i) * 8));
     }
     for(int i = 0; i < protocol::HOSTNAME_LENGTH; i++){
         request_communication_message_[i + protocol::HEADER_SIZE] = client->name[i];
@@ -1304,6 +1303,7 @@ Status Server::actOnRespondToRequest(int client_socket, Client *client){
         auto * known_clients_receiver = *client_key_to_known_keys_.getNode(client->receiver_key);
         known_clients_receiver->push_front(client->sender_key);
     }
+    requests->remove(client->sender_key);
     return Status::SUCCESS;
 }
 
@@ -1332,8 +1332,8 @@ Status Server::actOnAcknowledgement(Client *client){
     if(!clients_.searchNode(client->receiver_fd)){
         return Status::INVALID_CLIENT;
     }
-    for(int i = 0; i < 4; i++){
-        delivered_ack_message_[protocol::header::RECEIVER_KEY_OFFSET + i] = static_cast<uint8_t>(client->sender_key >> ((4 - i - 1) * 8));
+    for(int i = 0; i < protocol::CLIENT_KEY_LENGTH; i++){
+        delivered_ack_message_[protocol::header::RECEIVER_KEY_OFFSET + i] = static_cast<uint8_t>(client->sender_key >> ((protocol::CLIENT_KEY_LENGTH  - i - 1) * 8));
     }
     Status ack_state = sendMessage(
         client->receiver_fd,

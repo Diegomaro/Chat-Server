@@ -87,7 +87,7 @@ All multi-byte integer fields are encoded in network byte order (big-endian).
 | Client Key | 0xFFFFFFFF     | Invalid receiver       |
 | Version    | 0              | Invalid version number |
 | Type       | 0              | Invalid type           |
-	Table 1.
+Table x
 ### 3.2. Message Types
 #### 3.2.1. USER
 **Purpose:** Send message to another client.

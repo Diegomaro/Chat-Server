@@ -26,6 +26,7 @@ class Server{
         };
 
         // Setup methods
+
         bool setupHashTables();
         void setupBuffers();
         void setupHeaderTypes();

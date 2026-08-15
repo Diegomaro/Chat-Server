@@ -428,8 +428,8 @@ Status ClientProcessor::checkHeader(){
     // HOST_KEY
     if(sender_key_ == UINT32_MAX){
         sender_key_ = 0;
-        for(int i = 0; i < 4; i++){
-            sender_key_ = sender_key_ | (incoming_buffer_[reading_pointer_]) << ((protocol::CLIENT_KEY_LENGTH - 1 - i) * 8);
+        for(int i = 0; i < protocol::CLIENT_KEY_LENGTH; i++){
+            sender_key_ += (incoming_buffer_[reading_pointer_]) << ((protocol::CLIENT_KEY_LENGTH - 1 - i) * 8);
             advanceReadingPointer();
         }
     } else{
@@ -470,7 +470,7 @@ Status ClientProcessor::actOnMessage(){
                 return Status::ERROR;
             }
             for(int i = 0; i < protocol::CLIENT_KEY_LENGTH; i++){
-                ack_message_[i + 2] = static_cast<uint8_t>(sender_key_ >> ((protocol::CLIENT_KEY_LENGTH - i - 1) * 8));
+                ack_message_[i + protocol::header::RECEIVER_KEY_OFFSET] = static_cast<uint8_t>(sender_key_ >> ((protocol::CLIENT_KEY_LENGTH - i - 1) * 8));
             }
             Status ack_state = sendMessage(ack_message_, protocol::HEADER_SIZE);
             switch(ack_state){
@@ -882,8 +882,8 @@ bool ClientProcessor::messageInputLoop(){
                         respond_communication_[protocol::header::TYPE_OFFSET] = types::REJECT_REQUEST;
                     }
                     incoming_requests_.erase(requester_user);
-                    for(int i = 0; i < 4; i++){
-                        respond_communication_[protocol::header::RECEIVER_KEY_OFFSET + i] = static_cast<uint8_t>(usernameMapping.key << ((3 - i) * 8));
+                    for(int i = 0; i < protocol::CLIENT_KEY_LENGTH; i++){
+                        respond_communication_[i + protocol::header::RECEIVER_KEY_OFFSET] = static_cast<uint8_t>(usernameMapping.key >> ((protocol::CLIENT_KEY_LENGTH - 1 - i) * 8));
                     }
                     respond_request_ = true;
                 }
@@ -990,10 +990,9 @@ Status ClientProcessor::setReceiver(){
     receiving_username_ = receiver_data.username;
     receiver_key_ = receiver_data.key;
 
-    outgoing_buffer_[protocol::header::RECEIVER_KEY_OFFSET] = static_cast<uint8_t>(receiver_key_ >> 24);
-    outgoing_buffer_[protocol::header::RECEIVER_KEY_OFFSET + 1] = static_cast<uint8_t>(receiver_key_ >> 16);
-    outgoing_buffer_[protocol::header::RECEIVER_KEY_OFFSET + 2] = static_cast<uint8_t>(receiver_key_ >> 8);
-    outgoing_buffer_[protocol::header::RECEIVER_KEY_OFFSET + 3] = static_cast<uint8_t>(receiver_key_);
+    for(int i = 0; i < protocol::CLIENT_KEY_LENGTH; i++){
+        outgoing_buffer_[i + protocol::header::RECEIVER_KEY_OFFSET] = static_cast<uint8_t>(receiver_key_ >> ((protocol::CLIENT_KEY_LENGTH - i - 1) * 8));
+    }
     return Status::SUCCESS;
 }
 
