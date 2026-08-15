@@ -173,35 +173,38 @@ void ClientProcessor::centralLoop(){
                 } break;
                 case Status::RESOURCE_UNAVAILABLE:{
                     std::cout << "Could not sent message!" << std::endl;
+                    std::cout << "> " << std::flush;
                 } break;
                 case Status::ERROR:{
                     std::cout << "Could not sent message!" << std::endl;
+                    std::cout << "> " << std::flush;
                 } break;
                 default:{
                     std::cout << "Invalid return type!" << std::endl;
+                    std::cout << "> " << std::flush;
                     return;
                 }
             }
-            std::cout << "> " << std::flush;
             send_register_ = false;
         }
         if(send_request_){
             switch(sendMessage(request_communication_, protocol::USERNAME_MESSAGE_LENGTH)){
                 case Status::SUCCESS:{
-                    std::cout << "Request sent correctly!" << std::endl;
                 } break;
                 case Status::RESOURCE_UNAVAILABLE:{
                     std::cout << "Could not sent message!" << std::endl;
+                    std::cout << "> " << std::flush;
                 } break;
                 case Status::ERROR:{
                     std::cout << "Could not sent message!" << std::endl;
+                    std::cout << "> " << std::flush;
                 } break;
                 default:{
                     std::cout << "Invalid return type!" << std::endl;
+                    std::cout << "> " << std::flush;
                     return;
                 }
             }
-            std::cout << "> " << std::flush;
             send_request_ = false;
         }
         if(respond_request_){
@@ -210,16 +213,18 @@ void ClientProcessor::centralLoop(){
                 } break;
                 case Status::RESOURCE_UNAVAILABLE:{
                     std::cout << "Could not sent message!" << std::endl;
+                    std::cout << "> " << std::flush;
                 } break;
                 case Status::ERROR:{
                     std::cout << "Could not sent message!" << std::endl;
+                    std::cout << "> " << std::flush;
                 } break;
                 default:{
                     std::cout << "Invalid return type!" << std::endl;
+                    std::cout << "> " << std::flush;
                     return;
                 }
             }
-            std::cout << "> " << std::flush;
             respond_request_ = false;
         }
         if(send_message_){
@@ -229,17 +234,19 @@ void ClientProcessor::centralLoop(){
                     case Status::SUCCESS:{
                     } break;
                     case Status::RESOURCE_UNAVAILABLE:{
-                        std::cout << "Could not sent message!" << std::endl ;
+                        std::cout << "Could not sent message!" << std::endl;
+                        std::cout << "> " << std::flush;
                     } break;
                     case Status::ERROR:{
                         std::cout << "Could not sent message!" << std::endl;
+                        std::cout << "> " << std::flush;
                     } break;
                     default:{
                         std::cout << "Invalid return type!" << std::endl;
+                        std::cout << "> " << std::flush;
                         return;
                     }
                 }
-                std::cout << "> " << std::flush;
                 send_message_ = false;
             }
         }
@@ -587,6 +594,7 @@ Status ClientProcessor::actOnMessage(){
                     return Status::INVALID_CLIENT;
                 }
                 std::cout << "Message to " << user << " has been delivered!" << std::endl;
+                std::cout << "> " << std::flush;
             }
         } break;
         default:{
@@ -769,7 +777,7 @@ bool ClientProcessor::messageInputLoop(){
             } else{
                 std::cout << "Draft    : " << message_ << std::endl;
             }
-                std::cout << "========================================" << std::endl
+            std::cout << "========================================" << std::endl
                 << "1) Set message" << std::endl
                 << "2) Choose recipient" << std::endl
                 << "3) Send message" << std::endl

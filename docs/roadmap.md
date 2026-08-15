@@ -14,8 +14,8 @@
 11. [x] Handle edge cases and system failures.
 
 ## Milestone 2
-1. [ ] Intercommunication for little endian and big endian architectures.
-2. [ ] Improved protocol header.
+1. [x] Intercommunication for little endian and big endian architectures.
+2. [x] Improved protocol header.
 3. [ ] ID system of messages.
 4. [ ] Reworked acknowledgement system to work with message IDs.
 5. [ ] Server time synchronization with NTP.
