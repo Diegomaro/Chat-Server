@@ -558,11 +558,16 @@ Status ClientProcessor::actOnMessage(){
                 case info::ALREADY_LOGGED_IN:{
                     std::cout << "Info: Already logged in!" << std::endl;
                 } break;
-                case info::INVALID_MESSAGE:{
-                    std::cout << "Info: Message sent, was invalid!" << std::endl;
+                case info::INVALID_PROTOCOL:{
+                    std::cout << "Info: The protocol version does not match the server."
+                    << std::endl << "Please update your client!" << std::endl;
+                    return Status::ERROR;
                 } break;
                 case info::INVALID_CLIENT:{
                     std::cout << "Info: The targeted receiver was invalid!" << std::endl;
+                } break;
+                case info::INVALID_MESSAGE:{
+                    std::cout << "Info: Message sent, was invalid!" << std::endl;
                 } break;
                 case info::ALREADY_SENT_REQUEST:{
                     std::cout << "Info: Already sent request to that user!" << std::endl;
