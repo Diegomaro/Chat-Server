@@ -13,6 +13,7 @@
 #include "constants/types.hpp"
 #include "constants/info.hpp"
 #include "constants/protocol.hpp"
+#include "message_info.hpp"
 
 #include <list>
 
@@ -111,18 +112,14 @@ class ClientProcessor{
         uint32_t writing_pointer_{0};
         uint32_t reading_pointer_{0};
 
-        bool valid_header_{false};
         uint32_t byte_counter_{0};
-        uint32_t sender_key_{UINT32_MAX};
-
-        uint8_t type_{types::INVALID_TYPE};
         uint32_t receiver_key_{UINT32_MAX};
-        uint64_t message_id_{UINT64_MAX};
-        uint32_t timestamp_{UINT32_MAX};
-        uint16_t payload_length_{UINT16_MAX};
+
+        MessageInfo msg_info;
+
+        std::atomic<bool> logged_in_{false};
 
         std::atomic<bool> program_running_{true};
-        std::atomic<bool> logged_in_{false};
         std::atomic<bool> send_message_{false};
         std::atomic<bool> send_request_{false};
         std::atomic<bool> respond_request_{false};

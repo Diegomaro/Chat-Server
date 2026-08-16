@@ -152,13 +152,7 @@ void ClientProcessor::centralLoop(){
                 } break;
                 case Status::INSUFFICIENT_BUFFER_SPACE:{
                     //send fail message to server
-                    byte_counter_ = 0;
-                    starting_pointer_ = 0;
-                    reading_pointer_ = 0;
-                    writing_pointer_ = 0;
-                    sender_key_ = UINT32_MAX;
-                    type_ = 0;
-                    payload_length_ = UINT16_MAX;
+                    resetIncomingBuffer();
                     receive_loop = false;
                 } break;
                 default:{
@@ -395,13 +389,13 @@ INCOMPLETE_MESSAGE - The entire message has not been received.
 INVALID_MESSAGE - The message does not follow the protocol rules.
 */
 Status ClientProcessor::checkMessage(){
-    if(!valid_header_){
+    if(!msg_info.valid_header){
         Status header_state = checkHeader();
         if(header_state != Status::SUCCESS){
             return header_state;
         }
     }
-    if(byte_counter_ < static_cast<uint32_t>(payload_length_ + protocol::HEADER_SIZE)){
+    if(byte_counter_ < static_cast<uint32_t>(msg_info.payload_length + protocol::HEADER_SIZE)){
         return Status::INCOMPLETE_MESSAGE;
     }
     return Status::SUCCESS;
@@ -428,38 +422,38 @@ Status ClientProcessor::checkHeader(){
 
     advanceReadingPointer();
     // TYPE
-    type_ = incoming_buffer_[reading_pointer_];
+    msg_info.type = incoming_buffer_[reading_pointer_];
     advanceReadingPointer();
 
     // HOST_KEY
-    sender_key_ = 0;
+    msg_info.client_key = 0;
     for(int i = 0; i < protocol::CLIENT_KEY_SIZE; i++){
-        sender_key_ += (incoming_buffer_[reading_pointer_]) << ((protocol::CLIENT_KEY_SIZE - 1 - i) * 8);
+        msg_info.client_key += (incoming_buffer_[reading_pointer_]) << ((protocol::CLIENT_KEY_SIZE - 1 - i) * 8);
         advanceReadingPointer();
     }
 
     // MESSAGE_ID
-    message_id_ = 0;
+    msg_info.message_id = 0;
     for(int i = 0; i < protocol::MESSAGE_ID_SIZE; i++){
-        message_id_ += (incoming_buffer_[reading_pointer_]) << ((protocol::MESSAGE_ID_SIZE - 1 - i) * 8);
+        msg_info.message_id += (incoming_buffer_[reading_pointer_]) << ((protocol::MESSAGE_ID_SIZE - 1 - i) * 8);
         advanceReadingPointer();
     }
 
     // TIMESTAMP
-    timestamp_ = 0;
+    msg_info.timestamp = 0;
     for(int i = 0; i < protocol::TIMESTAMP_SIZE; i++){
-        timestamp_ += (incoming_buffer_[reading_pointer_]) << ((protocol::TIMESTAMP_SIZE - 1 - i) * 8);
+        msg_info.timestamp += (incoming_buffer_[reading_pointer_]) << ((protocol::TIMESTAMP_SIZE - 1 - i) * 8);
         advanceReadingPointer();
     }
 
     // PAYLOAD_LENGTH
-    payload_length_ = 0;
+    msg_info.payload_length = 0;
     for(int i = 0; i < protocol::PAYLOAD_LENGTH_SIZE; i++){
-        payload_length_ += static_cast<uint8_t>(incoming_buffer_[reading_pointer_] << ((protocol::PAYLOAD_LENGTH_SIZE - 1 - i) * 8));
+        msg_info.payload_length += static_cast<uint8_t>(incoming_buffer_[reading_pointer_] << ((protocol::PAYLOAD_LENGTH_SIZE - 1 - i) * 8));
         advanceReadingPointer();
     }
 
-    valid_header_ = true;
+    msg_info.valid_header = true;
     return Status::SUCCESS;
 }
 
@@ -473,9 +467,9 @@ RESOURCE_UNAVAILABLE - Unexpected error.
 ERROR - An unhandled error ocurred.
 */
 Status ClientProcessor::actOnMessage(){
-    switch(type_){
+    switch(msg_info.type){
         case types::USER:{
-            if(payload_length_ == 0 || payload_length_ > config::MAX_MESSAGE_SIZE){
+            if(msg_info.payload_length == 0 || msg_info.payload_length > config::MAX_MESSAGE_SIZE){
                 return Status::INVALID_MESSAGE;
             }
             if(!printMessage()){
@@ -485,7 +479,7 @@ Status ClientProcessor::actOnMessage(){
                 ack_message_,
                 protocol::header::CLIENT_KEY_OFFSET,
                 protocol::CLIENT_KEY_SIZE,
-                sender_key_
+                msg_info.client_key
             );
             Status ack_state = sendMessage(ack_message_, protocol::HEADER_SIZE);
             switch(ack_state){
@@ -507,7 +501,7 @@ Status ClientProcessor::actOnMessage(){
         case types::SEND_REQUEST:
         case types::REJECT_REQUEST:
         case types::ACCEPT_REQUEST:{
-            if(payload_length_ != protocol::USERNAME_LENGTH){
+            if(msg_info.payload_length != protocol::USERNAME_LENGTH){
                 return Status::INVALID_MESSAGE;
             }
             std::string temp_username(protocol::USERNAME_LENGTH, 0);
@@ -524,13 +518,13 @@ Status ClientProcessor::actOnMessage(){
                 std::cout << "already known client" << std::endl;
                 return Status::INVALID_CLIENT;
             } else{
-                if(type_ == types::ACCEPT_REQUEST){
-                    if(!addUser(sender_key_, temp_username)){
+                if(msg_info.type == types::ACCEPT_REQUEST){
+                    if(!addUser(msg_info.client_key, temp_username)){
                         return Status::ERROR;
                     }
-                } else if(type_ == types::SEND_REQUEST){
+                } else if(msg_info.type == types::SEND_REQUEST){
                     UsernameMapping usernameMapping;
-                    usernameMapping.key = sender_key_;
+                    usernameMapping.key = msg_info.client_key;
                     for(int i = 0; i < protocol::USERNAME_LENGTH; i++){
                         usernameMapping.username[i] = temp_username[i];
                     }
@@ -539,7 +533,7 @@ Status ClientProcessor::actOnMessage(){
             }
         } break;
         case types::INFO:{
-            if(payload_length_ != protocol::INFO_MESSAGE_LENGTH - protocol::HEADER_SIZE){
+            if(msg_info.payload_length != protocol::INFO_MESSAGE_LENGTH - protocol::HEADER_SIZE){
                 return Status::INVALID_MESSAGE;
             }
             uint8_t info_type = incoming_buffer_[reading_pointer_];
@@ -593,8 +587,8 @@ Status ClientProcessor::actOnMessage(){
             std::cout << "> " << std::flush;
         } break;
         case types::ACK:{
-            if(sender_key_ != UINT32_MAX){
-                char *user = getUserFromKey(sender_key_);
+            if(msg_info.client_key != UINT32_MAX){
+                char *user = getUserFromKey(msg_info.client_key);
                 if(user == nullptr){
                     return Status::INVALID_CLIENT;
                 }
@@ -621,7 +615,7 @@ void ClientProcessor::advanceReadingPointer(){
 // Prints message received from other clients, the sender and receiver are printed as well.
 bool ClientProcessor::printMessage(){
     char *temp_username;
-    if((temp_username = getUserFromKey(sender_key_)) == nullptr){
+    if((temp_username = getUserFromKey(msg_info.client_key)) == nullptr){
         return false;
     }
     std::cout << std::endl;
@@ -632,7 +626,7 @@ bool ClientProcessor::printMessage(){
         std::cout << temp_username[i];
     }
     std::cout << " -> " << username_ << ": ";
-    for(int i = 0; i < payload_length_; i++){
+    for(int i = 0; i < msg_info.payload_length; i++){
         std::cout << static_cast<char>(incoming_buffer_[reading_pointer_]);
         advanceReadingPointer();
     }
@@ -642,30 +636,20 @@ bool ClientProcessor::printMessage(){
 
 // Resets incoming buffer after an invalid message has been received.
 void ClientProcessor::resetIncomingBuffer(){
-    valid_header_ = false;
     starting_pointer_ = 0;
     writing_pointer_ = 0;
     reading_pointer_ = 0;
     byte_counter_ = 0;
 
-    type_ =types::INVALID_TYPE;
-    sender_key_ = UINT32_MAX;
-    message_id_ = UINT64_MAX;
-    timestamp_ = UINT32_MAX;
-    payload_length_ = UINT16_MAX;
+    msg_info.resetMessage();
 }
 
 // Resets incoming buffer indicators to process new messages.
 void ClientProcessor::cleanIncomingBuffer(){
-    valid_header_ = false;
     starting_pointer_ = reading_pointer_;
-    byte_counter_ -= (payload_length_ + protocol::HEADER_SIZE);
+    byte_counter_ -= (msg_info.payload_length + protocol::HEADER_SIZE);
 
-    type_ = types::INVALID_TYPE;
-    sender_key_ = UINT32_MAX;
-    message_id_ = UINT64_MAX;
-    timestamp_ = UINT32_MAX;
-    payload_length_ = UINT16_MAX;
+    msg_info.resetMessage();
 }
 
 // Central loop handler that contains the authentication loop and central menu loop.

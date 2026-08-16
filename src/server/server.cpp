@@ -782,13 +782,17 @@ Status Server::checkMessage(int client_socket){
     if(client == nullptr){
         return Status::ERROR;
     }
-    if(!client->valid_header_){
+    if(!client->msg_info.valid_header){
         Status header_state = checkHeader(client_socket);
         if(header_state != Status::SUCCESS){
             return header_state;
         }
+        Status find_state = findReceiverFd(client_socket);
+        if(find_state != Status::SUCCESS){
+            return header_state;
+        }
     }
-    if(client->byte_counter < static_cast<uint32_t>(client->payload_length + protocol::HEADER_SIZE)){
+    if(client->byte_counter < static_cast<uint32_t>(client->msg_info.payload_length + protocol::HEADER_SIZE)){
         return Status::INCOMPLETE_MESSAGE;
     }
     return Status::SUCCESS;
@@ -800,7 +804,6 @@ Verifies that a message has a valid protocol::header and replaces target key wit
 SUCCESS - Message protocol::header is complete and valid.
 INCOMPLETE_MESSAGE - The entire protocol::header has not been received.
 INVALID_PROTOCOL - The specified protocol version is not the current version of CMP.
-INVALID_CLIENT - The target client is non existant.
 INVALID_MESSAGE - The message does not follow the protocol rules.
 ERROR - An unhandled error ocurred.
 */
@@ -820,56 +823,63 @@ Status Server::checkHeader(int client_socket){
     client->advanceReadingPointer();
 
     // TYPE
-    client->type = buffer_pool_[client->reading_pointer];
+    client->msg_info.type = buffer_pool_[client->reading_pointer];
     client->advanceReadingPointer();
 
     // CLIENT_KEY
-    client->receiver_key = 0;
-    uint32_t tmp_pointer = client->reading_pointer;
-    uint8_t tmp_buffer = client->reading_buffer;
-
+    client->msg_info.client_key = 0;
     for(int i = 0; i < protocol::CLIENT_KEY_SIZE; i++){
-        client->receiver_key += (buffer_pool_[client->reading_pointer]) << ((protocol::CLIENT_KEY_SIZE - 1 - i) * 8);
+        client->msg_info.client_key += (buffer_pool_[client->reading_pointer]) << ((protocol::CLIENT_KEY_SIZE - 1 - i) * 8);
+        buffer_pool_[client->reading_pointer] = static_cast<uint8_t>(client->sender_key >> ((protocol::CLIENT_KEY_SIZE - 1 - i) * 8));
         client->advanceReadingPointer();
-    }
-    if(client->receiver_key != UINT32_MAX){
-        if(!client_key_to_socket_.searchNode(client->receiver_key)){
-            return Status::INVALID_CLIENT;
-        }
-        client->receiver_fd = *client_key_to_socket_.getNode(client->receiver_key);
-
-        client->reading_pointer = tmp_pointer;
-        client->reading_buffer = tmp_buffer;
-        for(int i = 0; i < protocol::CLIENT_KEY_SIZE; i++){
-            buffer_pool_[client->reading_pointer] = static_cast<uint8_t>(client->sender_key >> ((protocol::CLIENT_KEY_SIZE - 1 - i) * 8));
-            client->advanceReadingPointer();
-        }
     }
 
     // MESSAGE_ID
-    client->message_id = 0;
+    client->msg_info.message_id = 0;
     for(int i = 0; i < protocol::MESSAGE_ID_SIZE; i++){
-        client->message_id += (buffer_pool_[client->reading_pointer]) << ((protocol::MESSAGE_ID_SIZE - 1 - i) * 8);
+        client->msg_info.message_id += (buffer_pool_[client->reading_pointer]) << ((protocol::MESSAGE_ID_SIZE - 1 - i) * 8);
         client->advanceReadingPointer();
     }
 
     // TIMESTAMP
-    client->message_id = 0;
+    client->msg_info.message_id = 0;
     for(int i = 0; i < protocol::TIMESTAMP_SIZE; i++){
-        client->timestamp += static_cast<uint8_t>(buffer_pool_[client->reading_pointer] << ((protocol::TIMESTAMP_SIZE - 1 - i) * 8));
+        client->msg_info.timestamp += static_cast<uint8_t>(buffer_pool_[client->reading_pointer] << ((protocol::TIMESTAMP_SIZE - 1 - i) * 8));
         client->advanceReadingPointer();
     }
 
     // PAYLOAD_LENGTH
-    client->payload_length = 0;
+    client->msg_info.payload_length = 0;
     for(int i = 0; i < protocol::PAYLOAD_LENGTH_SIZE; i++){
-        client->payload_length += static_cast<uint8_t>(buffer_pool_[client->reading_pointer] << ((protocol::PAYLOAD_LENGTH_SIZE - 1 - i) * 8));
+        client->msg_info.payload_length += static_cast<uint8_t>(buffer_pool_[client->reading_pointer] << ((protocol::PAYLOAD_LENGTH_SIZE - 1 - i) * 8));
         client->advanceReadingPointer();
     }
 
-    client->valid_header_ = true;
+    client->msg_info.valid_header = true;
     return Status::SUCCESS;
 }
+
+/*
+Verifies that a Client Key is associated with a file descriptor.
+
+SUCCESS - The receiver fd has been found and set.
+INVALID_CLIENT - The target client is non existant.
+ERROR - An unhandled error ocurred.
+*/
+Status Server::findReceiverFd(int client_socket){
+    Client *client = clients_.getNode(client_socket);
+    if(client == nullptr){
+        return Status::ERROR;
+    }
+    if(client->msg_info.client_key != UINT32_MAX){
+        if(!client_key_to_socket_.searchNode(client->msg_info.client_key)){
+            return Status::INVALID_CLIENT;
+        }
+        client->receiver_fd = *client_key_to_socket_.getNode(client->msg_info.client_key);
+    }
+    return Status::SUCCESS;
+}
+
 
 /*
 Performs different tasks depending on the type of message received.
@@ -887,12 +897,12 @@ Status Server::actOnMessage(int client_socket){
         return Status::ERROR;
     }
 
-    if(!client->logged_in && client->type != types::REGISTER && client->type != types::LOGIN){
+    if(!client->logged_in && client->msg_info.type != types::REGISTER && client->msg_info.type != types::LOGIN){
         info_message_[protocol::header::PAYLOAD_OFFSET] = info::UNAUTHENTICATED_USER;
         return Status::INVALID_MESSAGE;
     }
 
-    switch(client->type){
+    switch(client->msg_info.type){
         case types::USER:{
             return actOnUserMessage(client_socket, client);
         } break;
@@ -927,7 +937,7 @@ RESOURCE_UNAVAILABLE - Unexpected error.
 ERROR - An unhandled error ocurred.
 */
 Status Server::actOnUserMessage(int client_socket, Client *client){
-    if(client->payload_length == 0 || client->payload_length > config::MAX_MESSAGE_SIZE){
+    if(client->msg_info.payload_length == 0 || client->msg_info.payload_length > config::MAX_MESSAGE_SIZE){
         info_message_[protocol::header::PAYLOAD_OFFSET] = info::INVALID_MESSAGE;
         return Status::INVALID_MESSAGE;
     }
@@ -936,7 +946,7 @@ Status Server::actOnUserMessage(int client_socket, Client *client){
         return Status::ERROR;
     }
     auto *known_users = *client_key_to_known_keys_.getNode(client->sender_key);
-    if(!searchValueList(known_users, client->receiver_key)){
+    if(!searchValueList(known_users, client->msg_info.client_key)){
         return Status::INVALID_CLIENT;
     }
 
@@ -999,8 +1009,8 @@ Status Server::actOnRegister(int client_socket, Client *client){
         return Status::INVALID_MESSAGE;
     }
 
-    if(client->payload_length < protocol::USERNAME_LENGTH + protocol::MIN_PASSWORD_LENGTH
-    || client->payload_length > protocol::USERNAME_LENGTH + protocol::MAX_PASSWORD_LENGTH){
+    if(client->msg_info.payload_length < protocol::USERNAME_LENGTH + protocol::MIN_PASSWORD_LENGTH
+    || client->msg_info.payload_length > protocol::USERNAME_LENGTH + protocol::MAX_PASSWORD_LENGTH){
         info_message_[protocol::header::PAYLOAD_OFFSET] = info::INVALID_CREDENTIAL;
         return Status::INVALID_MESSAGE;
     }
@@ -1026,12 +1036,12 @@ Status Server::actOnRegister(int client_socket, Client *client){
         return Status::INVALID_MESSAGE;
     }
     uint8_t password [protocol::MAX_PASSWORD_LENGTH];
-    if(client->payload_length - protocol::USERNAME_LENGTH > protocol::MAX_PASSWORD_LENGTH){
+    if(client->msg_info.payload_length - protocol::USERNAME_LENGTH > protocol::MAX_PASSWORD_LENGTH){
         info_message_[protocol::header::PAYLOAD_OFFSET] = info::INVALID_CREDENTIAL;
         return Status::INVALID_MESSAGE;
     }
     uint32_t psw_ctr = 0;
-    for(int i = 0; i < client->payload_length - protocol::USERNAME_LENGTH; i++){
+    for(int i = 0; i < client->msg_info.payload_length - protocol::USERNAME_LENGTH; i++){
         password[i] = buffer_pool_[client->reading_pointer];
         if(password[i] < 48
         || (password[i] > 57 && password[i] < 65)
@@ -1126,7 +1136,7 @@ ERROR - An unhandled error ocurred.
 */
 Status Server::actOnSendRequest(Client *client){
     // search username. Verify that the connection is not established, if yes, just return true without doing anything.
-    if(client->payload_length != protocol::USERNAME_LENGTH){
+    if(client->msg_info.payload_length != protocol::USERNAME_LENGTH){
         info_message_[protocol::header::PAYLOAD_OFFSET] = info::INVALID_MESSAGE;
         return Status::INVALID_MESSAGE;
     }
@@ -1171,7 +1181,7 @@ Status Server::actOnSendRequest(Client *client){
         equal_usernames = true;
         client_username = it->data_.username;
         client_key = it->data_.key;
-        client->receiver_key = client_key;
+        client->msg_info.client_key = client_key;
         for(int i = 0; i < protocol::USERNAME_LENGTH; i++){
             if(client_username[i] != target_username[i]){
                 equal_usernames = false;
@@ -1197,7 +1207,7 @@ Status Server::actOnSendRequest(Client *client){
         return Status::ERROR;
     }
     auto *known_clients = *client_key_to_known_keys_.getNode(client->sender_key);
-    if(searchValueList(known_clients, client->receiver_key)){
+    if(searchValueList(known_clients, client->msg_info.client_key)){
         info_message_[protocol::header::PAYLOAD_OFFSET] = info::ALREADY_KNOWN_CLIENT;
         return Status::INVALID_MESSAGE;
     }
@@ -1206,21 +1216,21 @@ Status Server::actOnSendRequest(Client *client){
         return Status::ERROR;
     }
     auto *requests = *client_key_to_requested_keys_.getNode(client->sender_key);
-    if(searchValueList(requests, client->receiver_key)){
+    if(searchValueList(requests, client->msg_info.client_key)){
         info_message_[protocol::header::PAYLOAD_OFFSET] = info::ALREADY_SENT_REQUEST;
         return Status::INVALID_MESSAGE;
     }
 
-    if(!client_key_to_requested_keys_.searchNode(client->receiver_key)){
+    if(!client_key_to_requested_keys_.searchNode(client->msg_info.client_key)){
         return Status::ERROR;
     }
-    auto *receiver_requests = *client_key_to_requested_keys_.getNode(client->receiver_key);
+    auto *receiver_requests = *client_key_to_requested_keys_.getNode(client->msg_info.client_key);
     if(searchValueList(receiver_requests, client->sender_key)){
         info_message_[protocol::header::PAYLOAD_OFFSET] = info::REQUEST_ALREADY_RECEIVED;
         return Status::INVALID_MESSAGE;
     }
 
-    requests->push_front(client->receiver_key);
+    requests->push_front(client->msg_info.client_key);
 
     copyValueToBuffer(
         request_communication_message_,
@@ -1250,7 +1260,7 @@ ERROR - An unhandled error ocurred.
 */
 Status Server::actOnRespondToRequest(int client_socket, Client *client){
     //validate if request exist
-    if(client->payload_length != protocol::USERNAME_LENGTH){
+    if(client->msg_info.payload_length != protocol::USERNAME_LENGTH){
         info_message_[protocol::header::PAYLOAD_OFFSET] = info::INVALID_MESSAGE;
         return Status::INVALID_MESSAGE;
     }
@@ -1262,16 +1272,16 @@ Status Server::actOnRespondToRequest(int client_socket, Client *client){
         return Status::ERROR;
     }
     auto *known_clients = *client_key_to_known_keys_.getNode(client->sender_key);
-    if(searchValueList(known_clients, client->receiver_key)){
+    if(searchValueList(known_clients, client->msg_info.client_key)){
         info_message_[protocol::header::PAYLOAD_OFFSET] = info::ALREADY_KNOWN_CLIENT;
         return Status::INVALID_MESSAGE;
     }
 
-    if(!client_key_to_requested_keys_.searchNode(client->receiver_key)){
+    if(!client_key_to_requested_keys_.searchNode(client->msg_info.client_key)){
         return Status::ERROR;
     }
 
-    auto *requests = *client_key_to_requested_keys_.getNode(client->receiver_key);
+    auto *requests = *client_key_to_requested_keys_.getNode(client->msg_info.client_key);
     if(!searchValueList(requests, client->sender_key)){
         return Status::INVALID_CLIENT;
     }
@@ -1292,13 +1302,13 @@ Status Server::actOnRespondToRequest(int client_socket, Client *client){
             return Status::ERROR;
         }
     }
-    if(client->type == types::ACCEPT_REQUEST){
-        known_clients->push_front(client->receiver_key);
+    if(client->msg_info.type == types::ACCEPT_REQUEST){
+        known_clients->push_front(client->msg_info.client_key);
 
-        if(!client_key_to_known_keys_.searchNode(client->receiver_key)){
+        if(!client_key_to_known_keys_.searchNode(client->msg_info.client_key)){
             return Status::ERROR;
         }
-        auto * known_clients_receiver = *client_key_to_known_keys_.getNode(client->receiver_key);
+        auto * known_clients_receiver = *client_key_to_known_keys_.getNode(client->msg_info.client_key);
         known_clients_receiver->push_front(client->sender_key);
     }
     requests->remove(client->sender_key);
@@ -1315,13 +1325,13 @@ RESOURCE_UNAVAILABLE - Unexpected error.
 ERROR - An unhandled error ocurred.
 */
 Status Server::actOnAcknowledgement(Client *client){
-    if(client->payload_length != 0){
+    if(client->msg_info.payload_length != 0){
         info_message_[protocol::header::PAYLOAD_OFFSET] = info::INVALID_MESSAGE;
         return Status::INVALID_MESSAGE;
     }
     if(client_key_to_known_keys_.searchNode(client->sender_key)){
         auto *known_users = *client_key_to_known_keys_.getNode(client->sender_key);
-        if(!searchValueList(known_users, client->receiver_key)){
+        if(!searchValueList(known_users, client->msg_info.client_key)){
             return Status::INVALID_CLIENT;
         }
     } else{
@@ -1403,7 +1413,7 @@ Status Server::sendToClient(int client_socket){
         return Status::ERROR;
     }
     int sending_pointer = 0;
-    int bytes_to_send = client->payload_length + protocol::HEADER_SIZE;
+    int bytes_to_send = client->msg_info.payload_length + protocol::HEADER_SIZE;
 
     client->reading_pointer = client->starting_pointer;
     for(int i = 0; i <  bytes_to_send; i++){
@@ -1482,7 +1492,7 @@ bool Server::cleanClientBuffer(int client_socket){
     client->reading_buffer = client->writing_buffer;
 
     client->starting_pointer = client->reading_pointer;
-    client->byte_counter -= client->payload_length + protocol::HEADER_SIZE;
+    client->byte_counter -= client->msg_info.payload_length + protocol::HEADER_SIZE;
     client->resetMessage();
     return true;
 }

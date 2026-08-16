@@ -1,4 +1,5 @@
 #pragma once
+#include <cstdint>
 #include <string>
 #include <list>
 
@@ -30,8 +31,8 @@ class HashTable{
         std::size_t getDataCount();
         void clear();
     private:
-        unsigned int hash(uint32_t key);
-        unsigned int hashFunction(uint32_t key);
+        uint32_t hash(uint32_t key);
+        uint32_t hashFunction(uint32_t key);
         bool checkRehash();
         bool rehash();
         bool is_rehashing_{false};

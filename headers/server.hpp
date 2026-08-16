@@ -44,6 +44,7 @@ class Server{
         Status messageProcessor(int client_socket);
         Status checkMessage(int client_socket);
         Status checkHeader(int client_socket);
+        Status findReceiverFd(int client_socket);
         Status actOnMessage(int client_socket);
 
         Status actOnUserMessage(int client_socket, Client *client);

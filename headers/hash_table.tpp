@@ -159,24 +159,19 @@ bool HashTable<T>::rehash(){
 }
 
 template <typename T>
-unsigned int HashTable<T>::hash(uint32_t key){
+uint32_t HashTable<T>::hash(uint32_t key){
     unsigned int hashValue = hashFunction(key);
     return hashValue;
 }
 
 template <typename T>
-unsigned int HashTable<T>::hashFunction(uint32_t key){
-    return static_cast<int>((key * 0x9E3779B97F4A7C15) >> (64 - power_));
+uint32_t HashTable<T>::hashFunction(uint32_t key){
+    return static_cast<uint32_t>((key * 0x9E3779B97F4A7C15) >> (64 - power_));
 }
 
 template <typename T>
 std::size_t HashTable<T>::getSize(){
-    if(!table_){
-        return 0;
-    }
-    else{
-        return size_;
-    }
+    return size_;
 }
 
 template <typename T>

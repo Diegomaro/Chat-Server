@@ -4,6 +4,7 @@
 #include <string.h>
 #include "constants/config.hpp"
 #include "constants/types.hpp"
+#include "message_info.hpp"
 
 struct Client{
     Client();
@@ -28,17 +29,11 @@ struct Client{
     uint32_t writing_pointer{0};
     uint32_t reading_pointer{0};
 
-    bool valid_header_{false};
     uint32_t byte_counter{0};
     uint32_t sender_key{UINT32_MAX};
-
-    uint8_t type{types::INVALID_TYPE};
-    uint32_t receiver_key{UINT32_MAX};
-    uint64_t message_id{UINT64_MAX};
-    uint32_t timestamp{UINT32_MAX};
-    uint16_t payload_length{UINT16_MAX};
-
     int receiver_fd{-1};
+
+    MessageInfo msg_info;
 
     bool logged_in{false};
 };

@@ -12,5 +12,5 @@ CXXFLAGS="-std=c++17 \
 -fno-omit-frame-pointer \
 -g"
 
-g++ $CXXFLAGS src/server/*.cpp -o build/server-debug
-g++ $CXXFLAGS src/client/*.cpp -o build/client-debug
+g++ $CXXFLAGS src/common/*.cpp src/server/*.cpp -o build/server-debug
+g++ $CXXFLAGS src/common/*.cpp src/client/*.cpp -o build/client-debug
