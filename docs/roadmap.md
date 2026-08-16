@@ -60,7 +60,6 @@
 5. [ ] Rate limiting per client.
 6. [ ] Priority message queue.
 
-
 ## Milestone 9
 1. [ ] File sending.
 2. [ ] Group creation.

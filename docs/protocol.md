@@ -154,9 +154,7 @@ The sender for these messages is the server, the receiver is the client who mess
 **Purpose:** The server tells the client that the server could not send their message at that specific moment.
 ###### 3.2.7.1.13. COULD_NOT_REGISTER
 **Purpose:** The server tells the client that they could not register them, the maximum client per server has been reached.
-#### 3.2.8. UPDATE
-To be defined later.
-#### 3.2.9. ACK
+#### 3.2.8. ACK
 Not complete, to be defined later.
 ### 3.3. Protocol State
 #### 3.3.1. Connection States
@@ -235,7 +233,6 @@ When the TCP connection is closed:
 | ACCEPT_REQUEST | No           | No          | Yes           |
 | REJECT_REQUEST | No           | No          | Yes           |
 | INFO           | Server only  | Server only | Server only   |
-| UPDATE         | No           | -           | -             |
 | ACK            | No           | -           | -             |
 ### 3.5. Data Communication
 #### 3.5.1. Message Reception
@@ -290,9 +287,7 @@ Once the message has been validated, the server must do different tasks accordin
 5. Verify that the sender has a pending request from the receiver.
 6. Forward the message to the receiver.
 7. Delete the pending request.
-##### 3.5.3.6. UPDATE Processing
-To be defined later.
-##### 3.5.3.7. ACK Processing
+##### 3.5.3.6. ACK Processing
 Work in progress.
 #### 3.5.4. Acknowledgements
 Work in progress.
@@ -326,8 +321,7 @@ The following constants define fixed values and limits used by CMPv2.
 | 5     | ACCEPT_REQUEST |
 | 6     | REJECT_REQUEST |
 | 7     | INFO           |
-| 8     | UPDATE         |
-| 9     | ACK            |
+| 8     | ACK            |
 ### 5.2. Message Info Values
 | Value | Type                     |
 | ----- | ------------------------ |

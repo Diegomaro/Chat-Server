@@ -9,6 +9,5 @@ namespace types{
     constexpr uint8_t ACCEPT_REQUEST = 5;
     constexpr uint8_t REJECT_REQUEST = 6;
     constexpr uint8_t INFO = 7;
-    constexpr uint8_t UPDATE = 8;
-    constexpr uint8_t ACK = 9;
+    constexpr uint8_t ACK = 8;
 }
