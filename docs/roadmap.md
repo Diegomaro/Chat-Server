@@ -1,6 +1,7 @@
 # Roadmap
 
 ## Milestone 1
+
 1. [x] Send message from client to server and respond with acknowledgement.
 2. [x] Keep session open between client and server until a specific input occurs.
 3. [x] Send messages from multiple clients to server.
@@ -14,6 +15,7 @@
 11. [x] Handle edge cases and system failures.
 
 ## Milestone 2
+
 1. [x] Intercommunication for little endian and big endian architectures.
 2. [x] Improved protocol header.
 3. [x] Protocol versioning.
@@ -23,6 +25,7 @@
 7. [ ] Timestamps.
 
 ## Milestone 3
+
 1. [ ] Allow clients to login instead of registering.
 2. [ ] Store credentials locally and on server storage (username +  password hash).
 3. [ ] Store messages in local files.
@@ -32,6 +35,7 @@
 7. [ ] Unit testing.
 
 ## Milestone 4
+
 1. [ ] Graceful shutdown and server system restore.
 2. [ ] Detect client disconnections.
 3. [ ] Client reconnect.
@@ -40,19 +44,23 @@
 6. [ ] Session token with expiration.
 
 ## Milestone 5
+
 1. [ ] Encryption in transit.
 2. [ ] Encryption at rest and key storage.
 
 ## Milestone 6
+
 1. [ ] Fuzz testing.
 2. [ ] Integration testing.
 3. [ ] Resilience testing.
 
 ## Milestone 7
+
 1. [ ] Windows compatibility.
 2. [ ] Stress testing.
 
 ## Milestone 8
+
 1. [ ] Server time synchronization with NTP.
 2. [ ] Monitoring.
 3. [ ] System status reporting.
@@ -61,8 +69,10 @@
 6. [ ] Priority message queue.
 
 ## Milestone 9
+
 1. [ ] File sending.
 2. [ ] Group creation.
 
 ## Milestone 10
+
 1. [ ] Split terminal window into message printing and user input.

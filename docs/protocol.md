@@ -4,13 +4,100 @@
 
 ## Table of Contents
 
+1. [Purpose and Scope](#1-purpose-and-scope)
+2. [Introduction](#2-introduction)
+
+   1. [Terminology](#21-terminology)
+3. [Functional Specification](#3-functional-specification)
+
+   1. [Message Format](#31-message-format)
+
+      1. [Header Format](#311-header-format)
+      2. [Payload Format](#312-payload-format)
+      3. [Byte Order](#313-byte-order)
+      4. [Reserved Values](#314-reserved-values)
+   2. [Message Types](#32-message-types)
+
+      1. [USER](#321-user)
+      2. [REGISTER](#322-register)
+      3. [LOGIN](#323-login)
+      4. [SEND_REQUEST](#324-send_request)
+      5. [ACCEPT_REQUEST](#325-accept_request)
+      6. [REJECT_REQUEST](#326-reject_request)
+      7. [INFO](#327-info)
+
+         1. [Info Types](#3271-info-types)
+
+            1. [VALID_REGISTER](#32711-valid_register)
+            2. [INVALID_CREDENTIAL](#32712-invalid_credential)
+            3. [NOT_UNIQUE](#32713-not_unique)
+            4. [ALREADY_LOGGED_IN](#32714-already_logged_in)
+            5. [INVALID_PROTOCOL](#32715-invalid_protocol)
+            6. [INVALID_CLIENT](#32716-invalid_client)
+            7. [INVALID_MESSAGE](#32717-invalid_message)
+            8. [ALREADY_SENT_REQUEST](#32718-already_sent_request)
+            9. [ALREADY_KNOWN_CLIENT](#32719-already_known_client)
+            10. [REQUEST_ALREADY_RECEIVED](#327110-request_already_received)
+            11. [UNAUTHENTICATED_USER](#327111-unauthenticated_user)
+            12. [SEND_ERROR](#327112-send_error)
+            13. [COULD_NOT_REGISTER](#327113-could_not_register)
+      8. [ACK](#328-ack)
+   3. [Protocol State](#33-protocol-state)
+
+      1. [Connection States](#331-connection-states)
+      2. [State Machine](#332-state-machine)
+   4. [Connection Management](#34-connection-management)
+
+      1. [Establishing a Connection](#341-establishing-a-connection)
+      2. [Authentication](#342-authentication)
+
+         1. [Registration](#3421-registration)
+         2. [Login](#3422-login)
+      3. [Connection Termination](#343-connection-termination)
+      4. [Message/State Matrix](#344-messagestate-matrix)
+   5. [Data Communication](#35-data-communication)
+
+      1. [Message Reception](#351-message-reception)
+      2. [Message Validation](#352-message-validation)
+
+         1. [Header Validation](#3521-header-validation)
+         2. [Payload Length Validation](#3522-payload-length-validation)
+      3. [Message Processing](#353-message-processing)
+
+         1. [USER Processing](#3531-user-processing)
+         2. [REGISTER Processing](#3532-register-processing)
+         3. [SEND_REQUEST Processing](#3533-send_request-processing)
+         4. [ACCEPT_REQUEST Processing](#3534-accept_request-processing)
+         5. [REJECT_REQUEST Processing](#3535-reject_request-processing)
+         6. [ACK Processing](#3536-ack-processing)
+      4. [Acknowledgements](#354-acknowledgements)
+   6. [Error Handling](#36-error-handling)
+4. [Security Considerations](#4-security-considerations)
+5. [Protocol Constants](#5-protocol-constants)
+
+   1. [Message Type Values](#51-message-type-values)
+   2. [Message Info Values](#52-message-info-values)
+6. [Implementation Notes](#6-implementation-notes)
+
+   1. [Server Shutdown](#61-server-shutdown)
+   2. [TCP Stream Handling](#62-tcp-stream-handling)
+   3. [Buffering](#63-buffering)
+   4. [Resource Limits](#64-resource-limits)
+7. [Examples](#7-examples)
+
+   1. [Registration](#71-registration)
+   2. [Login](#72-login)
+   3. [Sending a Message](#73-sending-a-message)
+   4. [Acknowledgements](#74-acknowledgements)
+8. [References](#8-references)
+
 ## 1. Purpose and Scope
 
 This document specifies the utility and composition of a CMPv2 message. The purpose of this document is to have a clear explanation on what each field does and how the different messages are processed to allow for any programmer to implement a client from only this document. It also serves the purpose of keeping track of design decisions regarding the protocol and a general overview of what it must achieve, to ensure the protocol fulfills its goals successfully. The scope of this document is to specify how to handle CMPv2 messages and not how to implement a server or a client for any protocol, that implementation relies on the programmer and can take many shapes and forms. The protocol simply describes how the messages should be constructed and what each type of server response means.
 
 ## 2. Introduction
 
-Protocol.md contains a large amount of design goals and specifications of the CMPv2 protocol, specifically what each message does and how the connection and authentication are managed. This is not the only document of this project, more practical specifications are described on architecture.md and a general road map of features to be implemented is found on roadmap.md.
+Protocol.md contains a large amount of design goals and specifications of the CMPv2 protocol, specifically what each message does and how the connection and authentication are managed. This is not the only document of this project, more practical specifications are described on architecture.md and a general road map of features to be implemented is found on [Roadmap](roadmap.md#).
 
 ### 2.1. Terminology
 Work on this later.
@@ -88,7 +175,7 @@ Figure 3: Timestamp subdivision<br>
 
 #### 3.1.2. Payload Format
 
-The payload length is measured in bytes and is allowed to be empty for certain types of messages. The payload data starts right after payload length. The maximum CMP message size is 65536, including the  20 byte header. The NULL terminator is not included. The contents of the different types of payload are described on 3.2. Message Types.
+The payload length is measured in bytes and is allowed to be empty for certain types of messages. The payload data starts right after payload length. The maximum CMP message size is 65536, including the  20 byte header. The NULL terminator is not included. The contents of the different types of payload are described on [Message Types](#32-message-types).
 
 #### 3.1.3. Byte Order
 
@@ -108,7 +195,7 @@ Table 1. Reserved values
 #### 3.2.1. USER
 
 **Purpose:** Send message to another client.<br>
-**Payload:** From 1 to the max payload size, defined in 3.1.2. Payload Format.<br>
+**Payload:** From 1 to the max payload size, defined in [Payload Format](#312-payload-format).<br>
 **Receiver:** The client specifies the recipient using their Client Key. When forwarding a message,  the server replaces the Client Key field with the sender's Client Key.<br>
 **Expected Response:** The server sends the payload to the specified receiver.<br>
 
@@ -327,7 +414,7 @@ Once these two steps have been completed successfully. The server must validate 
 
 #### 3.5.3. Message Processing
 
-Once the message has been validated, the server must do different tasks according to the specified message type. These are described on 3.2. Message Types. The following are the methods to process each type of message:
+Once the message has been validated, the server must do different tasks according to the specified message type. These are described on [Message Types](#32-message-types). The following are the methods to process each type of message:
 
 ##### 3.5.3.1. USER Processing
 
@@ -392,7 +479,7 @@ Work in progress.
 
 ### 3.6. Error Handling
 
-Errors that occurred during message reception, message validation and message processing are handled by informational messages sent by the server. The different types of error that can occur are defined on 3.2.7.1. Info Types. Server side errors depend on implementation and are not defined in this document.
+Errors that occurred during message reception, message validation and message processing are handled by informational messages sent by the server. The different types of error that can occur are defined on [Info Types](#3271-info-types). Server side errors depend on implementation and are not defined in this document.
 
 ## 4. Security Considerations
 
