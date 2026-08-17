@@ -34,6 +34,7 @@ cd Chat-Server
 ```
 2. Build the project:
 ```sh
+chmod 700 compile.sh
 ./compile.sh
 ```
 
@@ -52,13 +53,14 @@ docs/
 - [Architecture](docs/architecture.md)
 - [Protocol](docs/protocol.md)
 - [Roadmap](docs/roadmap.md)
-- ...
+- extra/
 
 headers/
 - constants/
 
 src/
 - client/
+- common/
 - server/
 
 ## Resources

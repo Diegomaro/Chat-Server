@@ -2,11 +2,6 @@ Improvements to protocol
 
 Improved Message Protocol (20 bytes)
 
-VERSION  TYPE     RECEIVER_KEY    MESSAGE_ID      TIMESTAMP       PAYLOAD_LENGTH
-1 byte   1 byte   4 bytes         8 bytes         4 bytes         2 bytes
-
-Protocol version is needed because how would the server know how to parse two distinct headers.
-
 Considerations about ACK:
 What happens when acknowledgements are not received.
 Which type of messages send acknowledgements.
@@ -39,16 +34,3 @@ Option 1: Allow half of them to be used. Check what is the oldest not delivered 
 This includes considering server shutdown and inactive users.
 
 Later me will handle all of the needed architecture for message IDs.
-
-Time:
-Time is important to consider, as it gives valuable information to clients.
-- 12 bits year
-- 4 bits month
-- 5 bits day
-- 5 bits hours
- -6 bits minutes
-
-32 bits total = 4 bytes
-
-Update type:
-Update type that indicates if the client must be updated. Alternative is to have protocol version agreement on connection.
