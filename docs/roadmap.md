@@ -17,7 +17,7 @@
 1. [x] Intercommunication for little endian and big endian architectures.
 2. [x] Improved protocol header.
 3. [x] Protocol versioning.
-4. [ ] Message ID system.
+4. [x] Message ID generation.
 5. [ ] Reworked acknowledgement system to work with message IDs.
 6. [ ] Duplicate message detection.
 7. [ ] Timestamps.

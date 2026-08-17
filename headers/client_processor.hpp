@@ -38,6 +38,7 @@ class ClientProcessor{
         bool setupHashTables();
         bool setupBuffers();
         void setupHeaderTypes();
+        void setupHeader(uint8_t *buffer, uint8_t type, uint8_t payload_length);
         bool setupSocket();
 
         // --- Central loop ---
@@ -134,6 +135,6 @@ class ClientProcessor{
 
         uint8_t auth_message_[protocol::HEADER_SIZE + protocol::USERNAME_LENGTH + protocol::MAX_PASSWORD_LENGTH];
         uint8_t ack_message_[protocol::HEADER_SIZE];
-        uint8_t request_communication_[protocol::HEADER_SIZE + protocol::USERNAME_LENGTH];
-        uint8_t respond_communication_[protocol::HEADER_SIZE + protocol::USERNAME_LENGTH];
+        uint8_t request_message_[protocol::HEADER_SIZE + protocol::USERNAME_LENGTH];
+        uint8_t response_message_[protocol::HEADER_SIZE + protocol::USERNAME_LENGTH];
 };

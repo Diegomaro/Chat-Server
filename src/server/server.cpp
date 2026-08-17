@@ -1031,7 +1031,7 @@ Status Server::actOnRegister(int client_socket, Client *client){
         usr_ctr += username[i] != 0 ? 1 : 0;
         client->advanceReadingPointer();
     }
-    if(usr_ctr < 1){
+    if(usr_ctr < 1 || (username[0] >= 48 && username[0] <= 57)){
         info_message_[protocol::header::PAYLOAD_OFFSET] = info::INVALID_CREDENTIAL;
         return Status::INVALID_MESSAGE;
     }
@@ -1127,7 +1127,7 @@ Status Server::actOnRegister(int client_socket, Client *client){
     Status status = sendMessage(
         client_socket,
         info_message_,
-        protocol::HEADER_SIZE
+        protocol::INFO_MESSAGE_LENGTH
     );
     copyValueToBuffer(
         info_message_,

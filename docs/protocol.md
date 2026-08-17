@@ -164,6 +164,7 @@ The server tells the client that their credentials were valid and they were succ
 The server tells the client that they credentials were invalid, they did not follow the specified rules. These rules are:
 * Usernames must be at least one character long and less than or equal to 16 characters.
 * Usernames must only contain letters of the English alphabet, numbers or underscore.
+* Usernames cannot start with a number.
 * Passwords must be at least 8 characters long and less or equal than 60 characters.
 * more rules to be defined later.
 
