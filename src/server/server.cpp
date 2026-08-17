@@ -127,31 +127,19 @@ void Server::setupBuffers(){
 }
 
 void Server::setupHeaderTypes(){
-    info_message_[protocol::header::HEAD_BITS_OFFSET] = protocol::CMP_VERSION;
-    info_message_[protocol::header::TYPE_OFFSET] = types::INFO;
-    copyValueToBuffer(info_message_, protocol::header::CLIENT_KEY_OFFSET, protocol::CLIENT_KEY_SIZE, UINT32_MAX);
-    copyValueToBuffer(info_message_, protocol::header::MESSAGE_ID_OFFSET, protocol::MESSAGE_ID_SIZE, UINT64_MAX);
-    copyValueToBuffer(info_message_, protocol::header::TIMESTAMP_OFFSET, protocol::TIMESTAMP_SIZE, UINT32_MAX);
-    copyValueToBuffer(info_message_, protocol::header::PAYLOAD_LENGTH_OFFSET, protocol::PAYLOAD_LENGTH_SIZE, protocol::INFO_PAYLOAD_LENGTH);
+    setupHeader(info_message_, types::INFO, protocol::INFO_PAYLOAD_LENGTH);
+    setupHeader(processed_ack_message_, types::ACK, 0);
+    setupHeader(delivered_ack_message_, types::ACK, 0);
+    setupHeader(request_communication_message_, types::SEND_REQUEST, protocol::USERNAME_LENGTH);
+}
 
-    processed_ack_message_[protocol::header::HEAD_BITS_OFFSET] = protocol::CMP_VERSION;
-    processed_ack_message_[protocol::header::TYPE_OFFSET] = types::ACK;
-    copyValueToBuffer(processed_ack_message_, protocol::header::CLIENT_KEY_OFFSET, protocol::CLIENT_KEY_SIZE, UINT32_MAX);
-    copyValueToBuffer(processed_ack_message_, protocol::header::MESSAGE_ID_OFFSET, protocol::MESSAGE_ID_SIZE, UINT64_MAX);
-    copyValueToBuffer(processed_ack_message_, protocol::header::TIMESTAMP_OFFSET, protocol::TIMESTAMP_SIZE, UINT32_MAX);
-
-    delivered_ack_message_[protocol::header::HEAD_BITS_OFFSET] = protocol::CMP_VERSION;
-    delivered_ack_message_[protocol::header::TYPE_OFFSET] = types::ACK;
-    copyValueToBuffer(delivered_ack_message_, protocol::header::CLIENT_KEY_OFFSET, protocol::CLIENT_KEY_SIZE, UINT32_MAX);
-    copyValueToBuffer(delivered_ack_message_, protocol::header::MESSAGE_ID_OFFSET, protocol::MESSAGE_ID_SIZE, UINT64_MAX);
-    copyValueToBuffer(delivered_ack_message_, protocol::header::TIMESTAMP_OFFSET, protocol::TIMESTAMP_SIZE, UINT32_MAX);
-
-    request_communication_message_[protocol::header::HEAD_BITS_OFFSET] = protocol::CMP_VERSION;
-    request_communication_message_[protocol::header::TYPE_OFFSET] = types::SEND_REQUEST;
-    copyValueToBuffer(request_communication_message_, protocol::header::CLIENT_KEY_OFFSET, protocol::CLIENT_KEY_SIZE, UINT32_MAX);
-    copyValueToBuffer(request_communication_message_, protocol::header::MESSAGE_ID_OFFSET, protocol::MESSAGE_ID_SIZE, UINT64_MAX);
-    copyValueToBuffer(request_communication_message_, protocol::header::TIMESTAMP_OFFSET, protocol::TIMESTAMP_SIZE, UINT32_MAX);
-    copyValueToBuffer(request_communication_message_, protocol::header::PAYLOAD_LENGTH_OFFSET, protocol::PAYLOAD_LENGTH_SIZE, protocol::USERNAME_LENGTH);
+void Server::setupHeader(uint8_t *buffer, uint8_t type, uint8_t payload_length){
+    buffer[protocol::header::HEAD_BITS_OFFSET] = protocol::CMP_VERSION;
+    buffer[protocol::header::TYPE_OFFSET] = type;
+    copyValueToBuffer(buffer, protocol::header::CLIENT_KEY_OFFSET, protocol::CLIENT_KEY_SIZE, UINT32_MAX);
+    copyValueToBuffer(buffer, protocol::header::MESSAGE_ID_OFFSET, protocol::MESSAGE_ID_SIZE, UINT64_MAX);
+    copyValueToBuffer(buffer, protocol::header::TIMESTAMP_OFFSET, protocol::TIMESTAMP_SIZE, 0);
+    copyValueToBuffer(buffer, protocol::header::PAYLOAD_LENGTH_OFFSET, protocol::PAYLOAD_LENGTH_SIZE, payload_length);
 }
 
 bool Server::setupListenerSocket(){

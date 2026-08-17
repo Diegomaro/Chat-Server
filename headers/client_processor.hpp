@@ -32,6 +32,16 @@ class ClientProcessor{
                return key == other.key;
             }
         };
+        /*
+        struct MessageMapping{
+            MessageInfo msg_info;
+            uint8_t *message{nullptr};
+
+            bool operator==(const MessageMapping& other) const {
+               return msg_info.message_id == other.msg_info.message_id;
+            }
+        };
+        */
 
         // setup methods
 
@@ -94,6 +104,7 @@ class ClientProcessor{
 
         // attributes
         HashTable<UsernameMapping> username_to_key_;
+        //HashTable<MessageMapping> pending_outgoing_messages_;
         std::list<UsernameMapping> incoming_requests_;
         //LinkedList<UsernameMapping> outgoing_requests_; // implement later
 

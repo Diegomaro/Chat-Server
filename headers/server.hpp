@@ -30,6 +30,7 @@ class Server{
         bool setupHashTables();
         void setupBuffers();
         void setupHeaderTypes();
+        void setupHeader(uint8_t *buffer, uint8_t type, uint8_t payload_length);
         bool setupListenerSocket();
 
         // connections to client
