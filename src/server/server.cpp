@@ -15,6 +15,14 @@
 
 #include "../../headers/server.hpp"
 
+volatile sig_atomic_t shutdown_requested_ = 0;
+
+static void handleSignal(int signal){
+    if(signal == SIGINT){
+        shutdown_requested_ = 1;
+    }
+}
+
 Server::Server(){
     memset(&info_message_, 0, sizeof(info_message_));
     memset(&processed_ack_message_, 0, sizeof(processed_ack_message_));
@@ -93,6 +101,7 @@ bool Server::setupServer(){
     if(!setupListenerSocket()){
         return false;
     }
+    setupShutdownSignal();
     return true;
 }
 
@@ -187,10 +196,21 @@ bool Server::setupListenerSocket(){
     return true;
 }
 
+void Server::setupShutdownSignal(){
+    struct sigaction action = {};
+    action.sa_handler = handleSignal;
+    sigemptyset(&action.sa_mask);
+    action.sa_flags = 0;
+    sigaction(SIGINT, &action, nullptr);
+}
+
 void Server::centralLoop(){
-    while(true){
+    while(!shutdown_requested_){
         int ready_polls = 0;
         if((ready_polls = epoll_wait(epoll_fd_, events_, config::MAX_EVENTS, -1)) == -1){
+            if(errno == EINTR){
+                return;
+            }
             perror("epoll wait failed");
             return;
         }

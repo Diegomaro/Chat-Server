@@ -3,6 +3,8 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #include <sys/epoll.h>
+#include <list>
+#include <csignal>
 
 #include "hash_table.hpp"
 #include "client.hpp"
@@ -11,7 +13,7 @@
 #include "constants/info.hpp"
 #include "constants/protocol.hpp"
 
-#include <list>
+extern volatile sig_atomic_t shutdown_requested_;
 
 class Server{
     public:
@@ -32,6 +34,7 @@ class Server{
         void setupHeaderTypes();
         void setupHeader(uint8_t *buffer, uint8_t type, uint8_t payload_length);
         bool setupListenerSocket();
+        void setupShutdownSignal();
 
         // connections to client
 

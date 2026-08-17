@@ -20,9 +20,10 @@
 2. [x] Improved protocol header.
 3. [x] Protocol versioning.
 4. [x] Message ID generation.
-5. [ ] Reworked acknowledgement system to work with message IDs.
-6. [ ] Duplicate message detection.
-7. [ ] Timestamps.
+5. [x] Server shutdown.
+6. [ ] Reworked acknowledgement system to work with message IDs.
+7. [ ] Duplicate message detection.
+8. [ ] Timestamps.
 
 ## Milestone 3
 
@@ -36,7 +37,7 @@
 
 ## Milestone 4
 
-1. [ ] Graceful shutdown and server system restore.
+1. [ ] Graceful server shutdown and server system restore.
 2. [ ] Detect client disconnections.
 3. [ ] Client reconnect.
 4. [ ] Deliver pending messages when clients reconnect.
