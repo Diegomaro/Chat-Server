@@ -836,7 +836,7 @@ Status Server::checkHeader(int client_socket){
     // CLIENT_KEY
     client->msg_info.client_key = 0;
     for(int i = 0; i < protocol::CLIENT_KEY_SIZE; i++){
-        client->msg_info.client_key += (buffer_pool_[client->reading_pointer]) << ((protocol::CLIENT_KEY_SIZE - 1 - i) * 8);
+        client->msg_info.client_key += static_cast<uint32_t>(buffer_pool_[client->reading_pointer]) << ((protocol::CLIENT_KEY_SIZE - 1 - i) * 8);
         buffer_pool_[client->reading_pointer] = static_cast<uint8_t>(client->sender_key >> ((protocol::CLIENT_KEY_SIZE - 1 - i) * 8));
         client->advanceReadingPointer();
     }
@@ -844,21 +844,21 @@ Status Server::checkHeader(int client_socket){
     // MESSAGE_ID
     client->msg_info.message_id = 0;
     for(int i = 0; i < protocol::MESSAGE_ID_SIZE; i++){
-        client->msg_info.message_id += (buffer_pool_[client->reading_pointer]) << ((protocol::MESSAGE_ID_SIZE - 1 - i) * 8);
+        client->msg_info.message_id += static_cast<uint64_t>(buffer_pool_[client->reading_pointer]) << ((protocol::MESSAGE_ID_SIZE - 1 - i) * 8);
         client->advanceReadingPointer();
     }
 
     // TIMESTAMP
     client->msg_info.message_id = 0;
     for(int i = 0; i < protocol::TIMESTAMP_SIZE; i++){
-        client->msg_info.timestamp += static_cast<uint8_t>(buffer_pool_[client->reading_pointer] << ((protocol::TIMESTAMP_SIZE - 1 - i) * 8));
+        client->msg_info.timestamp += static_cast<uint32_t>(buffer_pool_[client->reading_pointer]) << ((protocol::TIMESTAMP_SIZE - 1 - i) * 8);
         client->advanceReadingPointer();
     }
 
     // PAYLOAD_LENGTH
     client->msg_info.payload_length = 0;
     for(int i = 0; i < protocol::PAYLOAD_LENGTH_SIZE; i++){
-        client->msg_info.payload_length += static_cast<uint8_t>(buffer_pool_[client->reading_pointer] << ((protocol::PAYLOAD_LENGTH_SIZE - 1 - i) * 8));
+        client->msg_info.payload_length += static_cast<uint16_t>(static_cast<uint16_t>(buffer_pool_[client->reading_pointer]) << ((protocol::PAYLOAD_LENGTH_SIZE - 1 - i) * 8));
         client->advanceReadingPointer();
     }
 

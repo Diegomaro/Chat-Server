@@ -120,7 +120,7 @@ class ClientProcessor{
 
         uint32_t my_key_{UINT32_MAX};
         uint64_t my_message_id_{UINT64_MAX};
-        uint32_t current_message_id{0};
+        uint32_t current_message_id{0}; // missing _
 
         MessageInfo msg_info;
 
