@@ -16,7 +16,6 @@
 #include "../../headers/server.hpp"
 
 Server::Server(){
-    memset(&register_message_, 0, sizeof(register_message_));
     memset(&info_message_, 0, sizeof(info_message_));
     memset(&processed_ack_message_, 0, sizeof(processed_ack_message_));
     memset(&delivered_ack_message_, 0, sizeof(delivered_ack_message_));
@@ -128,12 +127,6 @@ void Server::setupBuffers(){
 }
 
 void Server::setupHeaderTypes(){
-    register_message_[protocol::header::HEAD_BITS_OFFSET] = protocol::CMP_VERSION;
-    register_message_[protocol::header::TYPE_OFFSET] = types::REGISTER;
-    copyValueToBuffer(register_message_, protocol::header::CLIENT_KEY_OFFSET, protocol::CLIENT_KEY_SIZE, UINT32_MAX);
-    copyValueToBuffer(register_message_, protocol::header::MESSAGE_ID_OFFSET, protocol::MESSAGE_ID_SIZE, UINT64_MAX);
-    copyValueToBuffer(register_message_, protocol::header::TIMESTAMP_OFFSET, protocol::TIMESTAMP_SIZE, UINT32_MAX);
-
     info_message_[protocol::header::HEAD_BITS_OFFSET] = protocol::CMP_VERSION;
     info_message_[protocol::header::TYPE_OFFSET] = types::INFO;
     copyValueToBuffer(info_message_, protocol::header::CLIENT_KEY_OFFSET, protocol::CLIENT_KEY_SIZE, UINT32_MAX);
@@ -1125,16 +1118,24 @@ Status Server::actOnRegister(int client_socket, Client *client){
         return Status::ERROR;
     }
     copyValueToBuffer(
-        register_message_,
+        info_message_,
         protocol::header::CLIENT_KEY_OFFSET,
         protocol::CLIENT_KEY_SIZE,
         client->sender_key
     );
-    return sendMessage(
+    info_message_[protocol::header::PAYLOAD_OFFSET] = info::VALID_REGISTER;
+    Status status = sendMessage(
         client_socket,
-        register_message_,
+        info_message_,
         protocol::HEADER_SIZE
     );
+    copyValueToBuffer(
+        info_message_,
+        protocol::header::CLIENT_KEY_OFFSET,
+        protocol::CLIENT_KEY_SIZE,
+        UINT32_MAX
+    );
+    return status;
 }
 
 /*

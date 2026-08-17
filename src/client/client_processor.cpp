@@ -501,12 +501,6 @@ Status ClientProcessor::actOnMessage(){
                 }
             }
         } break;
-        case types::REGISTER:{
-            std::cout << "Info: Logged in!" << std::endl;
-            my_key_ = msg_info.client_key;
-            logged_in_ = true;
-            std::cout << "> " << std::flush;
-        } break;
         case types::SEND_REQUEST:
         case types::REJECT_REQUEST:
         case types::ACCEPT_REQUEST:{
@@ -548,6 +542,11 @@ Status ClientProcessor::actOnMessage(){
             uint8_t info_type = incoming_buffer_[reading_pointer_];
             advanceReadingPointer();
             switch(info_type){
+                case info::VALID_REGISTER:{
+                    std::cout << "Info: Logged in!" << std::endl;
+                    my_key_ = msg_info.client_key;
+                    logged_in_ = true;
+                } break;
                 case info::INVALID_CREDENTIAL:{
                     std::cout << "Info: Invalid credentials. Please try again!" << std::endl;
                 } break;
