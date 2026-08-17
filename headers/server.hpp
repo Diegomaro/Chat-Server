@@ -94,6 +94,7 @@ class Server{
         struct epoll_event events_[config::MAX_EVENTS];
 
         uint8_t info_message_[protocol::INFO_MESSAGE_LENGTH];
+        uint8_t register_message_[protocol::HEADER_SIZE];
         uint8_t processed_ack_message_[protocol::HEADER_SIZE];
         uint8_t delivered_ack_message_[protocol::HEADER_SIZE];
         uint8_t request_communication_message_[protocol::HEADER_SIZE + protocol::USERNAME_LENGTH];

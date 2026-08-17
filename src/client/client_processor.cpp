@@ -419,13 +419,13 @@ Status ClientProcessor::checkHeader(){
         // INVALID_PROTOCOL
         return Status::INVALID_MESSAGE;
     }
-
     advanceReadingPointer();
+
     // TYPE
     msg_info.type = incoming_buffer_[reading_pointer_];
     advanceReadingPointer();
 
-    // HOST_KEY
+    // CLIENT_KEY
     msg_info.client_key = 0;
     for(int i = 0; i < protocol::CLIENT_KEY_SIZE; i++){
         msg_info.client_key += (incoming_buffer_[reading_pointer_]) << ((protocol::CLIENT_KEY_SIZE - 1 - i) * 8);
@@ -481,6 +481,13 @@ Status ClientProcessor::actOnMessage(){
                 protocol::CLIENT_KEY_SIZE,
                 msg_info.client_key
             );
+            copyValueToBuffer(
+                ack_message_,
+                protocol::header::MESSAGE_ID_OFFSET,
+                protocol::MESSAGE_ID_SIZE,
+                my_message_id_
+            );
+            updateMessageID();
             Status ack_state = sendMessage(ack_message_, protocol::HEADER_SIZE);
             switch(ack_state){
                 case Status::SUCCESS:{
@@ -497,6 +504,12 @@ Status ClientProcessor::actOnMessage(){
                     return Status::ERROR;
                 }
             }
+        } break;
+        case types::REGISTER:{
+            std::cout << "Info: Logged in!" << std::endl;
+            my_key_ = msg_info.client_key;
+            logged_in_ = true;
+            std::cout << "> " << std::flush;
         } break;
         case types::SEND_REQUEST:
         case types::REJECT_REQUEST:
@@ -539,10 +552,6 @@ Status ClientProcessor::actOnMessage(){
             uint8_t info_type = incoming_buffer_[reading_pointer_];
             advanceReadingPointer();
             switch(info_type){
-                case info::VALID_REGISTER:{
-                    std::cout << "Info: Logged in!" << std::endl;
-                    logged_in_ = true;
-                } break;
                 case info::INVALID_CREDENTIAL:{
                     std::cout << "Info: Invalid credentials. Please try again!" << std::endl;
                 } break;
@@ -657,6 +666,7 @@ void ClientProcessor::inputLoop(){
     if(!welcomeInputLoop()){
         return;
     }
+    updateLoggedInInfo();
     if(!messageInputLoop()){
         return;
     }
@@ -725,10 +735,6 @@ bool ClientProcessor::welcomeInputLoop(){
                 }
                 for(uint32_t i = 0; i < password_length; i++){
                     auth_message_[i + protocol::USERNAME_MESSAGE_LENGTH] = password_[i];
-                }
-
-                for(int i = 0; i < protocol::USERNAME_LENGTH; i++){
-                    respond_communication_[i + protocol::header::PAYLOAD_OFFSET] = username_[i];
                 }
                 send_register_ = true;
             } break;
@@ -832,6 +838,8 @@ bool ClientProcessor::messageInputLoop(){
                     for(uint32_t i = username_length; i < protocol::USERNAME_LENGTH; i++){
                         request_communication_[i + protocol::HEADER_SIZE] = 0;
                     }
+                    copyValueToBuffer(request_communication_, protocol::header::MESSAGE_ID_OFFSET, protocol::MESSAGE_ID_SIZE, my_message_id_);
+                    updateMessageID();
                     send_request_ = true;
                 } else{
                     std::cout << "Invalid username!" << std::endl;
@@ -899,6 +907,13 @@ bool ClientProcessor::messageInputLoop(){
                         protocol::CLIENT_KEY_SIZE,
                         usernameMapping.key
                     );
+                    copyValueToBuffer(
+                        respond_communication_,
+                        protocol::header::MESSAGE_ID_OFFSET,
+                        protocol::MESSAGE_ID_SIZE,
+                        my_message_id_
+                    );
+                    updateMessageID();
                     respond_request_ = true;
                 }
             } break;
@@ -933,8 +948,14 @@ Status ClientProcessor::setMessage(){
 
         outgoing_buffer_[0] = protocol::CMP_VERSION;
         outgoing_buffer_[protocol::header::TYPE_OFFSET] = types::USER;
-
-        // set message ID and timestamp
+        copyValueToBuffer(
+            outgoing_buffer_,
+            protocol::header::MESSAGE_ID_OFFSET + protocol::CLIENT_KEY_SIZE,
+            protocol::MESSAGE_ID_SIZE - protocol::CLIENT_KEY_SIZE,
+            my_message_id_
+        );
+        updateMessageID();
+        // set timestamp
         outgoing_buffer_[protocol::header::PAYLOAD_LENGTH_OFFSET] = static_cast<uint8_t>(message_length >> 8);
         outgoing_buffer_[protocol::header::PAYLOAD_LENGTH_OFFSET + 1] = static_cast<uint8_t>(message_length);
 
@@ -1013,6 +1034,17 @@ Status ClientProcessor::setReceiver(){
         receiver_key_
     );
     return Status::SUCCESS;
+}
+
+// Updates the neccesary buffers once logged in
+void ClientProcessor::updateLoggedInInfo(){
+    for(int i = 0; i < protocol::USERNAME_LENGTH; i++){
+        respond_communication_[i + protocol::header::PAYLOAD_OFFSET] = username_[i];
+    }
+    my_message_id_ = 0;
+    for(int i = 0; i < protocol::MESSAGE_ID_SIZE - protocol::CLIENT_KEY_SIZE; i++){
+        my_message_id_ += my_key_ << ((protocol::MESSAGE_ID_SIZE - 1 - i) * 8);
+    }
 }
 
 // Validates if a credential contains valid characters and is of allowed size.
@@ -1111,6 +1143,14 @@ int ClientProcessor::userNumericInput(){
         }
     }
     return parsed_ans;
+}
+
+void ClientProcessor::updateMessageID(){
+    if((my_message_id_ & 0xFFFFFFFF) == 0xFFFFFFFF){
+        my_message_id_ -= 0xFFFFFFFF;
+    } else{
+        my_message_id_++;
+    }
 }
 
 void ClientProcessor::copyValueToBuffer(uint8_t *buffer, int position, int size, uint64_t value){

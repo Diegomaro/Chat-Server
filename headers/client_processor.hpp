@@ -76,6 +76,7 @@ class ClientProcessor{
 
         // extra
 
+        void updateLoggedInInfo();
         bool validateCredential(const std::string &credential, uint8_t min_length, uint8_t max_length);
 
         bool addUser(uint32_t key, const std::string &username);
@@ -83,6 +84,8 @@ class ClientProcessor{
         char *getUserFromKey(uint32_t key);
 
         // helper methods
+
+        void updateMessageID();
         void copyValueToBuffer(uint8_t *buffer, int position, int size, uint64_t value);
         int userNumericInput();
         bool integerCheck(const std::string &string, uint32_t length);
@@ -114,6 +117,10 @@ class ClientProcessor{
 
         uint32_t byte_counter_{0};
         uint32_t receiver_key_{UINT32_MAX};
+
+        uint32_t my_key_{UINT32_MAX};
+        uint64_t my_message_id_{UINT64_MAX};
+        uint32_t current_message_id{0};
 
         MessageInfo msg_info;
 
