@@ -21,21 +21,22 @@ namespace protocol{
 
     // derived values
 
-    constexpr uint8_t AUTH_PAYLOAD_LENGTH = 1;
+    constexpr uint8_t ACK_PAYLOAD_LENGTH = 1;
     constexpr uint8_t INFO_PAYLOAD_LENGTH = 1;
+    constexpr uint8_t AUTH_PAYLOAD_LENGTH = USERNAME_LENGTH + MAX_PASSWORD_LENGTH;
 
-    constexpr uint8_t USERNAME_MESSAGE_LENGTH = HEADER_SIZE + USERNAME_LENGTH;
-    constexpr uint8_t AUTH_MESSAGE_LENGTH = HEADER_SIZE + AUTH_PAYLOAD_LENGTH;
+    constexpr uint8_t REQUEST_MESSAGE_LENGTH = HEADER_SIZE + USERNAME_LENGTH;
+    constexpr uint8_t ACK_MESSAGE_LENGTH = HEADER_SIZE + ACK_PAYLOAD_LENGTH;
     constexpr uint8_t INFO_MESSAGE_LENGTH = HEADER_SIZE + INFO_PAYLOAD_LENGTH;
+    constexpr uint8_t AUTH_MESSAGE_LENGTH = HEADER_SIZE + AUTH_PAYLOAD_LENGTH;
 
-
-    namespace header{
-        constexpr uint8_t HEAD_BITS_OFFSET = 0;
-        constexpr uint8_t TYPE_OFFSET = 1;
-        constexpr uint8_t CLIENT_KEY_OFFSET = 2;
-        constexpr uint8_t MESSAGE_ID_OFFSET = 6;
-        constexpr uint8_t TIMESTAMP_OFFSET = 14;
-        constexpr uint8_t PAYLOAD_LENGTH_OFFSET = 18;
-        constexpr uint8_t PAYLOAD_OFFSET = 20;
+    namespace offset{
+        constexpr uint8_t VERSION = 0;
+        constexpr uint8_t TYPE = 1;
+        constexpr uint8_t CLIENT_KEY = 2;
+        constexpr uint8_t MESSAGE_ID = 6;
+        constexpr uint8_t TIMESTAMP = 14;
+        constexpr uint8_t PAYLOAD_LENGTH = 18;
+        constexpr uint8_t PAYLOAD = 20;
     }
 }

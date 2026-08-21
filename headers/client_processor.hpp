@@ -7,12 +7,14 @@
 #include<mutex>
 #include <atomic>
 
-#include "hash_table.hpp"
 #include "constants/config.hpp"
 #include "constants/status.hpp"
 #include "constants/types.hpp"
 #include "constants/info.hpp"
 #include "constants/protocol.hpp"
+#include "constants/ack.hpp"
+
+#include "hash_table.hpp"
 #include "message_info.hpp"
 
 #include <list>
@@ -32,7 +34,7 @@ class ClientProcessor{
                return key == other.key;
             }
         };
-        /*
+
         struct MessageMapping{
             MessageInfo msg_info;
             uint8_t *message{nullptr};
@@ -41,7 +43,6 @@ class ClientProcessor{
                return msg_info.message_id == other.msg_info.message_id;
             }
         };
-        */
 
         // setup methods
 
@@ -103,8 +104,9 @@ class ClientProcessor{
         uint32_t stringHash(const char *str);
 
         // attributes
+
         HashTable<UsernameMapping> username_to_key_;
-        //HashTable<MessageMapping> pending_outgoing_messages_;
+        HashTable<MessageMapping> pending_outgoing_messages_;
         std::list<UsernameMapping> incoming_requests_;
         //LinkedList<UsernameMapping> outgoing_requests_; // implement later
 
@@ -144,8 +146,8 @@ class ClientProcessor{
         std::atomic<bool> respond_request_{false};
         std::atomic<bool> send_register_{false};
 
-        uint8_t auth_message_[protocol::HEADER_SIZE + protocol::USERNAME_LENGTH + protocol::MAX_PASSWORD_LENGTH];
-        uint8_t ack_message_[protocol::HEADER_SIZE];
-        uint8_t request_message_[protocol::HEADER_SIZE + protocol::USERNAME_LENGTH];
-        uint8_t response_message_[protocol::HEADER_SIZE + protocol::USERNAME_LENGTH];
+        uint8_t auth_message_[protocol::AUTH_MESSAGE_LENGTH];
+        uint8_t ack_message_[protocol::ACK_MESSAGE_LENGTH];
+        uint8_t request_message_[protocol::REQUEST_MESSAGE_LENGTH];
+        uint8_t response_message_[protocol::REQUEST_MESSAGE_LENGTH];
 };

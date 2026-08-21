@@ -137,18 +137,20 @@ void Server::setupBuffers(){
 
 void Server::setupHeaderTypes(){
     setupHeader(info_message_, types::INFO, protocol::INFO_PAYLOAD_LENGTH);
-    setupHeader(processed_ack_message_, types::ACK, 0);
-    setupHeader(delivered_ack_message_, types::ACK, 0);
+    setupHeader(processed_ack_message_, types::ACK, protocol::ACK_PAYLOAD_LENGTH);
+    setupHeader(delivered_ack_message_, types::ACK, protocol::ACK_PAYLOAD_LENGTH);
     setupHeader(request_communication_message_, types::SEND_REQUEST, protocol::USERNAME_LENGTH);
+    copyValueToBuffer(processed_ack_message_, protocol::offset::PAYLOAD, protocol::ACK_PAYLOAD_LENGTH, ack::PROCESSED);
+    copyValueToBuffer(delivered_ack_message_, protocol::offset::PAYLOAD, protocol::ACK_PAYLOAD_LENGTH, ack::DELIVERED);
 }
 
 void Server::setupHeader(uint8_t *buffer, uint8_t type, uint8_t payload_length){
-    buffer[protocol::header::HEAD_BITS_OFFSET] = protocol::CMP_VERSION;
-    buffer[protocol::header::TYPE_OFFSET] = type;
-    copyValueToBuffer(buffer, protocol::header::CLIENT_KEY_OFFSET, protocol::CLIENT_KEY_SIZE, UINT32_MAX);
-    copyValueToBuffer(buffer, protocol::header::MESSAGE_ID_OFFSET, protocol::MESSAGE_ID_SIZE, UINT64_MAX);
-    copyValueToBuffer(buffer, protocol::header::TIMESTAMP_OFFSET, protocol::TIMESTAMP_SIZE, 0);
-    copyValueToBuffer(buffer, protocol::header::PAYLOAD_LENGTH_OFFSET, protocol::PAYLOAD_LENGTH_SIZE, payload_length);
+    buffer[protocol::offset::VERSION] = protocol::CMP_VERSION;
+    buffer[protocol::offset::TYPE] = type;
+    copyValueToBuffer(buffer, protocol::offset::CLIENT_KEY, protocol::CLIENT_KEY_SIZE, UINT32_MAX);
+    copyValueToBuffer(buffer, protocol::offset::MESSAGE_ID, protocol::MESSAGE_ID_SIZE, UINT64_MAX);
+    copyValueToBuffer(buffer, protocol::offset::TIMESTAMP, protocol::TIMESTAMP_SIZE, 0);
+    copyValueToBuffer(buffer, protocol::offset::PAYLOAD_LENGTH, protocol::PAYLOAD_LENGTH_SIZE, payload_length);
 }
 
 bool Server::setupListenerSocket(){
@@ -355,7 +357,7 @@ void Server::centralLoop(){
                             }
                             switch(check_state){
                                 case Status::INCOMPLETE_MESSAGE:{
-                                    info_message_[protocol::header::PAYLOAD_OFFSET] = info::INVALID_MESSAGE;
+                                    info_message_[protocol::offset::PAYLOAD] = info::INVALID_MESSAGE;
                                     Status send_state = sendMessage(
                                         client_socket,
                                         info_message_,
@@ -656,14 +658,11 @@ Status Server::messageProcessor(int client_socket){
             return Status::INCOMPLETE_MESSAGE;
         } break;
         case Status::INVALID_PROTOCOL:
-        case Status::INVALID_CLIENT:
-        case Status::INVALID_MESSAGE:{
+        case Status::INVALID_CLIENT:{
             if(check_state == Status::INVALID_PROTOCOL){
-                info_message_[protocol::header::PAYLOAD_OFFSET] = info::INVALID_PROTOCOL;
+                info_message_[protocol::offset::PAYLOAD] = info::INVALID_PROTOCOL;
             }else if(check_state == Status::INVALID_CLIENT){
-                info_message_[protocol::header::PAYLOAD_OFFSET] = info::INVALID_CLIENT;
-            } else {
-                info_message_[protocol::header::PAYLOAD_OFFSET] = info::INVALID_MESSAGE;
+                info_message_[protocol::offset::PAYLOAD] = info::INVALID_CLIENT;
             }
             sendMessage(
                 client_socket,
@@ -708,7 +707,7 @@ Status Server::messageProcessor(int client_socket){
             return Status::SUCCESS;
         }
         case Status::INVALID_CLIENT:{
-            info_message_[protocol::header::PAYLOAD_OFFSET] = info::INVALID_CLIENT;
+            info_message_[protocol::offset::PAYLOAD] = info::INVALID_CLIENT;
             Status send_status = sendMessage(
                 client_socket,
                 info_message_,
@@ -731,7 +730,7 @@ Status Server::messageProcessor(int client_socket){
             return send_status;
         } break;
         case Status::RESOURCE_UNAVAILABLE:{
-            info_message_[protocol::header::PAYLOAD_OFFSET] = info::SEND_ERROR;
+            info_message_[protocol::offset::PAYLOAD] = info::SEND_ERROR;
             Status send_status = sendMessage(
                 client_socket,
                 info_message_,
@@ -746,7 +745,7 @@ Status Server::messageProcessor(int client_socket){
             return Status::RESOURCE_UNAVAILABLE;
         } break;
         case Status::EXCEEDED_CLIENT_MAX:{
-            info_message_[protocol::header::PAYLOAD_OFFSET] = info::COULD_NOT_REGISTER;
+            info_message_[protocol::offset::PAYLOAD] = info::COULD_NOT_REGISTER;
             Status send_status = sendMessage(
                 client_socket,
                 info_message_,
@@ -772,12 +771,12 @@ Status Server::messageProcessor(int client_socket){
 }
 
 /*
-Checks if the entire message protocol::header + payload have been received.
+Checks if the entire message header + payload have been received.
 
-SUCCESS - Message protocol::header is complete and valid.
+SUCCESS - Message protocol::offset is complete and valid.
 INCOMPLETE_MESSAGE - The entire message has not been received.
+INVALID_PROTOCOL - The protocol version is not the current version of CMP.
 INVALID_CLIENT - The target client is non existant.
-INVALID_MESSAGE - The message does not follow the protocol rules.
 ERROR - An unhandled error ocurred.
 */
 Status Server::checkMessage(int client_socket){
@@ -802,12 +801,11 @@ Status Server::checkMessage(int client_socket){
 }
 
 /*
-Verifies that a message has a valid protocol::header and replaces target key with sender key.
+Verifies that a message has a valid protocol header and replaces target key with sender key.
 
-SUCCESS - Message protocol::header is complete and valid.
-INCOMPLETE_MESSAGE - The entire protocol::header has not been received.
+SUCCESS - Message protocol::offset is complete and valid.
+INCOMPLETE_MESSAGE - The entire protocol::offset has not been received.
 INVALID_PROTOCOL - The specified protocol version is not the current version of CMP.
-INVALID_MESSAGE - The message does not follow the protocol rules.
 ERROR - An unhandled error ocurred.
 */
 Status Server::checkHeader(int client_socket){
@@ -819,17 +817,17 @@ Status Server::checkHeader(int client_socket){
     if(client->byte_counter < protocol::HEADER_SIZE){
         return Status::INCOMPLETE_MESSAGE;
     }
-    // HEAD_BITS
+    // Version
     if(buffer_pool_[client->reading_pointer] != protocol::CMP_VERSION){
         return Status::INVALID_PROTOCOL;
     }
     client->advanceReadingPointer();
 
-    // TYPE
+    // Type
     client->msg_info.type = buffer_pool_[client->reading_pointer];
     client->advanceReadingPointer();
 
-    // CLIENT_KEY
+    // Client key
     client->msg_info.client_key = 0;
     for(int i = 0; i < protocol::CLIENT_KEY_SIZE; i++){
         client->msg_info.client_key += static_cast<uint32_t>(buffer_pool_[client->reading_pointer]) << ((protocol::CLIENT_KEY_SIZE - 1 - i) * 8);
@@ -837,21 +835,21 @@ Status Server::checkHeader(int client_socket){
         client->advanceReadingPointer();
     }
 
-    // MESSAGE_ID
+    // Message ID
     client->msg_info.message_id = 0;
     for(int i = 0; i < protocol::MESSAGE_ID_SIZE; i++){
         client->msg_info.message_id += static_cast<uint64_t>(buffer_pool_[client->reading_pointer]) << ((protocol::MESSAGE_ID_SIZE - 1 - i) * 8);
         client->advanceReadingPointer();
     }
 
-    // TIMESTAMP
+    // Timestamp
     client->msg_info.message_id = 0;
     for(int i = 0; i < protocol::TIMESTAMP_SIZE; i++){
         client->msg_info.timestamp += static_cast<uint32_t>(buffer_pool_[client->reading_pointer]) << ((protocol::TIMESTAMP_SIZE - 1 - i) * 8);
         client->advanceReadingPointer();
     }
 
-    // PAYLOAD_LENGTH
+    // Payload length
     client->msg_info.payload_length = 0;
     for(int i = 0; i < protocol::PAYLOAD_LENGTH_SIZE; i++){
         client->msg_info.payload_length += static_cast<uint16_t>(static_cast<uint16_t>(buffer_pool_[client->reading_pointer]) << ((protocol::PAYLOAD_LENGTH_SIZE - 1 - i) * 8));
@@ -901,7 +899,7 @@ Status Server::actOnMessage(int client_socket){
     }
 
     if(!client->logged_in && client->msg_info.type != types::REGISTER && client->msg_info.type != types::LOGIN){
-        info_message_[protocol::header::PAYLOAD_OFFSET] = info::UNAUTHENTICATED_USER;
+        info_message_[protocol::offset::PAYLOAD] = info::UNAUTHENTICATED_USER;
         return Status::INVALID_MESSAGE;
     }
 
@@ -923,7 +921,7 @@ Status Server::actOnMessage(int client_socket){
             return actOnAcknowledgement(client);
         } break;
         default:{
-            info_message_[protocol::header::PAYLOAD_OFFSET] = info::INVALID_MESSAGE;
+            info_message_[protocol::offset::PAYLOAD] = info::INVALID_MESSAGE;
             return Status::INVALID_MESSAGE;
         }
     }
@@ -941,7 +939,7 @@ ERROR - An unhandled error ocurred.
 */
 Status Server::actOnUserMessage(int client_socket, Client *client){
     if(client->msg_info.payload_length == 0 || client->msg_info.payload_length > config::MAX_MESSAGE_SIZE){
-        info_message_[protocol::header::PAYLOAD_OFFSET] = info::INVALID_MESSAGE;
+        info_message_[protocol::offset::PAYLOAD] = info::INVALID_MESSAGE;
         return Status::INVALID_MESSAGE;
     }
     // Sender knows receiver
@@ -960,7 +958,7 @@ Status Server::actOnUserMessage(int client_socket, Client *client){
     Status ack_state = sendMessage(
         client_socket,
         processed_ack_message_,
-        protocol::HEADER_SIZE
+        protocol::ACK_MESSAGE_LENGTH
     );
     switch(ack_state){
         case Status::SUCCESS:{
@@ -1008,13 +1006,13 @@ ERROR - An unhandled error ocurred.
 */
 Status Server::actOnRegister(int client_socket, Client *client){
     if(client->logged_in){
-        info_message_[protocol::header::PAYLOAD_OFFSET] = info::ALREADY_LOGGED_IN;
+        info_message_[protocol::offset::PAYLOAD] = info::ALREADY_LOGGED_IN;
         return Status::INVALID_MESSAGE;
     }
 
     if(client->msg_info.payload_length < protocol::USERNAME_LENGTH + protocol::MIN_PASSWORD_LENGTH
     || client->msg_info.payload_length > protocol::USERNAME_LENGTH + protocol::MAX_PASSWORD_LENGTH){
-        info_message_[protocol::header::PAYLOAD_OFFSET] = info::INVALID_CREDENTIAL;
+        info_message_[protocol::offset::PAYLOAD] = info::INVALID_CREDENTIAL;
         return Status::INVALID_MESSAGE;
     }
 
@@ -1028,19 +1026,19 @@ Status Server::actOnRegister(int client_socket, Client *client){
         || (username[i] > 90 && username[i] < 95)
         || (username[i] > 95 && username[i] < 97)
         || username[i] > 122){
-            info_message_[protocol::header::PAYLOAD_OFFSET] = info::INVALID_CREDENTIAL;
+            info_message_[protocol::offset::PAYLOAD] = info::INVALID_CREDENTIAL;
             return Status::INVALID_MESSAGE;
         }
         usr_ctr += username[i] != 0 ? 1 : 0;
         client->advanceReadingPointer();
     }
     if(usr_ctr < 1 || (username[0] >= 48 && username[0] <= 57)){
-        info_message_[protocol::header::PAYLOAD_OFFSET] = info::INVALID_CREDENTIAL;
+        info_message_[protocol::offset::PAYLOAD] = info::INVALID_CREDENTIAL;
         return Status::INVALID_MESSAGE;
     }
     uint8_t password [protocol::MAX_PASSWORD_LENGTH];
     if(client->msg_info.payload_length - protocol::USERNAME_LENGTH > protocol::MAX_PASSWORD_LENGTH){
-        info_message_[protocol::header::PAYLOAD_OFFSET] = info::INVALID_CREDENTIAL;
+        info_message_[protocol::offset::PAYLOAD] = info::INVALID_CREDENTIAL;
         return Status::INVALID_MESSAGE;
     }
     uint32_t psw_ctr = 0;
@@ -1051,7 +1049,7 @@ Status Server::actOnRegister(int client_socket, Client *client){
         || (password[i] > 90 && password[i] < 95)
         || (password[i] > 95 && password[i] < 97)
         || password[i] > 122){
-            info_message_[protocol::header::PAYLOAD_OFFSET] = info::INVALID_CREDENTIAL;
+            info_message_[protocol::offset::PAYLOAD] = info::INVALID_CREDENTIAL;
             return Status::INVALID_MESSAGE;
         }
         psw_ctr++;
@@ -1059,7 +1057,7 @@ Status Server::actOnRegister(int client_socket, Client *client){
     }
 
     if(psw_ctr < protocol::MIN_PASSWORD_LENGTH || psw_ctr > protocol::MAX_PASSWORD_LENGTH){
-        info_message_[protocol::header::PAYLOAD_OFFSET] = info::INVALID_CREDENTIAL;
+        info_message_[protocol::offset::PAYLOAD] = info::INVALID_CREDENTIAL;
         return Status::INVALID_MESSAGE;
     }
 
@@ -1078,7 +1076,7 @@ Status Server::actOnRegister(int client_socket, Client *client){
                     }
                 }
                 if(equal_usernames){
-                    info_message_[protocol::header::PAYLOAD_OFFSET] = info::NOT_UNIQUE;
+                    info_message_[protocol::offset::PAYLOAD] = info::NOT_UNIQUE;
                     return Status::INVALID_MESSAGE;
                 }
             }
@@ -1122,11 +1120,11 @@ Status Server::actOnRegister(int client_socket, Client *client){
     }
     copyValueToBuffer(
         info_message_,
-        protocol::header::CLIENT_KEY_OFFSET,
+        protocol::offset::CLIENT_KEY,
         protocol::CLIENT_KEY_SIZE,
         client->sender_key
     );
-    info_message_[protocol::header::PAYLOAD_OFFSET] = info::VALID_REGISTER;
+    info_message_[protocol::offset::PAYLOAD] = info::VALID_REGISTER;
     Status status = sendMessage(
         client_socket,
         info_message_,
@@ -1134,7 +1132,7 @@ Status Server::actOnRegister(int client_socket, Client *client){
     );
     copyValueToBuffer(
         info_message_,
-        protocol::header::CLIENT_KEY_OFFSET,
+        protocol::offset::CLIENT_KEY,
         protocol::CLIENT_KEY_SIZE,
         UINT32_MAX
     );
@@ -1153,7 +1151,7 @@ ERROR - An unhandled error ocurred.
 Status Server::actOnSendRequest(Client *client){
     // search username. Verify that the connection is not established, if yes, just return true without doing anything.
     if(client->msg_info.payload_length != protocol::USERNAME_LENGTH){
-        info_message_[protocol::header::PAYLOAD_OFFSET] = info::INVALID_MESSAGE;
+        info_message_[protocol::offset::PAYLOAD] = info::INVALID_MESSAGE;
         return Status::INVALID_MESSAGE;
     }
     char target_username [protocol::USERNAME_LENGTH];
@@ -1165,7 +1163,7 @@ Status Server::actOnSendRequest(Client *client){
         || (target_username[i] > 90 && target_username[i] < 95)
         || (target_username[i] > 95 && target_username[i] < 97)
         || target_username[i] > 122){
-            info_message_[protocol::header::PAYLOAD_OFFSET] = info::INVALID_MESSAGE;
+            info_message_[protocol::offset::PAYLOAD] = info::INVALID_MESSAGE;
             return Status::INVALID_MESSAGE;
         }
         usr_ctr++;
@@ -1224,7 +1222,7 @@ Status Server::actOnSendRequest(Client *client){
     }
     auto *known_clients = *client_key_to_known_keys_.getNode(client->sender_key);
     if(searchValueList(known_clients, client->msg_info.client_key)){
-        info_message_[protocol::header::PAYLOAD_OFFSET] = info::ALREADY_KNOWN_CLIENT;
+        info_message_[protocol::offset::PAYLOAD] = info::ALREADY_KNOWN_CLIENT;
         return Status::INVALID_MESSAGE;
     }
 
@@ -1233,7 +1231,7 @@ Status Server::actOnSendRequest(Client *client){
     }
     auto *requests = *client_key_to_requested_keys_.getNode(client->sender_key);
     if(searchValueList(requests, client->msg_info.client_key)){
-        info_message_[protocol::header::PAYLOAD_OFFSET] = info::ALREADY_SENT_REQUEST;
+        info_message_[protocol::offset::PAYLOAD] = info::ALREADY_SENT_REQUEST;
         return Status::INVALID_MESSAGE;
     }
 
@@ -1242,7 +1240,7 @@ Status Server::actOnSendRequest(Client *client){
     }
     auto *receiver_requests = *client_key_to_requested_keys_.getNode(client->msg_info.client_key);
     if(searchValueList(receiver_requests, client->sender_key)){
-        info_message_[protocol::header::PAYLOAD_OFFSET] = info::REQUEST_ALREADY_RECEIVED;
+        info_message_[protocol::offset::PAYLOAD] = info::REQUEST_ALREADY_RECEIVED;
         return Status::INVALID_MESSAGE;
     }
 
@@ -1250,7 +1248,7 @@ Status Server::actOnSendRequest(Client *client){
 
     copyValueToBuffer(
         request_communication_message_,
-        protocol::header::CLIENT_KEY_OFFSET,
+        protocol::offset::CLIENT_KEY,
         protocol::CLIENT_KEY_SIZE,
         client->sender_key
     );
@@ -1277,7 +1275,7 @@ ERROR - An unhandled error ocurred.
 Status Server::actOnRespondToRequest(int client_socket, Client *client){
     //validate if request exist
     if(client->msg_info.payload_length != protocol::USERNAME_LENGTH){
-        info_message_[protocol::header::PAYLOAD_OFFSET] = info::INVALID_MESSAGE;
+        info_message_[protocol::offset::PAYLOAD] = info::INVALID_MESSAGE;
         return Status::INVALID_MESSAGE;
     }
     if(!clients_.searchNode(client->receiver_fd)){
@@ -1289,7 +1287,7 @@ Status Server::actOnRespondToRequest(int client_socket, Client *client){
     }
     auto *known_clients = *client_key_to_known_keys_.getNode(client->sender_key);
     if(searchValueList(known_clients, client->msg_info.client_key)){
-        info_message_[protocol::header::PAYLOAD_OFFSET] = info::ALREADY_KNOWN_CLIENT;
+        info_message_[protocol::offset::PAYLOAD] = info::ALREADY_KNOWN_CLIENT;
         return Status::INVALID_MESSAGE;
     }
 
@@ -1341,10 +1339,11 @@ RESOURCE_UNAVAILABLE - Unexpected error.
 ERROR - An unhandled error ocurred.
 */
 Status Server::actOnAcknowledgement(Client *client){
-    if(client->msg_info.payload_length != 0){
-        info_message_[protocol::header::PAYLOAD_OFFSET] = info::INVALID_MESSAGE;
+    if(client->msg_info.payload_length != protocol::ACK_PAYLOAD_LENGTH){
+        info_message_[protocol::offset::PAYLOAD] = info::INVALID_MESSAGE;
         return Status::INVALID_MESSAGE;
     }
+    client->advanceReadingPointer(); //
     if(client_key_to_known_keys_.searchNode(client->sender_key)){
         auto *known_users = *client_key_to_known_keys_.getNode(client->sender_key);
         if(!searchValueList(known_users, client->msg_info.client_key)){
@@ -1358,14 +1357,14 @@ Status Server::actOnAcknowledgement(Client *client){
     }
     copyValueToBuffer(
         delivered_ack_message_,
-        protocol::header::CLIENT_KEY_OFFSET,
+        protocol::offset::CLIENT_KEY,
         protocol::CLIENT_KEY_SIZE,
         client->sender_key
     );
     Status ack_state = sendMessage(
         client->receiver_fd,
         delivered_ack_message_,
-        protocol::HEADER_SIZE
+        protocol::ACK_MESSAGE_LENGTH
     );
     switch(ack_state){
         case Status::SUCCESS:{
