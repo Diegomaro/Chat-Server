@@ -207,7 +207,7 @@ void Server::setupShutdownSignal(){
 void Server::centralLoop(){
     while(!shutdown_requested_){
         int ready_polls = 0;
-        if((ready_polls = epoll_wait(epoll_fd_, events_, config::MAX_EVENTS, -1)) == -1){
+        if((ready_polls = epoll_wait(epoll_fd_, events_, config::MAX_EVENTS, config::WAITING_TIME_MS)) == -1){
             if(errno == EINTR){
                 return;
             }
@@ -432,9 +432,6 @@ void Server::centralLoop(){
                     }
                 }
             }
-        }
-        if(ready_polls == 0){
-            std::this_thread::sleep_for(config::LOOP_TIMEOUT);
         }
     }
 }
@@ -665,7 +662,7 @@ Status Server::messageProcessor(int client_socket){
                 info_message_[protocol::header::PAYLOAD_OFFSET] = info::INVALID_PROTOCOL;
             }else if(check_state == Status::INVALID_CLIENT){
                 info_message_[protocol::header::PAYLOAD_OFFSET] = info::INVALID_CLIENT;
-            } else if (check_state == Status::INVALID_MESSAGE){
+            } else {
                 info_message_[protocol::header::PAYLOAD_OFFSET] = info::INVALID_MESSAGE;
             }
             sendMessage(

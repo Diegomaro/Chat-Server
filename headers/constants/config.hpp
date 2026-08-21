@@ -22,6 +22,7 @@ namespace config{
     constexpr uint32_t MAX_HOSTS = 2048;
     constexpr uint8_t BUFFER_SEGMENTS_PER_CLIENT = 128;
     constexpr uint32_t BUFFER_SEGMENT_SIZE = 512;
+    constexpr int WAITING_TIME_MS = 1000;
     constexpr auto LOOP_TIMEOUT = std::chrono::milliseconds(100);
 
     // derived values
