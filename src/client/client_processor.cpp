@@ -365,9 +365,9 @@ Status ClientProcessor::messageProcessor(){
 }
 
 /*
-Checks if the entire message protocol::offset + payload have been received.
+Checks if the entire message header + payload have been received.
 
-SUCCESS - Message protocol::offset is complete and valid.
+SUCCESS - Message header is complete and valid.
 INCOMPLETE_MESSAGE - The entire message has not been received.
 INVALID_PROTOCOL - The message protocol is not the current version.
 */
@@ -385,9 +385,9 @@ Status ClientProcessor::checkMessage(){
 }
 
 /*
-Checks if the entire message protocol::offset have been received.
+Checks if the entire message header have been received.
 
-SUCCESS - Message protocol::offset is complete and valid.
+SUCCESS - Message header is complete and valid.
 INCOMPLETE_MESSAGE - The entire message has not been received.
 INVALID_PROTOCOL - The message protocol is not the current version.
 */
@@ -800,7 +800,7 @@ bool ClientProcessor::messageInputLoop(){
                     } break;
                     case Status::NOTHING_TO_DO:{
                     } break;
-                    case Status::INVALID_MESSAGE:{
+                    case Status::INVALID_CLIENT:{
                         std::cout << "Invalid client, please try again!" << std::endl;
                     } break;
                     case Status::PROGRAMMING_ERROR:{
@@ -868,7 +868,7 @@ bool ClientProcessor::messageInputLoop(){
                 }
                 if(ans > ctr){
                     std::cout << "Invalid request selected!" << std::endl;
-                     break;
+                    break;
                 }
 
                 auto requester_user = incoming_requests_.begin();

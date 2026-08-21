@@ -773,7 +773,7 @@ Status Server::messageProcessor(int client_socket){
 /*
 Checks if the entire message header + payload have been received.
 
-SUCCESS - Message protocol::offset is complete and valid.
+SUCCESS - Message header is complete and valid.
 INCOMPLETE_MESSAGE - The entire message has not been received.
 INVALID_PROTOCOL - The protocol version is not the current version of CMP.
 INVALID_CLIENT - The target client is non existant.
@@ -803,8 +803,8 @@ Status Server::checkMessage(int client_socket){
 /*
 Verifies that a message has a valid protocol header and replaces target key with sender key.
 
-SUCCESS - Message protocol::offset is complete and valid.
-INCOMPLETE_MESSAGE - The entire protocol::offset has not been received.
+SUCCESS - Message header is complete and valid.
+INCOMPLETE_MESSAGE - The entire header has not been received.
 INVALID_PROTOCOL - The specified protocol version is not the current version of CMP.
 ERROR - An unhandled error ocurred.
 */
