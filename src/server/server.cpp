@@ -281,6 +281,7 @@ void Server::centralLoop(){
                                     return;
                                 } break;
                                 case Status::ERROR:{
+                                    std::cout << "An unknown error ocurred on messageProcessor!" << std::endl;
                                     return;
                                 } break;
                                 default:{
@@ -296,7 +297,7 @@ void Server::centralLoop(){
                             Status close_connection = closeConnection(client_socket);
                             switch(close_connection){
                                 case Status::SUCCESS:{
-                                    return; // current method of shutting down server.
+                                    receive_loop = false;
                                 } break;
                                 case Status::PROGRAMMING_ERROR:{
                                     std::cout << "There's a code error on closeConnection!" << std::endl;
@@ -365,10 +366,10 @@ void Server::centralLoop(){
                                         } break;
                                         case Status::RESOURCE_UNAVAILABLE:{
                                             //
-                                        }
+                                        }break;
                                         case Status::ERROR:{
                                             return;
-                                        }
+                                        } break;
                                         default:{
                                            std::cout << "Invalid return type!" << std::endl;
                                             return;
@@ -562,9 +563,6 @@ Status Server::closeConnection(int client_socket){
         }
     }
     if(client->sender_key != UINT32_MAX){
-        if(!client_key_to_socket_.deleteNode(client->sender_key)){
-            return Status::PROGRAMMING_ERROR;
-        }
         if(!username_to_client_key_.deleteNode(stringHash(client->name))){
             return Status::PROGRAMMING_ERROR;
         }

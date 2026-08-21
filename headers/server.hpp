@@ -85,10 +85,10 @@ class Server{
         HashTable<std::list<uint32_t>*> client_key_to_known_keys_;
         HashTable<std::list<uint32_t>*> client_key_to_requested_keys_;
 
+        std::list<uint32_t> available_buffers_;
         uint8_t *buffer_pool_{nullptr};
         uint8_t *receiver_buffer_{nullptr};
         uint8_t *sending_buffer_{nullptr};
-        std::list<uint32_t> available_buffers_;
 
         int epoll_fd_{-1};
         int listener_fd_{-1};
